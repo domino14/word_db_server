@@ -49,7 +49,7 @@ type LexiconInfo struct {
 // Initialize the LexiconInfo data structure for a new lexicon,
 // pre-calculating combinations as necessary.
 func (l *LexiconInfo) Initialize() {
-	// Translated from GPL Zyzzyva's calculation code.
+	// Adapted from GPL Zyzzyva's calculation code.
 	maxFrequency := uint8(0)
 	totalLetters := uint8(0)
 	r := uint8(1)
@@ -78,8 +78,9 @@ func (l *LexiconInfo) Initialize() {
 	}
 }
 
+// Calculate the number of combinations for an alphagram.
 func (l *LexiconInfo) Combinations(alphagram string) uint64 {
-	// Translated from GPL Zyzzyva's calculation code.
+	// Adapted from GPL Zyzzyva's calculation code.
 	letters := make([]rune, 0)
 	counts := make([]uint8, 0)
 	combos := make([][]uint64, 0)
@@ -138,3 +139,10 @@ func (l *LexiconInfo) Combinations(alphagram string) uint64 {
 	}
 	return totalCombos
 }
+
+// func (l *lexiconInfo) blankCombinations(numBlanks uint8, counts []uint8,
+// 	combos [][]uint64) uint64 {
+// 	for i := 0; i < numLetters; i++ {
+
+// 	}
+// }
