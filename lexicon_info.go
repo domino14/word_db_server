@@ -39,7 +39,7 @@ func EnglishLetterDistribution() LetterDistribution {
 
 type LexiconInfo struct {
 	lexiconName        string
-	gaddagFilename     string
+	lexiconFilename    string
 	lexiconIndex       uint8
 	descriptiveName    string
 	letterDistribution LetterDistribution

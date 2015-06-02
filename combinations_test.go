@@ -2,13 +2,12 @@ package main
 
 import "testing"
 
-type testpair struct {
+type combinationstestpair struct {
 	alphagram    string
 	combinations uint64
 }
 
-// OWL2 tests
-var combinationsTests = []testpair{
+var combinationsTests = []combinationstestpair{
 	{"AADEEEILMNORSTU", 640342278144},
 	{"AAJQQ", 153},
 	{"ACEIORT", 2323512},
@@ -22,7 +21,7 @@ var combinationsTests = []testpair{
 func TestCalcCombinations(t *testing.T) {
 	lexInfo := LexiconInfo{
 		lexiconName:        "OWL2",
-		gaddagFilename:     "./blah.gaddag",
+		lexiconFilename:    "./blah.txt",
 		lexiconIndex:       4,
 		descriptiveName:    "American 06",
 		letterDistribution: EnglishLetterDistribution()}

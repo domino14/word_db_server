@@ -1,36 +1,43 @@
 package main
 
 import (
-	//"database/sql"
-	//_ "github.com/mattn/go-sqlite3"
-	"fmt"
+//"database/sql"
+//_ "github.com/mattn/go-sqlite3"
+//"fmt"
 )
 
 func main() {
 	//db, err := sql.Open("sqlite3", "./"+lexname+".db")
-	lexiconMap := map[string]*LexiconInfo{
+	symbols := []LexiconSymbolDefinition{
+		{in: "America", notin: "CSW12", symbol: "$"},
+		{in: "CSW12", notin: "OWL2", symbol: "#"},
+		{in: "America", notin: "OWL2", symbol: "+"},
+	}
+	lexiconMap := LexiconMap{
 		"OWL2": &LexiconInfo{
 			lexiconName:        "OWL2",
-			gaddagFilename:     "./blah.gaddag",
+			lexiconFilename:    "/Users/cesar/coding/webolith/words/OWL2.txt",
 			lexiconIndex:       4,
 			descriptiveName:    "American 06",
 			letterDistribution: EnglishLetterDistribution(),
 		},
 		"CSW12": &LexiconInfo{
 			lexiconName:        "CSW12",
-			gaddagFilename:     "./blah.gaddag",
+			lexiconFilename:    "/Users/cesar/coding/webolith/words/CSW12.txt",
 			lexiconIndex:       6,
 			descriptiveName:    "Collins 12",
 			letterDistribution: EnglishLetterDistribution(),
 		},
 		"America": &LexiconInfo{
 			lexiconName:        "America",
-			gaddagFilename:     "./blah.gaddag",
+			lexiconFilename:    "/Users/cesar/coding/webolith/words/America.txt",
 			lexiconIndex:       7,
 			descriptiveName:    "I am America, and so can you.",
 			letterDistribution: EnglishLetterDistribution(),
 		},
 	}
-	lexiconMap["OWL2"].Initialize()
-	fmt.Println(lexiconMap["OWL2"].Combinations("EMILY"))
+	for name, info := range lexiconMap {
+		info.Initialize()
+		CreateLexiconDatabase(name, info, symbols, lexiconMap)
+	}
 }
