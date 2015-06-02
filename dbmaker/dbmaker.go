@@ -1,4 +1,6 @@
-package main
+// Package dbmaker creates SQLITE databases for various lexica, so I can use
+// them in my word game empire.
+package dbmaker
 
 import (
 	"bufio"
@@ -16,9 +18,9 @@ type Alphagram struct {
 type LexiconMap map[string]*LexiconInfo
 
 type LexiconSymbolDefinition struct {
-	in     string // The word is in this lexicon
-	notin  string // The word is not in this lexicon
-	symbol string // The corresponding lexicon symbol
+	In     string // The word is in this lexicon
+	NotIn  string // The word is not in this lexicon
+	Symbol string // The corresponding lexicon symbol
 }
 
 func CreateLexiconDatabase(lexiconName string, lexiconInfo *LexiconInfo,
@@ -26,10 +28,10 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo *LexiconInfo,
 	fmt.Println("Creating lexicon database", lexiconName, lexiconInfo,
 		lexSymbols, lexMap)
 
-	gaddag.GenerateGaddag(lexiconInfo.lexiconFilename, false, false)
+	gaddag.GenerateGaddag(lexiconInfo.LexiconFilename, false, false)
 	definitions := make(map[string]string)
 	alphagrams := make(map[string]*Alphagram)
-	file, _ := os.Open(lexiconInfo.lexiconFilename)
+	file, _ := os.Open(lexiconInfo.LexiconFilename)
 	// XXX: Check error
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -55,7 +57,7 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo *LexiconInfo,
 		}
 	}
 	file.Close()
-	fmt.Println(definitions)
+	fmt.Println("Sorting by probability")
 }
 
 /**

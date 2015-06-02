@@ -1,4 +1,4 @@
-package main
+package dbmaker
 
 //import "fmt"
 
@@ -38,11 +38,11 @@ func EnglishLetterDistribution() LetterDistribution {
 }
 
 type LexiconInfo struct {
-	lexiconName        string
-	lexiconFilename    string
-	lexiconIndex       uint8
-	descriptiveName    string
-	letterDistribution LetterDistribution
+	LexiconName        string
+	LexiconFilename    string
+	LexiconIndex       uint8
+	DescriptiveName    string
+	LetterDistribution LetterDistribution
 	subChooseCombos    [][]uint64
 }
 
@@ -53,7 +53,7 @@ func (l *LexiconInfo) Initialize() {
 	maxFrequency := uint8(0)
 	totalLetters := uint8(0)
 	r := uint8(1)
-	for _, value := range l.letterDistribution {
+	for _, value := range l.LetterDistribution {
 		freq := value
 		totalLetters += freq
 		if freq > maxFrequency {
@@ -97,7 +97,7 @@ func (l *LexiconInfo) Combinations(alphagram string) uint64 {
 			letters = append(letters, letter)
 			counts = append(counts, 1)
 			combos = append(combos,
-				l.subChooseCombos[l.letterDistribution[letter]])
+				l.subChooseCombos[l.LetterDistribution[letter]])
 
 		}
 	}
@@ -112,7 +112,7 @@ func (l *LexiconInfo) Combinations(alphagram string) uint64 {
 	// Calculate combinations with one blank
 	for i := 0; i < numLetters; i++ {
 		counts[i]--
-		thisCombo = l.subChooseCombos[l.letterDistribution['?']][1]
+		thisCombo = l.subChooseCombos[l.LetterDistribution['?']][1]
 		for j := 0; j < numLetters; j++ {
 			thisCombo *= combos[j][counts[j]]
 		}
@@ -127,7 +127,7 @@ func (l *LexiconInfo) Combinations(alphagram string) uint64 {
 				continue
 			}
 			counts[j]--
-			thisCombo = l.subChooseCombos[l.letterDistribution['?']][2]
+			thisCombo = l.subChooseCombos[l.LetterDistribution['?']][2]
 
 			for k := 0; k < numLetters; k++ {
 				thisCombo *= combos[k][counts[k]]

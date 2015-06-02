@@ -1,4 +1,4 @@
-package main
+package dbmaker
 
 import "testing"
 
@@ -20,11 +20,11 @@ var combinationsTests = []combinationstestpair{
 
 func TestCalcCombinations(t *testing.T) {
 	lexInfo := LexiconInfo{
-		lexiconName:        "OWL2",
-		lexiconFilename:    "./blah.txt",
-		lexiconIndex:       4,
-		descriptiveName:    "American 06",
-		letterDistribution: EnglishLetterDistribution()}
+		LexiconName:        "OWL2",
+		LexiconFilename:    "./blah.txt",
+		LexiconIndex:       4,
+		DescriptiveName:    "American 06",
+		LetterDistribution: EnglishLetterDistribution()}
 	lexInfo.Initialize()
 
 	for _, pair := range combinationsTests {

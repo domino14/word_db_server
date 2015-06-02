@@ -1,43 +1,45 @@
+// The caller of the db creator.
 package main
 
 import (
-//"database/sql"
-//_ "github.com/mattn/go-sqlite3"
-//"fmt"
+	//"database/sql"
+	//_ "github.com/mattn/go-sqlite3"
+	//"fmt"
+	"github.com/domino14/word_db_maker/dbmaker"
 )
 
 func main() {
 	//db, err := sql.Open("sqlite3", "./"+lexname+".db")
-	symbols := []LexiconSymbolDefinition{
-		{in: "America", notin: "CSW12", symbol: "$"},
-		{in: "CSW12", notin: "OWL2", symbol: "#"},
-		{in: "America", notin: "OWL2", symbol: "+"},
+	symbols := []dbmaker.LexiconSymbolDefinition{
+		{In: "America", NotIn: "CSW12", Symbol: "$"},
+		{In: "CSW12", NotIn: "OWL2", Symbol: "#"},
+		{In: "America", NotIn: "OWL2", Symbol: "+"},
 	}
-	lexiconMap := LexiconMap{
-		"OWL2": &LexiconInfo{
-			lexiconName:        "OWL2",
-			lexiconFilename:    "/Users/cesar/coding/webolith/words/OWL2.txt",
-			lexiconIndex:       4,
-			descriptiveName:    "American 06",
-			letterDistribution: EnglishLetterDistribution(),
+	lexiconMap := dbmaker.LexiconMap{
+		"OWL2": &dbmaker.LexiconInfo{
+			LexiconName:        "OWL2",
+			LexiconFilename:    "/Users/cesar/coding/webolith/words/OWL2.txt",
+			LexiconIndex:       4,
+			DescriptiveName:    "American 06",
+			LetterDistribution: dbmaker.EnglishLetterDistribution(),
 		},
-		"CSW12": &LexiconInfo{
-			lexiconName:        "CSW12",
-			lexiconFilename:    "/Users/cesar/coding/webolith/words/CSW12.txt",
-			lexiconIndex:       6,
-			descriptiveName:    "Collins 12",
-			letterDistribution: EnglishLetterDistribution(),
+		"CSW12": &dbmaker.LexiconInfo{
+			LexiconName:        "CSW12",
+			LexiconFilename:    "/Users/cesar/coding/webolith/words/CSW12.txt",
+			LexiconIndex:       6,
+			DescriptiveName:    "Collins 12",
+			LetterDistribution: dbmaker.EnglishLetterDistribution(),
 		},
-		"America": &LexiconInfo{
-			lexiconName:        "America",
-			lexiconFilename:    "/Users/cesar/coding/webolith/words/America.txt",
-			lexiconIndex:       7,
-			descriptiveName:    "I am America, and so can you.",
-			letterDistribution: EnglishLetterDistribution(),
+		"America": &dbmaker.LexiconInfo{
+			LexiconName:        "America",
+			LexiconFilename:    "/Users/cesar/coding/webolith/words/America.txt",
+			LexiconIndex:       7,
+			DescriptiveName:    "I am America, and so can you.",
+			LetterDistribution: dbmaker.EnglishLetterDistribution(),
 		},
 	}
 	for name, info := range lexiconMap {
 		info.Initialize()
-		CreateLexiconDatabase(name, info, symbols, lexiconMap)
+		dbmaker.CreateLexiconDatabase(name, info, symbols, lexiconMap)
 	}
 }
