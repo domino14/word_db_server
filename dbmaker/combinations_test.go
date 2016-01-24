@@ -18,6 +18,11 @@ var combinationsTests = []combinationstestpair{
 	{"ABEIPRSTZ", 5669136},
 }
 
+var spanishCombinationsTests = []combinationstestpair{
+	// This is not actually an alphagram. Testing handling of runes.
+	{"OOÑ22", 153},
+}
+
 func TestCalcCombinations(t *testing.T) {
 	lexInfo := LexiconInfo{
 		LexiconName:        "OWL2",
@@ -28,6 +33,22 @@ func TestCalcCombinations(t *testing.T) {
 	lexInfo.Initialize()
 
 	for _, pair := range combinationsTests {
+		combinations := lexInfo.Combinations(pair.alphagram)
+		if combinations != pair.combinations {
+			t.Error("For", pair.alphagram, "expected", pair.combinations,
+				"got", combinations)
+		}
+
+	}
+}
+
+func TestSpanishCombos(t *testing.T) {
+	lexInfo := LexiconInfo{
+		LexiconName:        "FISE",
+		LetterDistribution: SpanishLetterDistribution()}
+	lexInfo.Initialize()
+
+	for _, pair := range spanishCombinationsTests {
 		combinations := lexInfo.Combinations(pair.alphagram)
 		if combinations != pair.combinations {
 			t.Error("For", pair.alphagram, "expected", pair.combinations,

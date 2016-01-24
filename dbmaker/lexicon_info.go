@@ -1,40 +1,39 @@
 package dbmaker
 
-//import "fmt"
+import "github.com/domino14/macondo/gaddag"
 
-type LetterDistribution map[rune]uint8
+type LetterDistribution struct {
+	distribution map[rune]uint8
+	sortOrder    map[rune]int
+}
 
 func EnglishLetterDistribution() LetterDistribution {
 	dist := map[rune]uint8{
-		'A': 9,
-		'B': 2,
-		'C': 2,
-		'D': 4,
-		'E': 12,
-		'F': 2,
-		'G': 3,
-		'H': 2,
-		'I': 9,
-		'J': 1,
-		'K': 1,
-		'L': 4,
-		'M': 2,
-		'N': 6,
-		'O': 8,
-		'P': 2,
-		'Q': 1,
-		'R': 6,
-		'S': 4,
-		'T': 6,
-		'U': 4,
-		'V': 2,
-		'W': 2,
-		'X': 1,
-		'Y': 2,
-		'Z': 1,
-		'?': 2,
+		'A': 9, 'B': 2, 'C': 2, 'D': 4, 'E': 12, 'F': 2, 'G': 3, 'H': 2,
+		'I': 9, 'J': 1, 'K': 1, 'L': 4, 'M': 2, 'N': 6, 'O': 8, 'P': 2,
+		'Q': 1, 'R': 6, 'S': 4, 'T': 6, 'U': 4, 'V': 2, 'W': 2, 'X': 1,
+		'Y': 2, 'Z': 1, '?': 2,
 	}
-	return LetterDistribution(dist)
+	return LetterDistribution{dist, makeSortMap("ABCDEFGHIJKLMNOPQRSTUVWXYZ?")}
+}
+
+func SpanishLetterDistribution() LetterDistribution {
+	dist := map[rune]uint8{
+		'1': 1, '2': 1, '3': 1, // 1: CH, 2: LL, 3: RR
+		'A': 12, 'B': 2, 'C': 4, 'D': 5, 'E': 12, 'F': 1, 'G': 2, 'H': 2,
+		'I': 6, 'J': 1, 'L': 4, 'M': 2, 'N': 5, 'Ñ': 1, 'O': 9, 'P': 2,
+		'Q': 1, 'R': 5, 'S': 6, 'T': 4, 'U': 5, 'V': 1, 'X': 1, 'Y': 1,
+		'Z': 1, '?': 2,
+	}
+	return LetterDistribution{dist, makeSortMap("ABC1DEFGHIJL2MNÑOPQR3STUVXYZ?")}
+}
+
+func makeSortMap(order string) map[rune]int {
+	sortMap := make(map[rune]int)
+	for idx, letter := range order {
+		sortMap[letter] = idx
+	}
+	return sortMap
 }
 
 type LexiconInfo struct {
@@ -44,6 +43,7 @@ type LexiconInfo struct {
 	DescriptiveName    string
 	LetterDistribution LetterDistribution
 	subChooseCombos    [][]uint64
+	Gaddag             gaddag.SimpleGaddag
 }
 
 // Initialize the LexiconInfo data structure for a new lexicon,
@@ -53,7 +53,7 @@ func (l *LexiconInfo) Initialize() {
 	maxFrequency := uint8(0)
 	totalLetters := uint8(0)
 	r := uint8(1)
-	for _, value := range l.LetterDistribution {
+	for _, value := range l.LetterDistribution.distribution {
 		freq := value
 		totalLetters += freq
 		if freq > maxFrequency {
@@ -97,7 +97,7 @@ func (l *LexiconInfo) Combinations(alphagram string) uint64 {
 			letters = append(letters, letter)
 			counts = append(counts, 1)
 			combos = append(combos,
-				l.subChooseCombos[l.LetterDistribution[letter]])
+				l.subChooseCombos[l.LetterDistribution.distribution[letter]])
 
 		}
 	}
@@ -112,7 +112,7 @@ func (l *LexiconInfo) Combinations(alphagram string) uint64 {
 	// Calculate combinations with one blank
 	for i := 0; i < numLetters; i++ {
 		counts[i]--
-		thisCombo = l.subChooseCombos[l.LetterDistribution['?']][1]
+		thisCombo = l.subChooseCombos[l.LetterDistribution.distribution['?']][1]
 		for j := 0; j < numLetters; j++ {
 			thisCombo *= combos[j][counts[j]]
 		}
@@ -127,7 +127,7 @@ func (l *LexiconInfo) Combinations(alphagram string) uint64 {
 				continue
 			}
 			counts[j]--
-			thisCombo = l.subChooseCombos[l.LetterDistribution['?']][2]
+			thisCombo = l.subChooseCombos[l.LetterDistribution.distribution['?']][2]
 
 			for k := 0; k < numLetters; k++ {
 				thisCombo *= combos[k][counts[k]]
