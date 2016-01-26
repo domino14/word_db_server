@@ -21,3 +21,15 @@ func TestPopulate(t *testing.T) {
 		t.Error("Defs should have 3 words, got", len(defs))
 	}
 }
+
+func TestSortedHooks(t *testing.T) {
+	lexInfo := LexiconInfo{
+		LexiconName:        "FISE",
+		LetterDistribution: SpanishLetterDistribution(),
+	}
+	lexInfo.Initialize()
+	hooks := []rune("2ANRSXZ")
+	if sortedHooks(hooks, lexInfo.LetterDistribution) != "A2NRSXZ" {
+		t.Error("Sorted hooks wrong")
+	}
+}

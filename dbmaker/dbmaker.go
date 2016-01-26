@@ -140,8 +140,10 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo,
 				log.Fatal(err)
 			}
 
-			backHooks := string(gaddag.FindHooks(gd, word, gaddag.BackHooks))
-			frontHooks := string(gaddag.FindHooks(gd, word, gaddag.FrontHooks))
+			backHooks := sortedHooks(gaddag.FindHooks(gd, word, gaddag.BackHooks),
+				lexiconInfo.LetterDistribution)
+			frontHooks := sortedHooks(gaddag.FindHooks(gd, word, gaddag.FrontHooks),
+				lexiconInfo.LetterDistribution)
 			frontInnerHook := 0
 			backInnerHook := 0
 			if gaddag.FindInnerHook(gd, word, gaddag.BackInnerHook) {
@@ -161,6 +163,11 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo,
 		}
 	}
 	tx.Commit()
+}
+
+func sortedHooks(hooks []rune, dist LetterDistribution) string {
+	w := Word{word: string(hooks), dist: dist}
+	return w.MakeAlphagram()
 }
 
 func findLexSymbols(word string, lexiconName string, lexMap LexiconMap,
