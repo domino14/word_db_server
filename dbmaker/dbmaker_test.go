@@ -1,13 +1,14 @@
 package dbmaker
 
 import "testing"
+import "github.com/domino14/macondo/lexicon"
 
 func TestPopulate(t *testing.T) {
-	lexInfo := LexiconInfo{
+	lexInfo := lexicon.LexiconInfo{
 		LexiconName:        "America",
 		LexiconIndex:       7,
 		DescriptiveName:    "I am America, and so can you.",
-		LetterDistribution: EnglishLetterDistribution(),
+		LetterDistribution: lexicon.EnglishLetterDistribution(),
 	}
 	lexInfo.Initialize()
 	defs, alphs := populateAlphsDefs("test_files/mini_america.txt",
@@ -23,9 +24,9 @@ func TestPopulate(t *testing.T) {
 }
 
 func TestSortedHooks(t *testing.T) {
-	lexInfo := LexiconInfo{
+	lexInfo := lexicon.LexiconInfo{
 		LexiconName:        "FISE",
-		LetterDistribution: SpanishLetterDistribution(),
+		LetterDistribution: lexicon.SpanishLetterDistribution(),
 	}
 	lexInfo.Initialize()
 	hooks := []rune("2ANRSXZ")

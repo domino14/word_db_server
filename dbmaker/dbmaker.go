@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/domino14/macondo/gaddag"
+	"github.com/domino14/macondo/lexicon"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
 	"os"
@@ -40,7 +41,7 @@ func (a AlphByCombos) Less(i, j int) bool {
 	}
 }
 
-type LexiconMap map[string]LexiconInfo
+type LexiconMap map[string]lexicon.LexiconInfo
 
 type LexiconSymbolDefinition struct {
 	In     string // The word is in this lexicon
@@ -79,7 +80,7 @@ func createSqliteDb(lexiconName string) string {
 	return dbName
 }
 
-func CreateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo,
+func CreateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo,
 	lexSymbols []LexiconSymbolDefinition, lexMap LexiconMap) {
 	fmt.Println("Creating lexicon database", lexiconName)
 	definitions, alphagrams := populateAlphsDefs(lexiconInfo.LexiconFilename,
@@ -165,8 +166,8 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo,
 	tx.Commit()
 }
 
-func sortedHooks(hooks []rune, dist LetterDistribution) string {
-	w := Word{word: string(hooks), dist: dist}
+func sortedHooks(hooks []rune, dist lexicon.LetterDistribution) string {
+	w := lexicon.Word{Word: string(hooks), Dist: dist}
 	return w.MakeAlphagram()
 }
 
@@ -198,7 +199,7 @@ func alphaMapValues(theMap map[string]Alphagram) []Alphagram {
 }
 
 func populateAlphsDefs(filename string, combinations func(string) uint64,
-	dist LetterDistribution) (
+	dist lexicon.LetterDistribution) (
 	map[string]string, map[string]Alphagram) {
 	definitions := make(map[string]string)
 	alphagrams := make(map[string]Alphagram)
@@ -208,21 +209,21 @@ func populateAlphsDefs(filename string, combinations func(string) uint64,
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
 		if len(fields) > 0 {
-			word := Word{word: strings.ToUpper(fields[0]), dist: dist}
+			word := lexicon.Word{Word: strings.ToUpper(fields[0]), Dist: dist}
 			definition := ""
 			if len(fields) > 1 {
 				definition = strings.Join(fields[1:], " ")
 			}
-			definitions[word.word] = definition
+			definitions[word.Word] = definition
 			alphagram := word.MakeAlphagram()
 			alph, ok := alphagrams[alphagram]
 			if !ok {
 				alphagrams[alphagram] = Alphagram{
-					[]string{word.word},
+					[]string{word.Word},
 					combinations(alphagram),
 					alphagram}
 			} else {
-				alph.words = append(alph.words, word.word)
+				alph.words = append(alph.words, word.Word)
 				alphagrams[alphagram] = alph
 			}
 		}
