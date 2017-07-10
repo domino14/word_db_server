@@ -198,7 +198,7 @@ func alphaMapValues(theMap map[string]Alphagram) []Alphagram {
 	return x
 }
 
-func populateAlphsDefs(filename string, combinations func(string) uint64,
+func populateAlphsDefs(filename string, combinations func(string, bool) uint64,
 	dist lexicon.LetterDistribution) (
 	map[string]string, map[string]Alphagram) {
 	definitions := make(map[string]string)
@@ -220,7 +220,7 @@ func populateAlphsDefs(filename string, combinations func(string) uint64,
 			if !ok {
 				alphagrams[alphagram] = Alphagram{
 					[]string{word.Word},
-					combinations(alphagram),
+					combinations(alphagram, true),
 					alphagram}
 			} else {
 				alph.words = append(alph.words, word.Word)
