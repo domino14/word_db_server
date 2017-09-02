@@ -2,6 +2,8 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"os"
 
 	"github.com/domino14/macondo/gaddag"
@@ -10,6 +12,14 @@ import (
 )
 
 func main() {
+	// We are going to have a flag to "fix" a database. This is due to a
+	// legacy issue where alphagram sort order was not deterministic for
+	// alphagrams with equal probability, so we need to keep the old
+	// sort orders around in order to not mess up alphagrams-by-probability
+	// lists.
+	var fixdb = flag.String("fixdb", "", "Fix a DB instead of generating it")
+	flag.Parse()
+	dbToFix := *fixdb
 	//db, err := sql.Open("sqlite3", "./"+lexname+".db")
 	symbols := []dbmaker.LexiconSymbolDefinition{
 		{In: "America2016", NotIn: "CSW15", Symbol: "$"},
@@ -75,8 +85,17 @@ func main() {
 			LetterDistribution: lexicon.SpanishLetterDistribution(),
 		},
 	}
-	for name, info := range lexiconMap {
-		info.Initialize()
-		dbmaker.CreateLexiconDatabase(name, info, symbols, lexiconMap)
+	if dbToFix != "" {
+		info, ok := lexiconMap[dbToFix]
+		if !ok {
+			fmt.Printf("That lexicon is not supported\n")
+			return
+		}
+		dbmaker.FixLexiconDatabase(dbToFix, info)
+	} else {
+		for name, info := range lexiconMap {
+			info.Initialize()
+			dbmaker.CreateLexiconDatabase(name, info, symbols, lexiconMap)
+		}
 	}
 }

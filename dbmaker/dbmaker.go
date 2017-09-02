@@ -19,10 +19,29 @@ type Alphagram struct {
 	words        []string
 	combinations uint64
 	alphagram    string
+	wordCount    uint8
 }
 
 func (a *Alphagram) String() string {
 	return fmt.Sprintf("Alphagram: %s (%d)", a.alphagram, a.combinations)
+}
+
+func (a *Alphagram) pointValue(dist lexicon.LetterDistribution) uint8 {
+	pts := uint8(0)
+	for _, rn := range a.alphagram {
+		pts += dist.PointValues[rn]
+	}
+	return pts
+}
+
+func (a *Alphagram) numVowels() uint8 {
+	vowels := uint8(0)
+	for _, rn := range a.alphagram {
+		if rn == 'A' || rn == 'E' || rn == 'I' || rn == 'O' || rn == 'U' {
+			vowels += 1
+		}
+	}
+	return vowels
 }
 
 type AlphByCombos []Alphagram // used to be []*Alphagram
@@ -55,7 +74,8 @@ func createSqliteDb(lexiconName string) string {
 	os.Remove(dbName)
 	sqlStmt := `
 	CREATE TABLE alphagrams (probability int, alphagram varchar(20),
-	    length int, combinations int);
+	    length int, combinations int, num_anagrams int,
+	    point_value int, num_vowels int);
 
 	CREATE TABLE words (word varchar(20), alphagram varchar(20),
 	    lexicon_symbols varchar(5), definition varchar(512),
@@ -66,6 +86,12 @@ func createSqliteDb(lexiconName string) string {
 	CREATE INDEX prob_index on alphagrams(probability, length);
 	CREATE INDEX word_index on words(word);
 	CREATE INDEX alphagram_index on words(alphagram);
+
+	CREATE INDEX num_anagrams_index on alphagrams(alphagram);
+	CREATE INDEX point_value_index on alphagrams(alphagram);
+	CREATE INDEX num_vowels_index on alphagrams(alphagram);
+
+	CREATE TABLE db_version (version integer);
 	`
 	db, err := sql.Open("sqlite3", dbName)
 	if err != nil {
@@ -97,8 +123,9 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo,
 	dbName := createSqliteDb(lexiconName)
 
 	alphInsertQuery := `
-	INSERT INTO alphagrams(probability, alphagram, length, combinations)
-	VALUES (?, ?, ?, ?)`
+	INSERT INTO alphagrams(probability, alphagram, length, combinations,
+		num_anagrams, point_value, num_vowels)
+	VALUES (?, ?, ?, ?, ?, ?, ?)`
 	wordInsertQuery := `
 	INSERT INTO words (word, alphagram, lexicon_symbols, definition,
 		front_hooks, back_hooks, inner_front_hook, inner_back_hook)
@@ -132,7 +159,9 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo,
 		if wl <= 15 {
 			probs[wl]++
 		}
-		_, err = alphStmt.Exec(probs[wl], alph.alphagram, wl, alph.combinations)
+		_, err = alphStmt.Exec(probs[wl], alph.alphagram, wl, alph.combinations,
+			len(alph.words), alph.pointValue(lexiconInfo.LetterDistribution),
+			alph.numVowels())
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -164,6 +193,143 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo,
 		}
 	}
 	tx.Commit()
+
+	_, err = db.Exec("INSERT INTO db_version(version) VALUES(?)", 2)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+}
+
+// FixLexiconDatabase assumes the database has already been created with
+// a previous version of this program. At the minimum, the schema looks like:
+// sqlStmt := `
+// CREATE TABLE alphagrams (probability int, alphagram varchar(20),
+//     length int, combinations int, num_anagrams int);
+
+// CREATE TABLE words (word varchar(20), alphagram varchar(20),
+//     lexicon_symbols varchar(5), definition varchar(512),
+//     front_hooks varchar(26), back_hooks varchar(26),
+//     inner_front_hook int, inner_back_hook int);
+
+// CREATE INDEX alpha_index on alphagrams(alphagram);
+// CREATE INDEX prob_index on alphagrams(probability, length);
+// CREATE INDEX word_index on words(word);
+// CREATE INDEX alphagram_index on words(alphagram);
+// `
+// This function assumes the above schema.
+func FixLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo) {
+	dbName := "./" + lexiconName + ".db"
+
+	db, err := sql.Open("sqlite3", dbName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var version int
+	err = db.QueryRow("SELECT version FROM db_version").Scan(&version)
+	switch {
+	case err == sql.ErrNoRows:
+		log.Fatal("There is a version table but it has no values in it")
+	case err != nil:
+		if err.Error() == "no such table: db_version" {
+			log.Printf("No version table, creating one...")
+			_, err = db.Exec("CREATE TABLE db_version (version integer)")
+			if err != nil {
+				log.Fatal(err)
+			}
+			_, err = db.Exec("INSERT INTO db_version(version) VALUES(?)", 1)
+			if err != nil {
+				log.Fatal(err)
+			}
+			version = 1
+		} else {
+			log.Fatal(err)
+		}
+	default:
+		fmt.Printf("Version of this table is %d, moving to %d", version,
+			version+1)
+	}
+
+	if version == 1 {
+		fmt.Printf("Migrating to version 2...")
+		migrateToV2(db, lexiconInfo.LetterDistribution)
+	}
+
+}
+
+func migrateToV2(db *sql.DB, dist lexicon.LetterDistribution) {
+	// Version 2 has the following improvements:
+	// An index on point value, and point value
+	// An index on num anagrams, and num anagrams
+	// An index on num vowels, and num vowels
+
+	_, err := db.Exec(`
+			ALTER TABLE alphagrams ADD COLUMN num_anagrams int;
+			ALTER TABLE alphagrams ADD COLUMN point_value int;
+			ALTER TABLE alphagrams ADD COLUMN num_vowels int;
+
+			CREATE INDEX num_anagrams_index on alphagrams(alphagram);
+			CREATE INDEX point_value_index on alphagrams(alphagram);
+			CREATE INDEX num_vowels_index on alphagrams(alphagram);
+			`)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Read in all the alphagrams.
+	rows, err := db.Query(`
+			SELECT words.alphagram, count() AS word_ct FROM words
+			INNER JOIN alphagrams on words.alphagram = alphagrams.alphagram
+			GROUP BY words.alphagram
+			`)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+
+	tx, err := db.Begin()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	updateQuery := `
+		UPDATE alphagrams SET num_anagrams = ?, point_value = ?, num_vowels = ?
+		WHERE alphagram = ?
+	`
+
+	alphagrams := []Alphagram{}
+	// Read all the rows and update alphagrams.
+	for rows.Next() {
+		var (
+			alph      string
+			wordCount int
+		)
+		if err := rows.Scan(&alph, &wordCount); err != nil {
+			log.Fatal(err)
+		}
+		alphagrams = append(alphagrams, Alphagram{alphagram: alph,
+			wordCount: uint8(wordCount)})
+	}
+
+	i := 0
+	updateStmt, err := tx.Prepare(updateQuery)
+	for _, alph := range alphagrams {
+		_, err := updateStmt.Exec(alph.wordCount, alph.pointValue(dist),
+			alph.numVowels(), alph.alphagram)
+		if err != nil {
+			log.Fatal(err)
+		}
+		i += 1
+		if i%10000 == 0 {
+			log.Printf("%d...", i)
+		}
+	}
+	tx.Commit()
+
+	_, err = db.Exec("UPDATE db_version SET version = ?", 2)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func sortedHooks(hooks []rune, dist lexicon.LetterDistribution) string {
@@ -221,7 +387,7 @@ func populateAlphsDefs(filename string, combinations func(string, bool) uint64,
 				alphagrams[alphagram] = Alphagram{
 					[]string{word.Word},
 					combinations(alphagram, true),
-					alphagram}
+					alphagram, 0}
 			} else {
 				alph.words = append(alph.words, word.Word)
 				alphagrams[alphagram] = alph
