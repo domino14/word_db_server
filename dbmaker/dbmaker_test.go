@@ -46,6 +46,14 @@ func TestPointValue(t *testing.T) {
 		alphaTestCase{"AVYYZZZ", 43},
 		alphaTestCase{"AEILNOR", 7},
 		alphaTestCase{"DEUTERANOMALIES", 18},
+		alphaTestCase{"THE", 6},
+		alphaTestCase{"QUICK", 20},
+		alphaTestCase{"BROWN", 10},
+		alphaTestCase{"FOX", 13},
+		alphaTestCase{"JUMPED", 18},
+		alphaTestCase{"OVER", 7},
+		alphaTestCase{"LAZY", 16},
+		alphaTestCase{"DOG", 5},
 	}
 	for _, tc := range ptTestCases {
 		a := &Alphagram{nil, 0, tc.alphagram, 0}
@@ -64,6 +72,7 @@ func TestNumVowels(t *testing.T) {
 		alphaTestCase{"AEILNOR", 4},
 		alphaTestCase{"DEUTERANOMALIES", 8},
 		alphaTestCase{"GLYCYLS", 0},
+		alphaTestCase{"EUOUAE", 6},
 	}
 	for _, tc := range vowelTestCases {
 		a := &Alphagram{nil, 0, tc.alphagram, 0}
