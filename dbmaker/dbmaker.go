@@ -68,6 +68,8 @@ type LexiconSymbolDefinition struct {
 	Symbol string // The corresponding lexicon symbol
 }
 
+const CurrentVersion = 3
+
 // create a sqlite db for this lexicon name.
 func createSqliteDb(lexiconName string) string {
 	dbName := "./" + lexiconName + ".db"
@@ -86,6 +88,7 @@ func createSqliteDb(lexiconName string) string {
 	CREATE INDEX prob_index on alphagrams(probability, length);
 	CREATE INDEX word_index on words(word);
 	CREATE INDEX alphagram_index on words(alphagram);
+	CREATE INDEX length_index on alphagrams(length);
 
 	CREATE INDEX num_anagrams_index on alphagrams(num_anagrams);
 	CREATE INDEX point_value_index on alphagrams(point_value);
@@ -194,7 +197,7 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo,
 	}
 	tx.Commit()
 
-	_, err = db.Exec("INSERT INTO db_version(version) VALUES(?)", 2)
+	_, err = db.Exec("INSERT INTO db_version(version) VALUES(?)", CurrentVersion)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -246,13 +249,22 @@ func FixLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo) {
 			log.Fatal(err)
 		}
 	default:
-		fmt.Printf("Version of this table is %d, moving to %d", version,
-			version+1)
+		if version == CurrentVersion {
+			fmt.Printf("DB Version is up to date (version %d)\n", version)
+		} else {
+			fmt.Printf("Version of this table is %d, moving to %d\n", version,
+				version+1)
+		}
 	}
 
 	if version == 1 {
-		fmt.Printf("Migrating to version 2...")
+		fmt.Println("Migrating to version 2...")
 		migrateToV2(db, lexiconInfo.LetterDistribution)
+		fmt.Println("Run again to migrate to version 3")
+	}
+	if version == 2 {
+		fmt.Printf("Migrating to version 3...")
+		migrateToV3(db)
 	}
 
 }
@@ -327,6 +339,17 @@ func migrateToV2(db *sql.DB, dist lexicon.LetterDistribution) {
 	tx.Commit()
 
 	_, err = db.Exec("UPDATE db_version SET version = ?", 2)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func migrateToV3(db *sql.DB) {
+	_, err := db.Exec("CREATE INDEX length_index on alphagrams(length);")
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, err = db.Exec("UPDATE db_version SET version = ?", 3)
 	if err != nil {
 		log.Fatal(err)
 	}
