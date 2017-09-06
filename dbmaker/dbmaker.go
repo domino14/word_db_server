@@ -87,9 +87,9 @@ func createSqliteDb(lexiconName string) string {
 	CREATE INDEX word_index on words(word);
 	CREATE INDEX alphagram_index on words(alphagram);
 
-	CREATE INDEX num_anagrams_index on alphagrams(alphagram);
-	CREATE INDEX point_value_index on alphagrams(alphagram);
-	CREATE INDEX num_vowels_index on alphagrams(alphagram);
+	CREATE INDEX num_anagrams_index on alphagrams(num_anagrams);
+	CREATE INDEX point_value_index on alphagrams(point_value);
+	CREATE INDEX num_vowels_index on alphagrams(num_vowels);
 
 	CREATE TABLE db_version (version integer);
 	`
@@ -268,9 +268,9 @@ func migrateToV2(db *sql.DB, dist lexicon.LetterDistribution) {
 			ALTER TABLE alphagrams ADD COLUMN point_value int;
 			ALTER TABLE alphagrams ADD COLUMN num_vowels int;
 
-			CREATE INDEX num_anagrams_index on alphagrams(alphagram);
-			CREATE INDEX point_value_index on alphagrams(alphagram);
-			CREATE INDEX num_vowels_index on alphagrams(alphagram);
+			CREATE INDEX num_anagrams_index on alphagrams(num_anagrams);
+			CREATE INDEX point_value_index on alphagrams(point_value);
+			CREATE INDEX num_vowels_index on alphagrams(num_vowels);
 			`)
 	if err != nil {
 		log.Fatal(err)
