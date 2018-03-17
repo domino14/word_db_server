@@ -18,8 +18,10 @@ func main() {
 	// sort orders around in order to not mess up alphagrams-by-probability
 	// lists.
 	var fixdb = flag.String("fixdb", "", "Fix a DB instead of generating it")
+	var outputDirF = flag.String("outputdir", ".", "The output directory")
 	flag.Parse()
 	dbToFix := *fixdb
+	outputDir := *outputDirF
 	//db, err := sql.Open("sqlite3", "./"+lexname+".db")
 	symbols := []dbmaker.LexiconSymbolDefinition{
 		{In: "America2016", NotIn: "CSW15", Symbol: "$"},
@@ -95,8 +97,13 @@ func main() {
 		dbmaker.FixLexiconDatabase(dbToFix, info)
 	} else {
 		for name, info := range lexiconMap {
+			if info.Gaddag.GetAlphabet() == nil {
+				fmt.Println(name, "was not supplied, skipping...")
+				continue
+			}
 			info.Initialize()
-			dbmaker.CreateLexiconDatabase(name, info, symbols, lexiconMap)
+			dbmaker.CreateLexiconDatabase(name, info, symbols, lexiconMap,
+				outputDir)
 		}
 	}
 }

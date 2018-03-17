@@ -6,13 +6,14 @@ import (
 	"bufio"
 	"database/sql"
 	"fmt"
-	"github.com/domino14/macondo/gaddag"
-	"github.com/domino14/macondo/lexicon"
-	_ "github.com/mattn/go-sqlite3"
 	"log"
 	"os"
 	"sort"
 	"strings"
+
+	"github.com/domino14/macondo/gaddag"
+	"github.com/domino14/macondo/lexicon"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type Alphagram struct {
@@ -71,8 +72,8 @@ type LexiconSymbolDefinition struct {
 const CurrentVersion = 3
 
 // create a sqlite db for this lexicon name.
-func createSqliteDb(lexiconName string) string {
-	dbName := "./" + lexiconName + ".db"
+func createSqliteDb(outputDir string, lexiconName string) string {
+	dbName := outputDir + "/" + lexiconName + ".db"
 	os.Remove(dbName)
 	sqlStmt := `
 	CREATE TABLE alphagrams (probability int, alphagram varchar(20),
@@ -97,6 +98,7 @@ func createSqliteDb(lexiconName string) string {
 	CREATE TABLE db_version (version integer);
 	`
 	db, err := sql.Open("sqlite3", dbName)
+	fmt.Println("Opened database file at", dbName)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -110,7 +112,8 @@ func createSqliteDb(lexiconName string) string {
 }
 
 func CreateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo,
-	lexSymbols []LexiconSymbolDefinition, lexMap LexiconMap) {
+	lexSymbols []LexiconSymbolDefinition, lexMap LexiconMap,
+	outputDir string) {
 	fmt.Println("Creating lexicon database", lexiconName)
 	definitions, alphagrams := populateAlphsDefs(lexiconInfo.LexiconFilename,
 		lexiconInfo.Combinations, lexiconInfo.LetterDistribution)
@@ -123,7 +126,7 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo,
 		probs[i] = 0
 	}
 
-	dbName := createSqliteDb(lexiconName)
+	dbName := createSqliteDb(outputDir, lexiconName)
 
 	alphInsertQuery := `
 	INSERT INTO alphagrams(probability, alphagram, length, combinations,
@@ -368,7 +371,9 @@ func findLexSymbols(word string, lexiconName string, lexMap LexiconMap,
 	for _, def := range lexSymbols {
 		if lexiconName == def.In {
 			lex := lexMap[def.NotIn]
-			if !gaddag.FindWord(lex.Gaddag, word) {
+			if lex.Gaddag.GetAlphabet() != nil &&
+				!gaddag.FindWord(lex.Gaddag, word) &&
+				!strings.Contains(symbols, def.Symbol) {
 				symbols += def.Symbol
 			}
 		}

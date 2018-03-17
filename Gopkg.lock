@@ -7,8 +7,8 @@
     "gaddag",
     "lexicon"
   ]
-  revision = "0b1f726469ab8b1fdf7c2b911fa8ed0243247f48"
-  version = "v0.0.9"
+  revision = "cf6416ad1d46634913cf52ae444f3cd41573eb08"
+  version = "v0.0.10"
 
 [[projects]]
   name = "github.com/mattn/go-sqlite3"
@@ -19,6 +19,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "14aa051fe611b54753cd335941c0272e1d97a1ed837f361d027db6d0f98826b2"
+  inputs-digest = "e46c90526554e36611a0890daeafa09626a50baf99ea78575e1001e9036d0a42"
   solver-name = "gps-cdcl"
   solver-version = 1
