@@ -34,12 +34,13 @@ func main() {
 	// set LEXICON_PATH to something.
 	// For example "/Users/cesar/coding/webolith/words/" on my computer.
 	lexiconPrefix := os.Getenv("LEXICON_PATH")
+	gaddagPrefix := os.Getenv("GADDAG_PATH")
 	lexiconMap := dbmaker.LexiconMap{
 		// Pregenerate these gaddags with macondo/gaddag package.
 		"OWL2": lexicon.LexiconInfo{
 			LexiconName:        "OWL2",
 			LexiconFilename:    lexiconPrefix + "OWL2.txt",
-			Gaddag:             gaddag.LoadGaddag(lexiconPrefix + "OWL2.gaddag"),
+			Gaddag:             gaddag.LoadGaddag(gaddagPrefix + "OWL2.gaddag"),
 			LexiconIndex:       4,
 			DescriptiveName:    "American 06",
 			LetterDistribution: lexicon.EnglishLetterDistribution(),
@@ -47,7 +48,7 @@ func main() {
 		"CSW12": lexicon.LexiconInfo{
 			LexiconName:        "CSW12",
 			LexiconFilename:    lexiconPrefix + "CSW12.txt",
-			Gaddag:             gaddag.LoadGaddag(lexiconPrefix + "CSW12.gaddag"),
+			Gaddag:             gaddag.LoadGaddag(gaddagPrefix + "CSW12.gaddag"),
 			LexiconIndex:       6,
 			DescriptiveName:    "Collins 12",
 			LetterDistribution: lexicon.EnglishLetterDistribution(),
@@ -55,7 +56,7 @@ func main() {
 		"CSW15": lexicon.LexiconInfo{
 			LexiconName:        "CSW15",
 			LexiconFilename:    lexiconPrefix + "CSW15.txt",
-			Gaddag:             gaddag.LoadGaddag(lexiconPrefix + "CSW15.gaddag"),
+			Gaddag:             gaddag.LoadGaddag(gaddagPrefix + "CSW15.gaddag"),
 			LexiconIndex:       1,
 			DescriptiveName:    "Collins 15",
 			LetterDistribution: lexicon.EnglishLetterDistribution(),
@@ -63,7 +64,7 @@ func main() {
 		"America": lexicon.LexiconInfo{
 			LexiconName:        "America",
 			LexiconFilename:    lexiconPrefix + "America.txt",
-			Gaddag:             gaddag.LoadGaddag(lexiconPrefix + "America.gaddag"),
+			Gaddag:             gaddag.LoadGaddag(gaddagPrefix + "America.gaddag"),
 			LexiconIndex:       7,
 			DescriptiveName:    "I am America, and so can you.",
 			LetterDistribution: lexicon.EnglishLetterDistribution(),
@@ -71,7 +72,7 @@ func main() {
 		"America2016": lexicon.LexiconInfo{
 			LexiconName:        "America2016",
 			LexiconFilename:    lexiconPrefix + "America2016.txt",
-			Gaddag:             gaddag.LoadGaddag(lexiconPrefix + "America2016.gaddag"),
+			Gaddag:             gaddag.LoadGaddag(gaddagPrefix + "America2016.gaddag"),
 			LexiconIndex:       2,
 			DescriptiveName:    "I am Trumperica, and so can you.",
 			LetterDistribution: lexicon.EnglishLetterDistribution(),
@@ -79,7 +80,7 @@ func main() {
 		"FISE": lexicon.LexiconInfo{
 			LexiconName:        "FISE09",
 			LexiconFilename:    lexiconPrefix + "FISE.txt",
-			Gaddag:             gaddag.LoadGaddag(lexiconPrefix + "FISE.gaddag"),
+			Gaddag:             gaddag.LoadGaddag(gaddagPrefix + "FISE.gaddag"),
 			LexiconIndex:       8,
 			DescriptiveName:    "Federación Internacional de Scrabble en Español",
 			LetterDistribution: lexicon.SpanishLetterDistribution(),
