@@ -79,10 +79,10 @@ func main() {
 			DescriptiveName:    "I am Trumperica, and so can you.",
 			LetterDistribution: lexicon.EnglishLetterDistribution(),
 		},
-		"FISE": lexicon.LexiconInfo{
+		"FISE09": lexicon.LexiconInfo{
 			LexiconName:        "FISE09",
-			LexiconFilename:    lexiconPrefix + "FISE.txt",
-			Gaddag:             gaddag.LoadGaddag(gaddagPrefix + "FISE.gaddag"),
+			LexiconFilename:    lexiconPrefix + "FISE09.txt",
+			Gaddag:             gaddag.LoadGaddag(gaddagPrefix + "FISE09.gaddag"),
 			LexiconIndex:       8,
 			DescriptiveName:    "Federación Internacional de Scrabble en Español",
 			LetterDistribution: lexicon.SpanishLetterDistribution(),
