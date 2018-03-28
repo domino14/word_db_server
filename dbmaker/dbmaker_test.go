@@ -25,7 +25,7 @@ func TestPopulate(t *testing.T) {
 
 func TestSortedHooks(t *testing.T) {
 	lexInfo := lexicon.LexiconInfo{
-		LexiconName:        "FISE",
+		LexiconName:        "FISE09",
 		LetterDistribution: lexicon.SpanishLetterDistribution(),
 	}
 	lexInfo.Initialize()
