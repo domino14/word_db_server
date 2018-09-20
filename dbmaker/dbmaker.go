@@ -17,10 +17,12 @@ import (
 )
 
 type Alphagram struct {
-	words        []string
-	combinations uint64
-	alphagram    string
-	wordCount    uint8
+	words          []string
+	combinations   uint64
+	alphagram      string
+	wordCount      uint8
+	uniqToLexSplit uint8
+	updateToLex    uint8
 }
 
 func (a *Alphagram) String() string {
@@ -69,7 +71,7 @@ type LexiconSymbolDefinition struct {
 	Symbol string // The corresponding lexicon symbol
 }
 
-const CurrentVersion = 3
+const CurrentVersion = 4
 
 // create a sqlite db for this lexicon name.
 func createSqliteDb(outputDir string, lexiconName string) string {
@@ -78,7 +80,8 @@ func createSqliteDb(outputDir string, lexiconName string) string {
 	sqlStmt := `
 	CREATE TABLE alphagrams (probability int, alphagram varchar(20),
 	    length int, combinations int, num_anagrams int,
-	    point_value int, num_vowels int);
+		point_value int, num_vowels int, contains_word_uniq_to_lex_split int,
+		contains_update_to_lex int);
 
 	CREATE TABLE words (word varchar(20), alphagram varchar(20),
 	    lexicon_symbols varchar(5), definition varchar(512),
@@ -94,6 +97,8 @@ func createSqliteDb(outputDir string, lexiconName string) string {
 	CREATE INDEX num_anagrams_index on alphagrams(num_anagrams);
 	CREATE INDEX point_value_index on alphagrams(point_value);
 	CREATE INDEX num_vowels_index on alphagrams(num_vowels);
+	CREATE INDEX uniq_word_index on alphagrams(contains_word_uniq_to_lex_split);
+	CREATE INDEX update_word_index on alphagrams(contains_update_to_lex);
 
 	CREATE TABLE db_version (version integer);
 	`
@@ -130,8 +135,9 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo,
 
 	alphInsertQuery := `
 	INSERT INTO alphagrams(probability, alphagram, length, combinations,
-		num_anagrams, point_value, num_vowels)
-	VALUES (?, ?, ?, ?, ?, ?, ?)`
+		num_anagrams, point_value, num_vowels, contains_word_uniq_to_lex_split,
+		contains_update_to_lex)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	wordInsertQuery := `
 	INSERT INTO words (word, alphagram, lexicon_symbols, definition,
 		front_hooks, back_hooks, inner_front_hook, inner_back_hook)
@@ -165,12 +171,7 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo,
 		if wl <= 15 {
 			probs[wl]++
 		}
-		_, err = alphStmt.Exec(probs[wl], alph.alphagram, wl, alph.combinations,
-			len(alph.words), alph.pointValue(lexiconInfo.LetterDistribution),
-			alph.numVowels())
-		if err != nil {
-			log.Fatal(err)
-		}
+		lexSymbolsList := []string{}
 		for _, word := range alph.words {
 			if err != nil {
 				log.Fatal(err)
@@ -191,12 +192,20 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo,
 
 			def := definitions[word]
 			alphagram := alph.alphagram
-
-			wordStmt.Exec(
-				word, alphagram,
-				findLexSymbols(word, lexiconName, lexMap, lexSymbols), def,
+			theseLexSymbols := findLexSymbols(word, lexiconName, lexMap, lexSymbols)
+			wordStmt.Exec(word, alphagram, theseLexSymbols, def,
 				frontHooks, backHooks, frontInnerHook, backInnerHook)
+			lexSymbolsList = append(lexSymbolsList, theseLexSymbols)
 		}
+
+		_, err = alphStmt.Exec(probs[wl], alph.alphagram, wl, alph.combinations,
+			len(alph.words), alph.pointValue(lexiconInfo.LetterDistribution),
+			alph.numVowels(), containsWordUniqueToLexSplit(lexSymbolsList),
+			containsUpdateToLex(lexSymbolsList))
+		if err != nil {
+			log.Fatal(err)
+		}
+
 	}
 	tx.Commit()
 
@@ -212,12 +221,12 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo,
 // sqlStmt := `
 // CREATE TABLE alphagrams (probability int, alphagram varchar(20),
 //     length int, combinations int, num_anagrams int);
-
+//
 // CREATE TABLE words (word varchar(20), alphagram varchar(20),
 //     lexicon_symbols varchar(5), definition varchar(512),
 //     front_hooks varchar(26), back_hooks varchar(26),
 //     inner_front_hook int, inner_back_hook int);
-
+//
 // CREATE INDEX alpha_index on alphagrams(alphagram);
 // CREATE INDEX prob_index on alphagrams(probability, length);
 // CREATE INDEX word_index on words(word);
@@ -268,6 +277,11 @@ func FixLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo) {
 	if version == 2 {
 		fmt.Printf("Migrating to version 3...")
 		migrateToV3(db)
+		fmt.Println("Run again to migrate to version 4")
+	}
+	if version == 3 {
+		fmt.Printf("Migrating to version 4...")
+		migrateToV4(db)
 	}
 
 }
@@ -334,7 +348,7 @@ func migrateToV2(db *sql.DB, dist lexicon.LetterDistribution) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		i += 1
+		i++
 		if i%10000 == 0 {
 			log.Printf("%d...", i)
 		}
@@ -353,6 +367,95 @@ func migrateToV3(db *sql.DB) {
 		log.Fatal(err)
 	}
 	_, err = db.Exec("UPDATE db_version SET version = ?", 3)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func migrateToV4(db *sql.DB) {
+	_, err := db.Exec(`
+	ALTER TABLE alphagrams ADD COLUMN contains_word_uniq_to_lex_split int;
+	ALTER TABLE alphagrams ADD COLUMN contains_update_to_lex int;
+
+	CREATE INDEX uniq_word_index on alphagrams(contains_word_uniq_to_lex_split);
+	CREATE INDEX update_word_index on alphagrams(contains_update_to_lex);
+	`)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("Created new columns and indices")
+	// Read in all the words.
+	rows, err := db.Query(`
+	SELECT word, alphagram, lexicon_symbols from words
+	order by alphagram
+	`)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+
+	tx, err := db.Begin()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	updateQuery := `
+	UPDATE alphagrams SET contains_word_uniq_to_lex_split = ?,
+		contains_update_to_lex = ?
+	WHERE alphagram = ?
+	`
+
+	alphagrams := []Alphagram{}
+	lastAlph := ""
+	lastLexSymbolsList := []string{}
+
+	for rows.Next() {
+		var (
+			word           string
+			alph           string
+			lexiconSymbols string
+		)
+		if err := rows.Scan(&word, &alph, &lexiconSymbols); err != nil {
+			log.Fatal(err)
+		}
+		//log.Println(word, alph, lexiconSymbols)
+
+		if alph != lastAlph && lastAlph != "" {
+			// We have a new alphagram.
+			uniqToLexSplit := containsWordUniqueToLexSplit(lastLexSymbolsList)
+			updateToLex := containsUpdateToLex(lastLexSymbolsList)
+			alphagrams = append(alphagrams, Alphagram{alphagram: lastAlph,
+				uniqToLexSplit: uniqToLexSplit, updateToLex: updateToLex})
+
+			lastLexSymbolsList = []string{}
+		}
+
+		lastAlph = alph
+		lastLexSymbolsList = append(lastLexSymbolsList, lexiconSymbols)
+	}
+
+	// Update the very last one too.
+	alphagrams = append(alphagrams, Alphagram{alphagram: lastAlph,
+		uniqToLexSplit: containsWordUniqueToLexSplit(lastLexSymbolsList),
+		updateToLex:    containsUpdateToLex(lastLexSymbolsList)})
+
+	i := 0
+	updateStmt, err := tx.Prepare(updateQuery)
+
+	for _, alph := range alphagrams {
+		_, err := updateStmt.Exec(alph.uniqToLexSplit, alph.updateToLex,
+			alph.alphagram)
+		if err != nil {
+			log.Fatal(err)
+		}
+		i++
+		if i%10000 == 0 {
+			log.Printf("%d...", i)
+		}
+	}
+	tx.Commit()
+
+	_, err = db.Exec("UPDATE db_version SET version = ?", 4)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -379,6 +482,34 @@ func findLexSymbols(word string, lexiconName string, lexMap LexiconMap,
 		}
 	}
 	return symbols
+}
+
+// This is a bit of a special function, used only for the annoying lexical
+// split in English-language Scrabble. If the lexiconName is "America",
+// this will return a 1 if any of the strings in the lexSymbols array contains
+// a $ sign. If the lexiconName is "CSW15", the string to look for is #.
+// All other cases return a 0.
+// Note that this will need to be updated when new versions of America/ CSW
+// are added.
+func containsWordUniqueToLexSplit(lexSymbolsList []string) uint8 {
+
+	for _, symbols := range lexSymbolsList {
+		if strings.Contains(symbols, "$") || strings.Contains(symbols, "#") {
+			return 1
+		}
+	}
+	return 0
+}
+
+// All updates to a lexicon will be indicated with a + symbol basically.
+func containsUpdateToLex(lexSymbolsList []string) uint8 {
+
+	for _, symbols := range lexSymbolsList {
+		if strings.Contains(symbols, "+") {
+			return 1
+		}
+	}
+	return 0
 }
 
 // The values of the map.
@@ -415,7 +546,7 @@ func populateAlphsDefs(filename string, combinations func(string, bool) uint64,
 				alphagrams[alphagram] = Alphagram{
 					[]string{word.Word},
 					combinations(alphagram, true),
-					alphagram, 0}
+					alphagram, 0, 0, 0}
 			} else {
 				alph.words = append(alph.words, word.Word)
 				alphagrams[alphagram] = alph
