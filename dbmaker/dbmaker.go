@@ -41,7 +41,7 @@ func (a *Alphagram) numVowels() uint8 {
 	vowels := uint8(0)
 	for _, rn := range a.alphagram {
 		if rn == 'A' || rn == 'E' || rn == 'I' || rn == 'O' || rn == 'U' {
-			vowels += 1
+			vowels++
 		}
 	}
 	return vowels
@@ -58,9 +58,8 @@ func (a AlphByCombos) Less(i, j int) bool {
 	// to use the old DBs until there is a lexicon update :(
 	if a[i].combinations == a[j].combinations {
 		return a[i].alphagram < a[j].alphagram
-	} else {
-		return a[i].combinations > a[j].combinations
 	}
+	return a[i].combinations > a[j].combinations
 }
 
 type LexiconMap map[string]lexicon.LexiconInfo
@@ -216,7 +215,7 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo,
 
 }
 
-// FixLexiconDatabase assumes the database has already been created with
+// MigrateLexiconDatabase assumes the database has already been created with
 // a previous version of this program. At the minimum, the schema looks like:
 // sqlStmt := `
 // CREATE TABLE alphagrams (probability int, alphagram varchar(20),
@@ -233,7 +232,7 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo,
 // CREATE INDEX alphagram_index on words(alphagram);
 // `
 // This function assumes the above schema.
-func FixLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo) {
+func MigrateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo) {
 	dbName := "./" + lexiconName + ".db"
 
 	db, err := sql.Open("sqlite3", dbName)
@@ -486,8 +485,9 @@ func findLexSymbols(word string, lexiconName string, lexMap LexiconMap,
 
 // This is a bit of a special function, used only for the annoying lexical
 // split in English-language Scrabble. If the lexiconName is "America",
-// this will return a 1 if any of the strings in the lexSymbols array contains
-// a $ sign. If the lexiconName is "CSW15", the string to look for is #.
+// or "NWL18", this will return a 1 if any of the strings in the lexSymbols
+// array contains a $ sign. If the lexiconName is "CSW15", the string to
+// look for is #.
 // All other cases return a 0.
 // Note that this will need to be updated when new versions of America/ CSW
 // are added.
@@ -524,9 +524,9 @@ func alphaMapValues(theMap map[string]Alphagram) []Alphagram {
 }
 
 func populateAlphsDefs(filename string, combinations func(string, bool) uint64,
-	dist lexicon.LetterDistribution) (
-	map[string]string, map[string]Alphagram) {
-	definitions := make(map[string]string)
+	dist lexicon.LetterDistribution) (map[string]string, map[string]Alphagram) {
+
+	definitions := make(map[string]*FullDefinition)
 	alphagrams := make(map[string]Alphagram)
 	file, _ := os.Open(filename)
 	// XXX: Check error
@@ -539,7 +539,7 @@ func populateAlphsDefs(filename string, combinations func(string, bool) uint64,
 			if len(fields) > 1 {
 				definition = strings.Join(fields[1:], " ")
 			}
-			definitions[word.Word] = definition
+			definitions[word.Word] = &FullDefinition{raw: definition}
 			alphagram := word.MakeAlphagram()
 			alph, ok := alphagrams[alphagram]
 			if !ok {
@@ -554,5 +554,8 @@ func populateAlphsDefs(filename string, combinations func(string, bool) uint64,
 		}
 	}
 	file.Close()
-	return definitions, alphagrams
+
+	definitionMap := expandDefinitions(definitions)
+
+	return definitionMap, alphagrams
 }

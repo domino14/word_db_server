@@ -56,7 +56,7 @@ func TestPointValue(t *testing.T) {
 		alphaTestCase{"DOG", 5},
 	}
 	for _, tc := range ptTestCases {
-		a := &Alphagram{nil, 0, tc.alphagram, 0}
+		a := &Alphagram{nil, 0, tc.alphagram, 0, 0, 0}
 		pts := a.pointValue(lexicon.EnglishLetterDistribution())
 		if pts != tc.expected {
 			t.Errorf("Expected %d, actual %d, alphagram %s", tc.expected,
@@ -75,7 +75,7 @@ func TestNumVowels(t *testing.T) {
 		alphaTestCase{"EUOUAE", 6},
 	}
 	for _, tc := range vowelTestCases {
-		a := &Alphagram{nil, 0, tc.alphagram, 0}
+		a := &Alphagram{nil, 0, tc.alphagram, 0, 0, 0}
 		pts := a.numVowels()
 		if pts != tc.expected {
 			t.Errorf("Expected %d, actual %d, alphagram %s", tc.expected,

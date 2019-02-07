@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/domino14/macondo/gaddag"
 	"github.com/domino14/macondo/lexicon"
@@ -12,18 +13,22 @@ import (
 )
 
 func main() {
-	// We are going to have a flag to "fix" a database. This is due to a
+	// We are going to have a flag to migrate a database. This is due to a
 	// legacy issue where alphagram sort order was not deterministic for
 	// alphagrams with equal probability, so we need to keep the old
 	// sort orders around in order to not mess up alphagrams-by-probability
 	// lists.
-	var fixdb = flag.String("fixdb", "", "Fix a DB instead of generating it")
+	var migratedb = flag.String("migratedb", "", "Migrate a DB instead of generating it")
 	var outputDirF = flag.String("outputdir", ".", "The output directory")
 	flag.Parse()
-	dbToFix := *fixdb
+	dbToMigrate := *migratedb
 	outputDir := *outputDirF
 	//db, err := sql.Open("sqlite3", "./"+lexname+".db")
 	symbols := []dbmaker.LexiconSymbolDefinition{
+		{In: "NWL18", NotIn: "CSW15", Symbol: "$"},
+		{In: "NWL18", NotIn: "America", Symbol: "+"},
+		{In: "CSW15", NotIn: "NWL18", Symbol: "#"},
+		{In: "FISE2", NotIn: "FISE09", Symbol: "+"},
 		{In: "America2016", NotIn: "CSW15", Symbol: "$"},
 		{In: "America2016", NotIn: "America", Symbol: "%"},
 		{In: "America2016", NotIn: "OWL2", Symbol: "+"},
@@ -87,14 +92,30 @@ func main() {
 			DescriptiveName:    "Federación Internacional de Scrabble en Español",
 			LetterDistribution: lexicon.SpanishLetterDistribution(),
 		},
+		"FISE2": lexicon.LexiconInfo{
+			LexiconName:        "FISE2",
+			LexiconFilename:    filepath.Join(lexiconPrefix, "FISE2.txt"),
+			Gaddag:             gaddag.LoadGaddag(filepath.Join(gaddagPrefix, "FISE2.gaddag")),
+			LexiconIndex:       10,
+			DescriptiveName:    "Federación Internacional de Scrabble en Español, 2017 Edition",
+			LetterDistribution: lexicon.SpanishLetterDistribution(),
+		},
+		"NWL18": lexicon.LexiconInfo{
+			LexiconName:        "NWL18",
+			LexiconFilename:    filepath.Join(lexiconPrefix, "NWL18.txt"),
+			Gaddag:             gaddag.LoadGaddag(filepath.Join(gaddagPrefix, "NWL18.gaddag")),
+			LexiconIndex:       9,
+			DescriptiveName:    "NASPA Word List, 2018 Edition",
+			LetterDistribution: lexicon.EnglishLetterDistribution(),
+		},
 	}
-	if dbToFix != "" {
-		info, ok := lexiconMap[dbToFix]
+	if dbToMigrate != "" {
+		info, ok := lexiconMap[dbToMigrate]
 		if !ok {
 			fmt.Printf("That lexicon is not supported\n")
 			return
 		}
-		dbmaker.FixLexiconDatabase(dbToFix, info)
+		dbmaker.MigrateLexiconDatabase(dbToMigrate, info)
 	} else {
 		for name, info := range lexiconMap {
 			if info.Gaddag.GetAlphabet() == nil {
