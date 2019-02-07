@@ -42,9 +42,8 @@ func TestCreateSingleDefinitionNoPartOfSpeech(t *testing.T) {
 // BIS {twice=adv} [adv] / <bi=n> [n]
 
 func TestExpandPartSimpleLinks(t *testing.T) {
-	sd := &SingleDefinition{
-		raw: `the state of being {hip=adj} [n HIPNESSES]`,
-	}
+	sd := createSingleDefinition(1,
+		`the state of being {hip=adj} [n HIPNESSES]`)
 	definitions := map[string]*FullDefinition{}
 	definitions["HIP"] = &FullDefinition{
 		parts: []*SingleDefinition{
@@ -52,8 +51,30 @@ func TestExpandPartSimpleLinks(t *testing.T) {
 			createSingleDefinition(2, `to build a type of roof [v HIPPED, HIPPING, HIPS]`),
 		},
 	}
-	def := expandPart(0, sd, definitions)
+	def := expandRaw(sd.raw, definitions)
 	assert.Equal(t,
 		`the state of being hip (aware of the most current styles and trends) [n HIPNESSES]`,
+		def)
+}
+
+func TestExpandPartMultipleLinks(t *testing.T) {
+	sd := &SingleDefinition{
+		raw: `{odd=adj} [adj RUMMER, RUMMEST]`,
+	}
+	definitions := map[string]*FullDefinition{}
+	definitions["ODD"] = &FullDefinition{
+		parts: []*SingleDefinition{
+			createSingleDefinition(1, `{unusual=adj} [adj ODDER, ODDEST]`),
+			createSingleDefinition(2, `one that is odd [n ODDS]`),
+		},
+	}
+	definitions["UNUSUAL"] = &FullDefinition{
+		parts: []*SingleDefinition{
+			createSingleDefinition(1, `not usual [adj]`),
+		},
+	}
+	def := expandRaw(sd.raw, definitions)
+	assert.Equal(t,
+		`odd (unusual (not usual)) [adj RUMMER, RUMMEST]`,
 		def)
 }

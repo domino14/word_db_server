@@ -66,7 +66,6 @@ func createSingleDefinition(idx int, part string) *SingleDefinition {
 	inflections := inflectionRe.FindStringSubmatch(part)
 	pospeech := ""
 	declensions := ""
-	log.Println("IJF", inflections)
 	if len(inflections) > 1 {
 		pospeech = inflections[1]
 	}
@@ -81,26 +80,27 @@ func createSingleDefinition(idx int, part string) *SingleDefinition {
 
 func expand(fd *FullDefinition, definitions map[string]*FullDefinition) string {
 	expandedParts := []string{}
-	for idx, part := range fd.parts {
-		expandedParts = append(expandedParts, expandPart(idx, part, definitions))
+	for _, part := range fd.parts {
+		expanded := expandRaw(part.raw, definitions)
+		expandedParts = append(expandedParts, expanded)
 	}
 
 	return strings.Join(expandedParts, "\n")
 }
 
-func expandPart(defnum int, sd *SingleDefinition, definitions map[string]*FullDefinition) string {
+func expandRaw(rawdef string, definitions map[string]*FullDefinition) string {
 	// replaced := linkRe.ReplaceAllStringFunc(sd.raw, func(match string) string {
 
 	// 	log.Println("[DEBUG] MATCH ", match)
 	// 	return "FOO"
 	// })
+	log.Println("EXPANDRAW claled with", rawdef)
 
-	log.Println("Trying to find submatches for linkRe, raw is", sd.raw)
-	submatches := linkRe.FindAllStringSubmatch(sd.raw, -1)
+	submatches := linkRe.FindAllStringSubmatch(rawdef, -1)
 
 	def := ""
 	if len(submatches) > 0 {
-		substrings := linkRe.Split(sd.raw, -1)
+		substrings := linkRe.Split(rawdef, -1)
 		log.Println("substrings", substrings)
 		def += substrings[0]
 		idx := 0
@@ -112,6 +112,8 @@ func expandPart(defnum int, sd *SingleDefinition, definitions map[string]*FullDe
 			def += link + " (" + findLinkText(link, pospeech, definitions) + ")"
 		}
 		def += substrings[idx]
+	} else {
+		def = rawdef
 	}
 	return def
 }
@@ -126,7 +128,7 @@ func findLinkText(link string, pospeech string, definitions map[string]*FullDefi
 			log.Println("Found sd", sd)
 			// && strings.Contains(sd.declensions, upper) {
 			// found it.
-			return sd.nopospeech
+			return expandRaw(sd.nopospeech, definitions)
 		}
 	}
 	return ""
