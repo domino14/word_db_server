@@ -6,11 +6,21 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/domino14/macondo/alphabet"
 	"github.com/domino14/macondo/gaddag"
 	"github.com/domino14/word_db_maker/dbmaker"
 )
+
+func stringInSlice(a string, list []string) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
+	return false
+}
 
 func main() {
 	// We are going to have a flag to migrate a database. This is due to a
@@ -19,9 +29,11 @@ func main() {
 	// sort orders around in order to not mess up alphagrams-by-probability
 	// lists.
 	var migratedb = flag.String("migratedb", "", "Migrate a DB instead of generating it")
+	var createdbs = flag.String("dbs", "", "Pass in comma-separated list of dbs to make, instead of all")
 	var outputDirF = flag.String("outputdir", ".", "The output directory")
 	flag.Parse()
 	dbToMigrate := *migratedb
+	dbsToMake := *createdbs
 	outputDir := *outputDirF
 	//db, err := sql.Open("sqlite3", "./"+lexname+".db")
 	symbols := []dbmaker.LexiconSymbolDefinition{
@@ -95,7 +107,19 @@ func main() {
 		}
 		dbmaker.MigrateLexiconDatabase(dbToMigrate, info)
 	} else {
+		dbs := []string{}
+		if dbsToMake != "" {
+			dbs = strings.Split(dbsToMake, ",")
+		} else {
+			for name := range lexiconMap {
+				dbs = append(dbs, name)
+			}
+		}
 		for name, info := range lexiconMap {
+			if !stringInSlice(name, dbs) {
+				fmt.Println(name, "was not in list of dbs, skipping...")
+				continue
+			}
 			if info.Gaddag.GetAlphabet() == nil {
 				fmt.Println(name, "was not supplied, skipping...")
 				continue
