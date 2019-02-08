@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/domino14/macondo/alphabet"
 	"github.com/domino14/macondo/gaddag"
-	"github.com/domino14/macondo/lexicon"
 	"github.com/domino14/word_db_maker/dbmaker"
 )
 
@@ -29,12 +29,6 @@ func main() {
 		{In: "NWL18", NotIn: "America", Symbol: "+"},
 		{In: "CSW15", NotIn: "NWL18", Symbol: "#"},
 		{In: "FISE2", NotIn: "FISE09", Symbol: "+"},
-		{In: "America2016", NotIn: "CSW15", Symbol: "$"},
-		{In: "America2016", NotIn: "America", Symbol: "%"},
-		{In: "America2016", NotIn: "OWL2", Symbol: "+"},
-		{In: "America", NotIn: "CSW15", Symbol: "$"},
-		{In: "America", NotIn: "OWL2", Symbol: "+"},
-		{In: "CSW15", NotIn: "America2016", Symbol: "#"},
 		{In: "CSW15", NotIn: "America", Symbol: "#"},
 		{In: "CSW15", NotIn: "CSW12", Symbol: "+"},
 	}
@@ -44,69 +38,53 @@ func main() {
 	gaddagPrefix := os.Getenv("GADDAG_PATH")
 	lexiconMap := dbmaker.LexiconMap{
 		// Pregenerate these gaddags with macondo/gaddag package.
-		"OWL2": lexicon.LexiconInfo{
-			LexiconName:        "OWL2",
-			LexiconFilename:    lexiconPrefix + "OWL2.txt",
-			Gaddag:             gaddag.LoadGaddag(gaddagPrefix + "OWL2.gaddag"),
-			LexiconIndex:       4,
-			DescriptiveName:    "American 06",
-			LetterDistribution: lexicon.EnglishLetterDistribution(),
-		},
-		"CSW12": lexicon.LexiconInfo{
+		"CSW12": dbmaker.LexiconInfo{
 			LexiconName:        "CSW12",
 			LexiconFilename:    lexiconPrefix + "CSW12.txt",
 			Gaddag:             gaddag.LoadGaddag(gaddagPrefix + "CSW12.gaddag"),
-			LexiconIndex:       6,
+			LexiconIndex:       1,
 			DescriptiveName:    "Collins 12",
-			LetterDistribution: lexicon.EnglishLetterDistribution(),
+			LetterDistribution: alphabet.EnglishLetterDistribution(),
 		},
-		"CSW15": lexicon.LexiconInfo{
+		"CSW15": dbmaker.LexiconInfo{
 			LexiconName:        "CSW15",
 			LexiconFilename:    lexiconPrefix + "CSW15.txt",
 			Gaddag:             gaddag.LoadGaddag(gaddagPrefix + "CSW15.gaddag"),
 			LexiconIndex:       1,
 			DescriptiveName:    "Collins 15",
-			LetterDistribution: lexicon.EnglishLetterDistribution(),
+			LetterDistribution: alphabet.EnglishLetterDistribution(),
 		},
-		"America": lexicon.LexiconInfo{
+		"America": dbmaker.LexiconInfo{
 			LexiconName:        "America",
 			LexiconFilename:    lexiconPrefix + "America.txt",
 			Gaddag:             gaddag.LoadGaddag(gaddagPrefix + "America.gaddag"),
 			LexiconIndex:       7,
 			DescriptiveName:    "I am America, and so can you.",
-			LetterDistribution: lexicon.EnglishLetterDistribution(),
+			LetterDistribution: alphabet.EnglishLetterDistribution(),
 		},
-		"America2016": lexicon.LexiconInfo{
-			LexiconName:        "America2016",
-			LexiconFilename:    lexiconPrefix + "America2016.txt",
-			Gaddag:             gaddag.LoadGaddag(gaddagPrefix + "America2016.gaddag"),
-			LexiconIndex:       2,
-			DescriptiveName:    "I am Trumperica, and so can you.",
-			LetterDistribution: lexicon.EnglishLetterDistribution(),
-		},
-		"FISE09": lexicon.LexiconInfo{
+		"FISE09": dbmaker.LexiconInfo{
 			LexiconName:        "FISE09",
 			LexiconFilename:    lexiconPrefix + "FISE09.txt",
 			Gaddag:             gaddag.LoadGaddag(gaddagPrefix + "FISE09.gaddag"),
 			LexiconIndex:       8,
 			DescriptiveName:    "Federación Internacional de Scrabble en Español",
-			LetterDistribution: lexicon.SpanishLetterDistribution(),
+			LetterDistribution: alphabet.SpanishLetterDistribution(),
 		},
-		"FISE2": lexicon.LexiconInfo{
+		"FISE2": dbmaker.LexiconInfo{
 			LexiconName:        "FISE2",
 			LexiconFilename:    filepath.Join(lexiconPrefix, "FISE2.txt"),
 			Gaddag:             gaddag.LoadGaddag(filepath.Join(gaddagPrefix, "FISE2.gaddag")),
 			LexiconIndex:       10,
 			DescriptiveName:    "Federación Internacional de Scrabble en Español, 2017 Edition",
-			LetterDistribution: lexicon.SpanishLetterDistribution(),
+			LetterDistribution: alphabet.SpanishLetterDistribution(),
 		},
-		"NWL18": lexicon.LexiconInfo{
+		"NWL18": dbmaker.LexiconInfo{
 			LexiconName:        "NWL18",
 			LexiconFilename:    filepath.Join(lexiconPrefix, "NWL18.txt"),
 			Gaddag:             gaddag.LoadGaddag(filepath.Join(gaddagPrefix, "NWL18.gaddag")),
 			LexiconIndex:       9,
 			DescriptiveName:    "NASPA Word List, 2018 Edition",
-			LetterDistribution: lexicon.EnglishLetterDistribution(),
+			LetterDistribution: alphabet.EnglishLetterDistribution(),
 		},
 	}
 	if dbToMigrate != "" {

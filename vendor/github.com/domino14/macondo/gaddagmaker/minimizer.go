@@ -1,6 +1,6 @@
 // This has utility functions for minimizing the GADDAG.
 
-package gaddag
+package gaddagmaker
 
 import "fmt"
 
@@ -8,8 +8,8 @@ type NodeArr []*Node
 type NodeBucket [][]NodeArr
 
 const (
-	MAX_DEPTH      = 16
-	LETTER_BUCKETS = 100
+	MaxDepth      = 16
+	LetterBuckets = 100
 )
 
 // Minimize is a method to minimize the passed-in GADDAG!
@@ -23,13 +23,13 @@ func (g *Gaddag) Minimize() {
 	// Two nodes are the same if they have the same letter sets, the same
 	// arc letters, and all their children are the same. To narrow down the
 	// number of direct comparisons we have to make, let's bucket our nodes.
-	bucket := make(NodeBucket, MAX_DEPTH) // Max depth
-	for i := 0; i < MAX_DEPTH; i++ {
-		bucket[i] = make([]NodeArr, LETTER_BUCKETS)
+	bucket := make(NodeBucket, MaxDepth) // Max depth
+	for i := 0; i < MaxDepth; i++ {
+		bucket[i] = make([]NodeArr, LetterBuckets)
 	}
 	visits := 0
 	traverseTreeAndExecute(g.Root, func(node *Node) {
-		key := node.letterSum % LETTER_BUCKETS
+		key := node.letterSum % LetterBuckets
 		if !node.visited {
 			bucket[node.depth-1][key] = append(bucket[node.depth-1][key], node)
 			visits++
@@ -37,9 +37,9 @@ func (g *Gaddag) Minimize() {
 		node.visited = true
 	})
 	fmt.Println("Visited", visits, "nodes")
-	for i := 0; i < MAX_DEPTH; i++ {
+	for i := 0; i < MaxDepth; i++ {
 		fmt.Println("Depth", i, "...")
-		for j := 0; j < LETTER_BUCKETS; j++ {
+		for j := 0; j < LetterBuckets; j++ {
 			narr := bucket[i][j]
 			nNodes := len(narr)
 			if nNodes < 2 {
@@ -79,13 +79,13 @@ func (g *Gaddag) Minimize() {
 	})
 
 	for _, node := range nodeArr {
-		g.AllocArcs += uint32(node.NumArcs)
+		g.AllocArcs += uint32(node.numArcs)
 		// Look through arcs to see if any point to a node copy; point to
 		// original if so.
-		for _, arc := range node.Arcs {
-			if arc.Destination.copyOf != nil {
-				arc.Destination = arc.Destination.copyOf
-				if arc.Destination.copyOf != nil {
+		for _, arc := range node.arcs {
+			if arc.destination.copyOf != nil {
+				arc.destination = arc.destination.copyOf
+				if arc.destination.copyOf != nil {
 					panic("Chain of nodes - something went wrong!")
 				}
 			}
@@ -100,10 +100,10 @@ func (g *Gaddag) Minimize() {
 // Equals compares two nodes. They are the same if they have the same
 // letter sets, the same arc letters, and all their children are the same.
 func (node *Node) Equals(other *Node) bool {
-	if node.NumArcs != other.NumArcs {
+	if node.numArcs != other.numArcs {
 		return false
 	}
-	if node.LetterSet != other.LetterSet {
+	if node.letterSet != other.letterSet {
 		return false
 	}
 	if node.letterSum != other.letterSum {
@@ -112,11 +112,11 @@ func (node *Node) Equals(other *Node) bool {
 	if node.depth != other.depth {
 		return false
 	}
-	for idx, arc1 := range node.Arcs {
-		if arc1.Letter != other.Arcs[idx].Letter {
+	for idx, arc1 := range node.arcs {
+		if arc1.letter != other.arcs[idx].letter {
 			return false
 		}
-		if !arc1.Destination.Equals(other.Arcs[idx].Destination) {
+		if !arc1.destination.Equals(other.arcs[idx].destination) {
 			return false
 		}
 	}
@@ -126,8 +126,8 @@ func (node *Node) Equals(other *Node) bool {
 // Calculates the depth of every node by doing a full recursive traversal.
 func calculateDepth(node *Node) uint8 {
 	maxDepth := uint8(0)
-	for _, arc := range node.Arcs {
-		thisDepth := calculateDepth(arc.Destination)
+	for _, arc := range node.arcs {
+		thisDepth := calculateDepth(arc.destination)
 		if thisDepth > maxDepth {
 			maxDepth = thisDepth
 		}
@@ -139,13 +139,13 @@ func calculateDepth(node *Node) uint8 {
 // Calculates sums of all letters and those of children. This is done to
 // bucket the nodes during minimization.
 func calculateSums(node *Node) uint32 {
-	if node.NumArcs == 0 {
+	if node.numArcs == 0 {
 		node.letterSum = 0
 		return 0
 	}
 	sum := uint32(0)
-	for _, arc := range node.Arcs {
-		thisSum := uint32(arc.Letter) + calculateSums(arc.Destination)
+	for _, arc := range node.arcs {
+		thisSum := uint32(arc.letter) + calculateSums(arc.destination)
 		sum += thisSum
 	}
 	node.letterSum = sum

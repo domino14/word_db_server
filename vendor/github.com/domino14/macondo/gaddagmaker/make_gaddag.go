@@ -1,21 +1,39 @@
 // Here we have utility functions for creating a GADDAG.
-package gaddag
+package gaddagmaker
 
 import (
 	"bufio"
 	"encoding/binary"
 	"log"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/domino14/macondo/alphabet"
 )
+
+const (
+	GaddagMagicNumber = "cgdg"
+	DawgMagicNumber   = "cdwg"
+)
+
+// NumArcsBitLoc is the bit location where the number of arcs start.
+// A Node has a number of arcs and a letterSet
+const NumArcsBitLoc = 24
+const LetterSetBitMask = (1 << NumArcsBitLoc) - 1
+
+// LetterBitLoc is the location where the letter starts.
+// An Arc has a letter and a next node.
+const LetterBitLoc = 24
+const NodeIdxBitMask = (1 << LetterBitLoc) - 1
 
 // Node is a temporary type used in the creation of a GADDAG.
 // It will not be used when loading the GADDAG.
 type Node struct {
-	Arcs      []*Arc
-	NumArcs   uint8
-	LetterSet uint32
+	arcs      []*Arc
+	numArcs   uint8
+	letterSet alphabet.LetterSet
 	// Utility fields, for minimizing GADDAG at the end:
 	visited           bool
 	copyOf            *Node
@@ -26,29 +44,34 @@ type Node struct {
 
 // Arc is also a temporary type.
 type Arc struct {
-	Letter      rune
-	Destination *Node
+	letter      rune
+	destination *Node
 }
 
 // Gaddag is a temporary structure to hold the nodes in sequential order prior
 // to writing them to file. It should not be used after making the gaddag.
 type Gaddag struct {
-	Root               *Node
-	AllocStates        uint32
-	AllocArcs          uint32
-	SerializedElements []uint32
-	Alphabet           *Alphabet
+	Root        *Node
+	AllocStates uint32
+	AllocArcs   uint32
+
+	SerializedAlphabet   []uint32
+	NumLetterSets        uint32
+	SerializedLetterSets []alphabet.LetterSet
+	SerializedNodes      []uint32
+	Alphabet             *alphabet.Alphabet
+	lexiconName          string
 }
 
 type ArcPtrSlice []*Arc
 
 func (a ArcPtrSlice) Len() int           { return len(a) }
 func (a ArcPtrSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ArcPtrSlice) Less(i, j int) bool { return a[i].Letter < a[j].Letter }
+func (a ArcPtrSlice) Less(i, j int) bool { return a[i].letter < a[j].letter }
 
-func getWords(filename string) ([]string, *Alphabet) {
+func getWords(filename string) ([]string, *alphabet.Alphabet) {
 	words := []string{}
-	alphabet := Alphabet{}
+	alphabet := alphabet.Alphabet{}
 	alphabet.Init()
 	file, err := os.Open(filename)
 	if err != nil {
@@ -62,7 +85,7 @@ func getWords(filename string) ([]string, *Alphabet) {
 		if len(fields) > 0 {
 			word := strings.ToUpper(fields[0])
 			words = append(words, word)
-			err := alphabet.update(word)
+			err := alphabet.Update(word)
 			if err != nil {
 				panic(err)
 			}
@@ -82,14 +105,19 @@ func (g *Gaddag) createNode() *Node {
 
 // Does the node contain the letter in its letter set?
 func (node *Node) containsLetter(letter rune, g *Gaddag) bool {
-	return node.LetterSet&(1<<g.Alphabet.vals[letter]) != 0
+
+	val, err := g.Alphabet.Val(letter)
+	if err != nil {
+		panic("Unexpected error: " + err.Error())
+	}
+	return node.letterSet&(1<<val) != 0
 }
 
 // Does the Node contain an arc for the letter c? Return the arc if so.
-func (state *Node) containsArc(c rune) *Arc {
-	for i := uint8(0); i < state.NumArcs; i++ {
-		if state.Arcs[i].Letter == c {
-			return state.Arcs[i]
+func (node *Node) containsArc(c rune) *Arc {
+	for i := uint8(0); i < node.numArcs; i++ {
+		if node.arcs[i].letter == c {
+			return node.arcs[i]
 		}
 	}
 	return nil
@@ -97,7 +125,7 @@ func (state *Node) containsArc(c rune) *Arc {
 
 // Creates an arc from node named "from", and returns the new node that
 // this arc points to (or if to is not NULL, it returns that).
-func (from *Node) createArcFrom(c rune, to *Node, g *Gaddag) *Node {
+func (node *Node) createArcFrom(c rune, to *Node, g *Gaddag) *Node {
 	var newNode *Node
 	if to == nil {
 		newNode = g.createNode()
@@ -106,9 +134,9 @@ func (from *Node) createArcFrom(c rune, to *Node, g *Gaddag) *Node {
 	}
 	newArc := Arc{c, nil}
 	g.AllocArcs++
-	from.Arcs = append(from.Arcs, &newArc)
-	from.NumArcs++
-	newArc.Destination = newNode
+	node.arcs = append(node.arcs, &newArc)
+	node.numArcs++
+	newArc.destination = newNode
 	return newNode
 }
 
@@ -116,41 +144,46 @@ func (from *Node) createArcFrom(c rune, to *Node, g *Gaddag) *Node {
 // resets state to the node this arc leads to. Every state has an array
 // of Arc pointers. We need to create the array if it doesn't exist.
 // Returns the created or existing *Node
-func (state *Node) addArc(c rune, g *Gaddag) *Node {
+func (node *Node) addArc(c rune, g *Gaddag) *Node {
 	var nextNode *Node
-	existingArc := state.containsArc(c)
+	existingArc := node.containsArc(c)
 	if existingArc == nil {
-		nextNode = state.createArcFrom(c, nil, g)
+		nextNode = node.createArcFrom(c, nil, g)
 	} else {
-		nextNode = existingArc.Destination
+		nextNode = existingArc.destination
 	}
 	return nextNode
 }
 
 // Add arc from state to c1 and add c2 to this arc's letter set.
-func (state *Node) addFinalArc(c1 rune, c2 rune, g *Gaddag) *Node {
-	nextNode := state.addArc(c1, g)
+func (node *Node) addFinalArc(c1 rune, c2 rune, g *Gaddag) *Node {
+	nextNode := node.addArc(c1, g)
 	if nextNode.containsLetter(c2, g) {
 		log.Fatal("[ERROR] Containsletter", nextNode, c2)
 	}
-	bit := uint32(1 << g.Alphabet.vals[c2])
-	nextNode.LetterSet |= bit
+
+	letterVal, err := g.Alphabet.Val(c2)
+	if err != nil {
+		panic(err)
+	}
+	bit := alphabet.LetterSet(1 << letterVal)
+	nextNode.letterSet |= bit
 	return nextNode
 }
 
 // Add an arc from state to forceState for c (an error occurs if an arc
 // from st for c already exists going to any other state).
-func (state *Node) forceArc(c rune, forceState *Node, g *Gaddag) {
-	arc := state.containsArc(c)
+func (node *Node) forceArc(c rune, forceState *Node, g *Gaddag) {
+	arc := node.containsArc(c)
 	if arc != nil {
-		if arc.Destination != forceState {
+		if arc.destination != forceState {
 			log.Fatal("[ERROR] Arc already existed pointing elsewhere")
 		} else {
 			// Don't create the arc if it already exists; redundant.
 			return
 		}
 	}
-	if state.createArcFrom(c, forceState, g) != forceState {
+	if node.createArcFrom(c, forceState, g) != forceState {
 		log.Fatal("[ERROR] createArcFrom did not equal forceState")
 	}
 }
@@ -159,93 +192,105 @@ type nodeTraversalFn func(*Node)
 
 func traverseTreeAndExecute(node *Node, fn nodeTraversalFn) {
 	fn(node)
-	for _, arc := range node.Arcs {
-		traverseTreeAndExecute(arc.Destination, fn)
+	for _, arc := range node.arcs {
+		traverseTreeAndExecute(arc.destination, fn)
 	}
 }
 
 func (g *Gaddag) serializeAlphabet() {
 	// Append the alphabet.
-	serializedAlphabet := g.Alphabet.Serialize()
-	g.SerializedElements = append(g.SerializedElements, serializedAlphabet...)
+	g.SerializedAlphabet = g.Alphabet.Serialize()
 }
 
 // serializeLetterSets makes a map of all unique letter sets, serializes
 // to the appropriate array, and returns the map for later use.
-func (g *Gaddag) serializeLetterSets() map[uint32]uint32 {
+func (g *Gaddag) serializeLetterSets() map[alphabet.LetterSet]uint32 {
 	// Make a map of all unique letter sets. The value of the map is the
 	// index in the serialized array.
 
-	letterSets := make(map[uint32]uint32)
+	letterSets := make(map[alphabet.LetterSet]uint32)
 	letterSetIdx := uint32(0)
-	serializedLetterSets := []uint32{}
+	serializedLetterSets := []alphabet.LetterSet{}
 	traverseTreeAndExecute(g.Root, func(node *Node) {
 		node.visited = false
-		if _, ok := letterSets[node.LetterSet]; !ok {
-			letterSets[node.LetterSet] = letterSetIdx
+		if _, ok := letterSets[node.letterSet]; !ok {
+			letterSets[node.letterSet] = letterSetIdx
 			letterSetIdx++
-			serializedLetterSets = append(serializedLetterSets, node.LetterSet)
+			serializedLetterSets = append(serializedLetterSets, node.letterSet)
 		}
 	})
-	// Prepend the letter set count so we can parse the file later.
-	serializedLetterSets = append([]uint32{uint32(len(letterSets))},
-		serializedLetterSets...)
 	log.Println("[INFO] Number of unique letter sets", len(letterSets))
-	g.SerializedElements = append(g.SerializedElements, serializedLetterSets...)
+	g.NumLetterSets = uint32(len(letterSets))
+	g.SerializedLetterSets = serializedLetterSets
 	return letterSets
 }
 
-// Serializes the elements of the gaddag into the SerializedElements array.
+// Serializes the elements of the gaddag into the various arrays.
 func (g *Gaddag) serializeElements() {
 	log.Println("[INFO] Serializing elements...")
-	g.SerializedElements = []uint32{}
 	g.serializeAlphabet()
 	letterSets := g.serializeLetterSets()
-	count := uint32(len(g.SerializedElements))
-	//rootNodeIdx := count
+	count := uint32(0)
+	g.SerializedNodes = []uint32{}
 	missingElements := make(map[uint32]*Node)
 	traverseTreeAndExecute(g.Root, func(node *Node) {
 		if !node.visited {
-			var letterCode, serialized uint32
+			var serialized uint32
+			var letterCode alphabet.MachineLetter
+			var err error
 			node.visited = true
 			// Represent node as a 32-bit number
-			serialized = letterSets[node.LetterSet] +
-				uint32(node.NumArcs)<<NumArcsBitLoc
-			g.SerializedElements = append(g.SerializedElements, serialized)
+			serialized = letterSets[node.letterSet] +
+				uint32(node.numArcs)<<NumArcsBitLoc
+			g.SerializedNodes = append(g.SerializedNodes, serialized)
 			node.indexInSerialized = count
 			count++
-			for _, arc := range node.Arcs {
-				if arc.Letter == SeparationToken {
-					letterCode = MaxAlphabetSize
+			for _, arc := range node.arcs {
+				if arc.letter == alphabet.SeparationToken {
+					letterCode = alphabet.SeparationMachineLetter
 				} else {
-					letterCode = g.Alphabet.vals[arc.Letter]
+					letterCode, err = g.Alphabet.Val(arc.letter)
+					if err != nil {
+						panic(err)
+					}
 				}
-				serialized = letterCode << LetterBitLoc
-				missingElements[count] = arc.Destination
+				serialized = uint32(letterCode) << LetterBitLoc
+				missingElements[count] = arc.destination
 				count++
-				g.SerializedElements = append(g.SerializedElements, serialized)
+				g.SerializedNodes = append(g.SerializedNodes, serialized)
 			}
 		}
 	})
 	// Now go through the node pointers and assign SerializedElements properly.
 	for idx, node := range missingElements {
-		g.SerializedElements[idx] += node.indexInSerialized
+		g.SerializedNodes[idx] += node.indexInSerialized
 	}
 	log.Println("[INFO] Assigned", len(missingElements), "missing elements.")
 }
 
-// Saves the GADDAG to a file.
-func (g *Gaddag) Save(filename string) {
+// Save saves the GADDAG or DAWG to a file.
+func (g *Gaddag) Save(filename string, magicNumber string) {
 	g.serializeElements()
 	file, err := os.Create(filename)
 	if err != nil {
 		log.Fatal("[ERROR] Could not create file: ", err)
 	}
 	// Save it in a compressed format.
-	binary.Write(file, binary.LittleEndian, uint32(len(g.SerializedElements)))
-	log.Println("[INFO] Writing serialized elements, first of which is",
-		g.SerializedElements[0])
-	binary.Write(file, binary.LittleEndian, g.SerializedElements)
+	file.WriteString(magicNumber)
+
+	log.Printf("[INFO] Writing lexicon name: %v", g.lexiconName)
+	bts := []byte(g.lexiconName)
+	binary.Write(file, binary.BigEndian, uint8(len(bts)))
+	binary.Write(file, binary.BigEndian, bts)
+	log.Println("[INFO] Writing serialized elements")
+	binary.Write(file, binary.BigEndian, g.SerializedAlphabet)
+	log.Printf("[INFO] Wrote alphabet (size = %v)", g.SerializedAlphabet[0])
+	binary.Write(file, binary.BigEndian, g.NumLetterSets)
+	binary.Write(file, binary.BigEndian, g.SerializedLetterSets)
+	log.Printf("[INFO] Wrote letter sets (num = %v)", g.NumLetterSets)
+	binary.Write(file, binary.BigEndian, uint32(len(g.SerializedNodes)))
+	binary.Write(file, binary.BigEndian, g.SerializedNodes)
+	log.Printf("[INFO] Wrote nodes (num = %v)", len(g.SerializedNodes))
 	file.Close()
 	log.Println("[INFO] Saved gaddag to", filename)
 }
@@ -259,15 +304,17 @@ func GenerateDawg(filename string, minimize bool, writeToFile bool) *Gaddag {
 	if words == nil {
 		return gaddag
 	}
+	gaddag.lexiconName = strings.Split(filepath.Base(filename), ".")[0]
 	gaddag.Root = gaddag.createNode()
 	gaddag.Alphabet = alphabet
 	log.Println("[INFO] Read", len(words), "words")
 	for idx, word := range words {
+
 		if idx%10000 == 0 {
 			log.Printf("[DEBUG] %d...\n", idx)
 		}
 		st := gaddag.Root
-		// Create path for anan-1...a1:
+		// Create path for a1..an-1:
 		wordRunes := []rune(word)
 		n := len(wordRunes)
 		for j := 0; j < n-2; j++ {
@@ -281,7 +328,7 @@ func GenerateDawg(filename string, minimize bool, writeToFile bool) *Gaddag {
 	// We need to also sort the arcs alphabetically prior to minimization/
 	// serialization.
 	traverseTreeAndExecute(gaddag.Root, func(node *Node) {
-		sort.Sort(ArcPtrSlice(node.Arcs))
+		sort.Sort(ArcPtrSlice(node.arcs))
 	})
 	if minimize {
 		gaddag.Minimize()
@@ -289,7 +336,7 @@ func GenerateDawg(filename string, minimize bool, writeToFile bool) *Gaddag {
 		log.Println("[INFO] Not minimizing.")
 	}
 	if writeToFile {
-		gaddag.Save("out.dawg")
+		gaddag.Save("out.dawg", DawgMagicNumber)
 	}
 	return gaddag
 }
@@ -298,12 +345,13 @@ func GenerateDawg(filename string, minimize bool, writeToFile bool) *Gaddag {
 // minimizes it and/or writes it to file.
 func GenerateGaddag(filename string, minimize bool, writeToFile bool) *Gaddag {
 	gaddag := &Gaddag{}
-	words, alphabet := getWords(filename)
+	words, alph := getWords(filename)
 	if words == nil {
 		return gaddag
 	}
+	gaddag.lexiconName = strings.Split(filepath.Base(filename), ".")[0]
 	gaddag.Root = gaddag.createNode()
-	gaddag.Alphabet = alphabet
+	gaddag.Alphabet = alph
 	log.Println("[INFO] Read", len(words), "words")
 	for idx, word := range words {
 		if idx%10000 == 0 {
@@ -323,7 +371,7 @@ func GenerateGaddag(filename string, minimize bool, writeToFile bool) *Gaddag {
 		for j := n - 2; j >= 0; j-- {
 			st = st.addArc(wordRunes[j], gaddag)
 		}
-		st = st.addFinalArc(SeparationToken, wordRunes[n-1], gaddag)
+		st = st.addFinalArc(alphabet.SeparationToken, wordRunes[n-1], gaddag)
 
 		// Partially minimize remaining paths.
 		for m := n - 3; m >= 0; m-- {
@@ -332,7 +380,7 @@ func GenerateGaddag(filename string, minimize bool, writeToFile bool) *Gaddag {
 			for j := m; j >= 0; j-- {
 				st = st.addArc(wordRunes[j], gaddag)
 			}
-			st = st.addArc(SeparationToken, gaddag)
+			st = st.addArc(alphabet.SeparationToken, gaddag)
 			st.forceArc(wordRunes[m+1], forceSt, gaddag)
 		}
 	}
@@ -341,7 +389,7 @@ func GenerateGaddag(filename string, minimize bool, writeToFile bool) *Gaddag {
 	// We need to also sort the arcs alphabetically prior to minimization/
 	// serialization.
 	traverseTreeAndExecute(gaddag.Root, func(node *Node) {
-		sort.Sort(ArcPtrSlice(node.Arcs))
+		sort.Sort(ArcPtrSlice(node.arcs))
 	})
 	if minimize {
 		gaddag.Minimize()
@@ -349,7 +397,7 @@ func GenerateGaddag(filename string, minimize bool, writeToFile bool) *Gaddag {
 		log.Println("[INFO] Not minimizing.")
 	}
 	if writeToFile {
-		gaddag.Save("out.gaddag")
+		gaddag.Save("out.gaddag", GaddagMagicNumber)
 	}
 	return gaddag
 }

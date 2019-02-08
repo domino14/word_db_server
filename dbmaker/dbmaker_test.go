@@ -1,14 +1,17 @@
 package dbmaker
 
-import "testing"
-import "github.com/domino14/macondo/lexicon"
+import (
+	"testing"
+
+	"github.com/domino14/macondo/alphabet"
+)
 
 func TestPopulate(t *testing.T) {
-	lexInfo := lexicon.LexiconInfo{
+	lexInfo := LexiconInfo{
 		LexiconName:        "America",
 		LexiconIndex:       7,
 		DescriptiveName:    "I am America, and so can you.",
-		LetterDistribution: lexicon.EnglishLetterDistribution(),
+		LetterDistribution: alphabet.EnglishLetterDistribution(),
 	}
 	lexInfo.Initialize()
 	defs, alphs := populateAlphsDefs("test_files/mini_america.txt",
@@ -24,9 +27,9 @@ func TestPopulate(t *testing.T) {
 }
 
 func TestSortedHooks(t *testing.T) {
-	lexInfo := lexicon.LexiconInfo{
+	lexInfo := LexiconInfo{
 		LexiconName:        "FISE09",
-		LetterDistribution: lexicon.SpanishLetterDistribution(),
+		LetterDistribution: alphabet.SpanishLetterDistribution(),
 	}
 	lexInfo.Initialize()
 	hooks := []rune("2ANRSXZ")
@@ -57,7 +60,7 @@ func TestPointValue(t *testing.T) {
 	}
 	for _, tc := range ptTestCases {
 		a := &Alphagram{nil, 0, tc.alphagram, 0, 0, 0}
-		pts := a.pointValue(lexicon.EnglishLetterDistribution())
+		pts := a.pointValue(alphabet.EnglishLetterDistribution())
 		if pts != tc.expected {
 			t.Errorf("Expected %d, actual %d, alphagram %s", tc.expected,
 				pts, a.alphagram)

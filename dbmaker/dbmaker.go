@@ -11,8 +11,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/domino14/macondo/alphabet"
 	"github.com/domino14/macondo/gaddag"
-	"github.com/domino14/macondo/lexicon"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -29,7 +29,7 @@ func (a *Alphagram) String() string {
 	return fmt.Sprintf("Alphagram: %s (%d)", a.alphagram, a.combinations)
 }
 
-func (a *Alphagram) pointValue(dist lexicon.LetterDistribution) uint8 {
+func (a *Alphagram) pointValue(dist alphabet.LetterDistribution) uint8 {
 	pts := uint8(0)
 	for _, rn := range a.alphagram {
 		pts += dist.PointValues[rn]
@@ -62,7 +62,7 @@ func (a AlphByCombos) Less(i, j int) bool {
 	return a[i].combinations > a[j].combinations
 }
 
-type LexiconMap map[string]lexicon.LexiconInfo
+type LexiconMap map[string]LexiconInfo
 
 type LexiconSymbolDefinition struct {
 	In     string // The word is in this lexicon
@@ -115,7 +115,7 @@ func createSqliteDb(outputDir string, lexiconName string) string {
 	return dbName
 }
 
-func CreateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo,
+func CreateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo,
 	lexSymbols []LexiconSymbolDefinition, lexMap LexiconMap,
 	outputDir string) {
 	fmt.Println("Creating lexicon database", lexiconName)
@@ -232,7 +232,7 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo,
 // CREATE INDEX alphagram_index on words(alphagram);
 // `
 // This function assumes the above schema.
-func MigrateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo) {
+func MigrateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo) {
 	dbName := "./" + lexiconName + ".db"
 
 	db, err := sql.Open("sqlite3", dbName)
@@ -285,7 +285,7 @@ func MigrateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo)
 
 }
 
-func migrateToV2(db *sql.DB, dist lexicon.LetterDistribution) {
+func migrateToV2(db *sql.DB, dist alphabet.LetterDistribution) {
 	// Version 2 has the following improvements:
 	// An index on point value, and point value
 	// An index on num anagrams, and num anagrams
@@ -460,8 +460,8 @@ func migrateToV4(db *sql.DB) {
 	}
 }
 
-func sortedHooks(hooks []rune, dist lexicon.LetterDistribution) string {
-	w := lexicon.Word{Word: string(hooks), Dist: dist}
+func sortedHooks(hooks []rune, dist alphabet.LetterDistribution) string {
+	w := alphabet.Word{Word: string(hooks), Dist: dist}
 	return w.MakeAlphagram()
 }
 
@@ -524,7 +524,7 @@ func alphaMapValues(theMap map[string]Alphagram) []Alphagram {
 }
 
 func populateAlphsDefs(filename string, combinations func(string, bool) uint64,
-	dist lexicon.LetterDistribution) (map[string]string, map[string]Alphagram) {
+	dist alphabet.LetterDistribution) (map[string]string, map[string]Alphagram) {
 
 	definitions := make(map[string]*FullDefinition)
 	alphagrams := make(map[string]Alphagram)
@@ -534,7 +534,7 @@ func populateAlphsDefs(filename string, combinations func(string, bool) uint64,
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
 		if len(fields) > 0 {
-			word := lexicon.Word{Word: strings.ToUpper(fields[0]), Dist: dist}
+			word := alphabet.Word{Word: strings.ToUpper(fields[0]), Dist: dist}
 			definition := ""
 			if len(fields) > 1 {
 				definition = strings.Join(fields[1:], " ")
