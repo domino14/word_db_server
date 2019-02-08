@@ -1,12 +1,13 @@
 package dbmaker
 
 import (
-	"log"
+	"html"
 	"regexp"
 	"strings"
 )
 
 type SingleDefinition struct {
+	word         string
 	partOfSpeech string
 	// declensions looks something like `ORBED, ORBING, ORBS`
 	declensions string
@@ -17,7 +18,8 @@ type SingleDefinition struct {
 }
 
 type FullDefinition struct {
-	raw string
+	word string
+	raw  string
 
 	parts []*SingleDefinition
 }
@@ -40,27 +42,36 @@ func expandDefinitions(definitions map[string]*FullDefinition) map[string]string
 		different senses of a word, and : to indicate undefined run-on
 		entries.
 	*/
-	for _, fd := range definitions {
-		// First, split into parts
-		parts := strings.Split(fd.raw, " / ")
-		fd.parts = make([]*SingleDefinition, len(parts))
-		for idx, part := range parts {
-			sd := createSingleDefinition(idx, part)
-			fd.parts[idx] = sd
-		}
-	}
 	userVisibleDefs := make(map[string]string)
-	// Now cycle through all the definitions again, and recursively follow
+	// Now cycle through all the definitions, and recursively follow
 	// links, etc.
 	for word, fd := range definitions {
-		userVisibleDefs[word] = expand(fd, definitions)
+		userVisibleDefs[word] = fd.expand(definitions)
 	}
 	return userVisibleDefs
 }
 
-func createSingleDefinition(idx int, part string) *SingleDefinition {
+func addToDefinitions(word string, rawdef string, definitions map[string]*FullDefinition) {
+	definitions[word] = &FullDefinition{
+		raw:  rawdef,
+		word: word,
+	}
+	definitions[word].populateSubdefs()
+}
+
+func (fd *FullDefinition) populateSubdefs() {
+	parts := strings.Split(fd.raw, " / ")
+	fd.parts = make([]*SingleDefinition, len(parts))
+	for idx, part := range parts {
+		sd := createSingleDefinition(idx, fd.word, part)
+		fd.parts[idx] = sd
+	}
+}
+
+func createSingleDefinition(idx int, word, part string) *SingleDefinition {
 	sd := &SingleDefinition{
-		raw: part,
+		word: word,
+		raw:  part,
 	}
 	// Just get the inflection for now.
 	inflections := inflectionRe.FindStringSubmatch(part)
@@ -78,30 +89,45 @@ func createSingleDefinition(idx int, part string) *SingleDefinition {
 	return sd
 }
 
-func expand(fd *FullDefinition, definitions map[string]*FullDefinition) string {
+func (fd *FullDefinition) expand(definitions map[string]*FullDefinition) string {
 	expandedParts := []string{}
 	for _, part := range fd.parts {
-		expanded := expandRaw(part.raw, definitions)
+		expanded := expandRaw(part.raw, part.word, definitions)
 		expandedParts = append(expandedParts, expanded)
 	}
 
 	return strings.Join(expandedParts, "\n")
 }
 
-func expandRaw(rawdef string, definitions map[string]*FullDefinition) string {
-	// replaced := linkRe.ReplaceAllStringFunc(sd.raw, func(match string) string {
+func ReplaceAllStringSubmatchFunc(re *regexp.Regexp, str string, repl func([]string) string) string {
+	result := ""
+	lastIndex := 0
 
-	// 	log.Println("[DEBUG] MATCH ", match)
-	// 	return "FOO"
-	// })
-	log.Println("EXPANDRAW claled with", rawdef)
+	for _, v := range re.FindAllSubmatchIndex([]byte(str), -1) {
+		groups := []string{}
+		for i := 0; i < len(v); i += 2 {
+			groups = append(groups, str[v[i]:v[i+1]])
+		}
 
+		result += str[lastIndex:v[0]] + repl(groups)
+		lastIndex = v[1]
+	}
+
+	return result + str[lastIndex:]
+}
+
+func expandRaw(rawdef string, word string, definitions map[string]*FullDefinition) string {
+	rawdef = ReplaceAllStringSubmatchFunc(htmlRe, rawdef, func(groups []string) string {
+		return html.UnescapeString("&" + groups[1] + ";")
+
+	})
+
+	// Find {} link submatches
 	submatches := linkRe.FindAllStringSubmatch(rawdef, -1)
 
 	def := ""
 	if len(submatches) > 0 {
 		substrings := linkRe.Split(rawdef, -1)
-		log.Println("substrings", substrings)
 		def += substrings[0]
 		idx := 0
 
@@ -109,26 +135,48 @@ func expandRaw(rawdef string, definitions map[string]*FullDefinition) string {
 			link := submatch[1]
 			pospeech := submatch[2]
 			idx++
-			def += link + " (" + findLinkText(link, pospeech, definitions) + ")"
+			def += link + " (" + findLinkText(link, pospeech, definitions, word, false) + ")"
 		}
 		def += substrings[idx]
 	} else {
 		def = rawdef
 	}
+	rawdef = def
+	def = ""
+
+	// Find < > submatches
+	submatches = rootRe.FindAllStringSubmatch(rawdef, -1)
+	if len(submatches) > 0 {
+		substrings := rootRe.Split(rawdef, -1)
+		def += substrings[0]
+		idx := 0
+
+		for _, submatch := range submatches {
+			root := submatch[1]
+			pospeech := submatch[2]
+			idx++
+			def += strings.ToUpper(root) + ", " + findLinkText(root, pospeech, definitions, word, true)
+		}
+		def += substrings[idx]
+	} else {
+		def = rawdef
+	}
+
 	return def
 }
 
-func findLinkText(link string, pospeech string, definitions map[string]*FullDefinition) string {
+func findLinkText(link string, pospeech string, definitions map[string]*FullDefinition,
+	word string, searchDeclensions bool) string {
 	upper := strings.ToUpper(link)
 
 	def := definitions[upper]
-
 	for _, sd := range def.parts {
 		if sd.partOfSpeech == pospeech {
-			log.Println("Found sd", sd)
-			// && strings.Contains(sd.declensions, upper) {
-			// found it.
-			return expandRaw(sd.nopospeech, definitions)
+			if (searchDeclensions && strings.Contains(sd.declensions, word)) ||
+				!searchDeclensions {
+				// found it.
+				return expandRaw(sd.nopospeech, word, definitions)
+			}
 		}
 	}
 	return ""

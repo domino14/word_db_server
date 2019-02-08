@@ -539,7 +539,7 @@ func populateAlphsDefs(filename string, combinations func(string, bool) uint64,
 			if len(fields) > 1 {
 				definition = strings.Join(fields[1:], " ")
 			}
-			definitions[word.Word] = &FullDefinition{raw: definition}
+			addToDefinitions(word.Word, definition, definitions)
 			alphagram := word.MakeAlphagram()
 			alph, ok := alphagrams[alphagram]
 			if !ok {
