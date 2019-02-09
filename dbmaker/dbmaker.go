@@ -473,7 +473,7 @@ func findLexSymbols(word string, lexiconName string, lexMap LexiconMap,
 	for _, def := range lexSymbols {
 		if lexiconName == def.In {
 			lex := lexMap[def.NotIn]
-			if lex.Gaddag.GetAlphabet() != nil &&
+			if lex.Gaddag != nil && lex.Gaddag.GetAlphabet() != nil &&
 				!gaddag.FindWord(lex.Gaddag, word) &&
 				!strings.Contains(symbols, def.Symbol) {
 				symbols += def.Symbol

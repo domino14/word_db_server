@@ -2,6 +2,7 @@ package dbmaker
 
 import (
 	"html"
+	"log"
 	"regexp"
 	"strings"
 )
@@ -23,6 +24,10 @@ type FullDefinition struct {
 
 	parts []*SingleDefinition
 }
+
+const BadString = "__BAD_STRING___BAD__"
+
+const MaxRecursionCount = 10
 
 var linkRe = regexp.MustCompile("{([[:alpha:]]+)=([[:alpha:]]+)}")
 var htmlRe = regexp.MustCompile("{([[:alpha:]]+)}")
@@ -92,14 +97,16 @@ func createSingleDefinition(idx int, word, part string) *SingleDefinition {
 func (fd *FullDefinition) expand(definitions map[string]*FullDefinition) string {
 	expandedParts := []string{}
 	for _, part := range fd.parts {
-		expanded := expandRaw(part.raw, part.word, definitions)
+		expanded := expandRaw(part.raw, part.word, definitions, make(map[string]bool))
 		expandedParts = append(expandedParts, expanded)
 	}
 
 	return strings.Join(expandedParts, "\n")
 }
 
-func ReplaceAllStringSubmatchFunc(re *regexp.Regexp, str string, repl func([]string) string) string {
+func ReplaceAllStringSubmatchFunc(re *regexp.Regexp, str string,
+	repl func([]string) string) string {
+
 	result := ""
 	lastIndex := 0
 
@@ -116,10 +123,18 @@ func ReplaceAllStringSubmatchFunc(re *regexp.Regexp, str string, repl func([]str
 	return result + str[lastIndex:]
 }
 
-func expandRaw(rawdef string, word string, definitions map[string]*FullDefinition) string {
+func expandRaw(rawdef string, word string, definitions map[string]*FullDefinition,
+	visitedWords map[string]bool) string {
+
+	if visitedWords[word] {
+		// This word has already been seen.
+		log.Printf("[DEBUG] Word was seen at least once: %v", word)
+		return BadString
+	}
+
+	visitedWords[word] = true
 	rawdef = ReplaceAllStringSubmatchFunc(htmlRe, rawdef, func(groups []string) string {
 		return html.UnescapeString("&" + groups[1] + ";")
-
 	})
 
 	// Find {} link submatches
@@ -135,7 +150,11 @@ func expandRaw(rawdef string, word string, definitions map[string]*FullDefinitio
 			link := submatch[1]
 			pospeech := submatch[2]
 			idx++
-			def += link + " (" + findLinkText(link, pospeech, definitions, word, false) + ")"
+			def += link
+			linkText := findLinkText(link, pospeech, definitions, word, false, visitedWords)
+			if linkText != BadString && linkText != "" {
+				def += " (" + linkText + ")"
+			}
 		}
 		def += substrings[idx]
 	} else {
@@ -155,7 +174,15 @@ func expandRaw(rawdef string, word string, definitions map[string]*FullDefinitio
 			root := submatch[1]
 			pospeech := submatch[2]
 			idx++
-			def += strings.ToUpper(root) + ", " + findLinkText(root, pospeech, definitions, word, true)
+			linkText := findLinkText(root, pospeech, definitions, word, true, visitedWords)
+			if linkText != BadString {
+				def += strings.ToUpper(root)
+				if linkText != "" {
+					def += ", " + linkText
+				}
+			} else {
+				def += root
+			}
 		}
 		def += substrings[idx]
 	} else {
@@ -166,18 +193,36 @@ func expandRaw(rawdef string, word string, definitions map[string]*FullDefinitio
 }
 
 func findLinkText(link string, pospeech string, definitions map[string]*FullDefinition,
-	word string, searchDeclensions bool) string {
+	word string, searchDeclensions bool, visitedWords map[string]bool) string {
+
 	upper := strings.ToUpper(link)
 
 	def := definitions[upper]
+	var bestCandidate *SingleDefinition
 	for _, sd := range def.parts {
 		if sd.partOfSpeech == pospeech {
-			if (searchDeclensions && strings.Contains(sd.declensions, word)) ||
-				!searchDeclensions {
+			if searchDeclensions && strings.Contains(sd.declensions, word) {
 				// found it.
-				return expandRaw(sd.nopospeech, word, definitions)
+				return expandRaw(sd.nopospeech, sd.word, definitions, visitedWords)
+			}
+			if !searchDeclensions {
+				// If we're not searching declensions, this must be expanding
+				// a link with {} (indicating a relevant word).
+				// In this case, prefer finding a link with the same part
+				// of speech that doesn't have a <> link (a declension link)
+				if rootRe.MatchString(sd.nopospeech) {
+					bestCandidate = sd
+					continue
+				} else {
+					return expandRaw(sd.nopospeech, sd.word, definitions, visitedWords)
+				}
 			}
 		}
 	}
+	if bestCandidate != nil {
+		return expandRaw(bestCandidate.nopospeech, bestCandidate.word, definitions,
+			visitedWords)
+	}
+
 	return ""
 }
