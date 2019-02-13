@@ -97,7 +97,8 @@ func createSingleDefinition(idx int, word, part string) *SingleDefinition {
 func (fd *FullDefinition) expand(definitions map[string]*FullDefinition) string {
 	expandedParts := []string{}
 	for _, part := range fd.parts {
-		expanded := expandRaw(part.raw, part.word, definitions, make(map[string]bool))
+		expanded := expandRaw(part.raw, part.word, definitions, make(map[string]bool),
+			false)
 		expandedParts = append(expandedParts, expanded)
 	}
 
@@ -124,7 +125,7 @@ func ReplaceAllStringSubmatchFunc(re *regexp.Regexp, str string,
 }
 
 func expandRaw(rawdef string, word string, definitions map[string]*FullDefinition,
-	visitedWords map[string]bool) string {
+	visitedWords map[string]bool, matchedLink bool) string {
 
 	if visitedWords[word] {
 		// This word has already been seen.
@@ -142,6 +143,7 @@ func expandRaw(rawdef string, word string, definitions map[string]*FullDefinitio
 
 	def := ""
 	if len(submatches) > 0 {
+		matchedLink = true
 		substrings := linkRe.Split(rawdef, -1)
 		def += substrings[0]
 		idx := 0
@@ -151,7 +153,8 @@ func expandRaw(rawdef string, word string, definitions map[string]*FullDefinitio
 			pospeech := submatch[2]
 			idx++
 			def += link
-			linkText := findLinkText(link, pospeech, definitions, word, false, visitedWords)
+			linkText := findLinkText(link, pospeech, definitions, word, false,
+				visitedWords, matchedLink)
 			if linkText != BadString && linkText != "" {
 				def += " (" + linkText + ")"
 			}
@@ -174,11 +177,16 @@ func expandRaw(rawdef string, word string, definitions map[string]*FullDefinitio
 			root := submatch[1]
 			pospeech := submatch[2]
 			idx++
-			linkText := findLinkText(root, pospeech, definitions, word, true, visitedWords)
+			linkText := findLinkText(root, pospeech, definitions, word, true,
+				visitedWords, matchedLink)
 			if linkText != BadString {
-				def += strings.ToUpper(root)
-				if linkText != "" {
-					def += ", " + linkText
+				if matchedLink {
+					def += linkText
+				} else {
+					def += strings.ToUpper(root)
+					if linkText != "" {
+						def += ", " + linkText
+					}
 				}
 			} else {
 				def += root
@@ -193,7 +201,8 @@ func expandRaw(rawdef string, word string, definitions map[string]*FullDefinitio
 }
 
 func findLinkText(link string, pospeech string, definitions map[string]*FullDefinition,
-	word string, searchDeclensions bool, visitedWords map[string]bool) string {
+	word string, searchDeclensions bool, visitedWords map[string]bool,
+	matchedLink bool) string {
 
 	upper := strings.ToUpper(link)
 
@@ -203,7 +212,8 @@ func findLinkText(link string, pospeech string, definitions map[string]*FullDefi
 		if sd.partOfSpeech == pospeech {
 			if searchDeclensions && strings.Contains(sd.declensions, word) {
 				// found it.
-				return expandRaw(sd.nopospeech, sd.word, definitions, visitedWords)
+				return expandRaw(sd.nopospeech, sd.word, definitions, visitedWords,
+					matchedLink)
 			}
 			if !searchDeclensions {
 				// If we're not searching declensions, this must be expanding
@@ -214,14 +224,15 @@ func findLinkText(link string, pospeech string, definitions map[string]*FullDefi
 					bestCandidate = sd
 					continue
 				} else {
-					return expandRaw(sd.nopospeech, sd.word, definitions, visitedWords)
+					return expandRaw(sd.nopospeech, sd.word, definitions, visitedWords,
+						matchedLink)
 				}
 			}
 		}
 	}
 	if bestCandidate != nil {
 		return expandRaw(bestCandidate.nopospeech, bestCandidate.word, definitions,
-			visitedWords)
+			visitedWords, matchedLink)
 	}
 
 	return ""

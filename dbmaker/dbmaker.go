@@ -5,14 +5,18 @@ package dbmaker
 import (
 	"bufio"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/domino14/macondo/alphabet"
 	"github.com/domino14/macondo/gaddag"
+
+	// sqlite3 db driver is needed for the word db maker
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -126,9 +130,6 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo,
 	sort.Sort(AlphByCombos(alphs))
 
 	var probs [16]uint32
-	for i := 0; i < 16; i++ {
-		probs[i] = 0
-	}
 
 	dbName := createSqliteDb(outputDir, lexiconName)
 
@@ -212,7 +213,24 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo,
 	if err != nil {
 		log.Fatal(err)
 	}
+	// log the word length dict to screen. This is needed for the lexica.yaml
+	// fixture in webolith.
+	logWordLengths(probs)
+}
 
+func logWordLengths(lengths [16]uint32) {
+	mp := map[string]uint32{}
+	for idx, lgt := range lengths {
+		if lgt == 0 {
+			continue
+		}
+		mp[strconv.Itoa(idx)] = lgt
+	}
+	bts, err := json.Marshal(mp)
+	if err != nil {
+		panic(err.Error())
+	}
+	log.Printf("Word lengths: '%s'", string(bts))
 }
 
 // MigrateLexiconDatabase assumes the database has already been created with
