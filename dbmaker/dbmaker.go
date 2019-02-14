@@ -173,10 +173,6 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo,
 		}
 		lexSymbolsList := []string{}
 		for _, word := range alph.words {
-			if err != nil {
-				log.Fatal(err)
-			}
-
 			backHooks := sortedHooks(gaddag.FindHooks(gd, word, gaddag.BackHooks),
 				lexiconInfo.LetterDistribution)
 			frontHooks := sortedHooks(gaddag.FindHooks(gd, word, gaddag.FrontHooks),
@@ -231,6 +227,115 @@ func logWordLengths(lengths [16]uint32) {
 		panic(err.Error())
 	}
 	log.Printf("Word lengths: '%s'", string(bts))
+}
+
+func FixDefinitions(lexiconName string, lexMap LexiconMap) {
+	_, err := os.Stat(lexiconName + ".db")
+	if os.IsNotExist(err) {
+		log.Fatal("Database does not exist in this directory.")
+	}
+	db, err := sql.Open("sqlite3", lexiconName+".db")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	lexiconInfo := lexMap[lexiconName]
+	lexiconInfo.Initialize()
+
+	definitions, _ := populateAlphsDefs(lexiconInfo.LexiconFilename,
+		lexiconInfo.Combinations, lexiconInfo.LetterDistribution)
+
+	definitionEditQuery := `
+	UPDATE words SET definition = ? WHERE word = ?
+	`
+
+	tx, err := db.Begin()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defStmt, err := tx.Prepare(definitionEditQuery)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for word, def := range definitions {
+		_, err := defStmt.Exec(def, word)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	tx.Commit()
+
+	defer defStmt.Close()
+	defer db.Close()
+
+}
+
+func FixLexiconSymbols(lexiconName string, lexMap LexiconMap,
+	symbols []LexiconSymbolDefinition) {
+
+	_, err := os.Stat(lexiconName + ".db")
+	if os.IsNotExist(err) {
+		log.Fatal("Database does not exist in this directory.")
+	}
+	db, err := sql.Open("sqlite3", lexiconName+".db")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	lexiconInfo := lexMap[lexiconName]
+	lexiconInfo.Initialize()
+
+	_, alphagrams := populateAlphsDefs(lexiconInfo.LexiconFilename,
+		lexiconInfo.Combinations, lexiconInfo.LetterDistribution)
+
+	lexSymbolEditQuery := `
+	UPDATE words SET lexicon_symbols = ? WHERE word = ?
+	`
+
+	alphaLexEditQuery := `
+	UPDATE alphagrams SET contains_word_uniq_to_lex_split = ?,
+		contains_update_to_lex = ?
+	WHERE alphagram = ?`
+
+	alphStmt, err := tx.Prepare(alphaLexEditQuery)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	wordStmt, err := tx.Prepare(lexSymbolEditQuery)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer alphStmt.Close()
+	defer wordStmt.Close()
+
+	for _, alphagramObj := range alphagrams {
+		lexSymbolsList := []string{}
+		for _, word := range alphagramObj.words {
+			theseLexSymbols := findLexSymbols(word, lexiconName, lexMap, symbols)
+			_, err := wordStmt.Exec(theseLexSymbols, word)
+			if err != nil {
+				log.Fatal(err)
+			}
+			lexSymbolsList = append(lexSymbolsList, theseLexSymbols)
+		}
+		_, err := alphStmt.Exec(containsWordUniqueToLexSplit(lexSymbolsList),
+			containsUpdateToLex(lexSymbolsList), alphagramObj.alphagram)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	tx.Commit()
+
 }
 
 // MigrateLexiconDatabase assumes the database has already been created with
@@ -532,7 +637,7 @@ func containsUpdateToLex(lexSymbolsList []string) uint8 {
 
 // The values of the map.
 func alphaMapValues(theMap map[string]Alphagram) []Alphagram {
-	x := make([]Alphagram, len(theMap))
+	x := make([]Alphagram, len(theMap)) // thelf
 	i := 0
 	for _, value := range theMap {
 		x[i] = value

@@ -30,7 +30,13 @@ func main() {
 	// lists.
 	var migratedb = flag.String("migratedb", "", "Migrate a DB instead of generating it")
 	var createdbs = flag.String("dbs", "", "Pass in comma-separated list of dbs to make, instead of all")
+	var dbToFixDefs = flag.String("fixdefs", "",
+		"Pass in lexicon name to fix definitions on. DB <lexiconname>.db must exist in this dir.")
+	var dbToFixSymbols = flag.String("fixsymbols", "",
+		"Pass in lexicon name to fix lexicon symbols on. DB <lexiconname>.db must exist in this dir.")
+
 	var outputDirF = flag.String("outputdir", ".", "The output directory")
+
 	flag.Parse()
 	dbToMigrate := *migratedb
 	dbsToMake := *createdbs
@@ -41,43 +47,42 @@ func main() {
 		{In: "NWL18", NotIn: "America", Symbol: "+"},
 		{In: "CSW15", NotIn: "NWL18", Symbol: "#"},
 		{In: "FISE2", NotIn: "FISE09", Symbol: "+"},
-		{In: "CSW15", NotIn: "America", Symbol: "#"},
 		{In: "CSW15", NotIn: "CSW12", Symbol: "+"},
 	}
 	// set LEXICON_PATH to something.
 	// For example "/Users/cesar/coding/webolith/words/" on my computer.
 	lexiconPrefix := os.Getenv("LEXICON_PATH")
-	gaddagPrefix := os.Getenv("GADDAG_PATH")
+	gaddagPrefix := filepath.Join(lexiconPrefix, "gaddag")
 	lexiconMap := dbmaker.LexiconMap{
 		// Pregenerate these gaddags with macondo/gaddag package.
 		"CSW12": dbmaker.LexiconInfo{
 			LexiconName:        "CSW12",
-			LexiconFilename:    lexiconPrefix + "CSW12.txt",
-			Gaddag:             gaddag.LoadGaddag(gaddagPrefix + "CSW12.gaddag"),
+			LexiconFilename:    filepath.Join(lexiconPrefix, "CSW12.txt"),
+			Gaddag:             gaddag.LoadGaddag(filepath.Join(gaddagPrefix, "CSW12.gaddag")),
 			LexiconIndex:       1,
 			DescriptiveName:    "Collins 12",
 			LetterDistribution: alphabet.EnglishLetterDistribution(),
 		},
 		"CSW15": dbmaker.LexiconInfo{
 			LexiconName:        "CSW15",
-			LexiconFilename:    lexiconPrefix + "CSW15.txt",
-			Gaddag:             gaddag.LoadGaddag(gaddagPrefix + "CSW15.gaddag"),
+			LexiconFilename:    filepath.Join(lexiconPrefix, "CSW15.txt"),
+			Gaddag:             gaddag.LoadGaddag(filepath.Join(gaddagPrefix, "CSW15.gaddag")),
 			LexiconIndex:       1,
 			DescriptiveName:    "Collins 15",
 			LetterDistribution: alphabet.EnglishLetterDistribution(),
 		},
 		"America": dbmaker.LexiconInfo{
 			LexiconName:        "America",
-			LexiconFilename:    lexiconPrefix + "America.txt",
-			Gaddag:             gaddag.LoadGaddag(gaddagPrefix + "America.gaddag"),
+			LexiconFilename:    filepath.Join(lexiconPrefix, "America.txt"),
+			Gaddag:             gaddag.LoadGaddag(filepath.Join(gaddagPrefix, "America.gaddag")),
 			LexiconIndex:       7,
 			DescriptiveName:    "I am America, and so can you.",
 			LetterDistribution: alphabet.EnglishLetterDistribution(),
 		},
 		"FISE09": dbmaker.LexiconInfo{
 			LexiconName:        "FISE09",
-			LexiconFilename:    lexiconPrefix + "FISE09.txt",
-			Gaddag:             gaddag.LoadGaddag(gaddagPrefix + "FISE09.gaddag"),
+			LexiconFilename:    filepath.Join(lexiconPrefix, "FISE09.txt"),
+			Gaddag:             gaddag.LoadGaddag(filepath.Join(gaddagPrefix, "FISE09.gaddag")),
 			LexiconIndex:       8,
 			DescriptiveName:    "Federación Internacional de Scrabble en Español",
 			LetterDistribution: alphabet.SpanishLetterDistribution(),
@@ -106,27 +111,51 @@ func main() {
 			return
 		}
 		dbmaker.MigrateLexiconDatabase(dbToMigrate, info)
+	} else if *dbToFixDefs != "" {
+		fixDefinitions(*dbToFixDefs, lexiconMap)
+	} else if *dbToFixSymbols != "" {
+		fixSymbols(*dbToFixSymbols, lexiconMap, symbols)
 	} else {
-		dbs := []string{}
-		if dbsToMake != "" {
-			dbs = strings.Split(dbsToMake, ",")
-		} else {
-			for name := range lexiconMap {
-				dbs = append(dbs, name)
-			}
+		makeDbs(dbsToMake, lexiconMap, symbols, outputDir)
+	}
+}
+
+func fixDefinitions(dbToFixDefs string, lexiconMap dbmaker.LexiconMap) {
+	// open existing databases but new dictionary files/gaddags etc
+	// and apply new definitions
+	dbmaker.FixDefinitions(dbToFixDefs, lexiconMap)
+}
+
+func fixSymbols(dbToFixSymbols string, lexiconMap dbmaker.LexiconMap,
+	symbols []dbmaker.LexiconSymbolDefinition) {
+
+	// open existing databases but new dictionary files/gaddags etc
+	// and apply lex symbols.
+	dbmaker.FixLexiconSymbols(dbToFixSymbols, lexiconMap, symbols)
+}
+
+func makeDbs(dbsToMake string, lexiconMap dbmaker.LexiconMap,
+	symbols []dbmaker.LexiconSymbolDefinition, outputDir string) {
+
+	dbs := []string{}
+	if dbsToMake != "" {
+		dbs = strings.Split(dbsToMake, ",")
+	} else {
+		for name := range lexiconMap {
+			dbs = append(dbs, name)
 		}
-		for name, info := range lexiconMap {
-			if !stringInSlice(name, dbs) {
-				fmt.Println(name, "was not in list of dbs, skipping...")
-				continue
-			}
-			if info.Gaddag.GetAlphabet() == nil {
-				fmt.Println(name, "was not supplied, skipping...")
-				continue
-			}
-			info.Initialize()
-			dbmaker.CreateLexiconDatabase(name, info, symbols, lexiconMap,
-				outputDir)
+	}
+	for name, info := range lexiconMap {
+		if !stringInSlice(name, dbs) {
+			fmt.Println(name, "was not in list of dbs, skipping...")
+			continue
 		}
+		if info.Gaddag == nil || info.Gaddag.GetAlphabet() == nil {
+			fmt.Println(name, "was not supplied, skipping...")
+			continue
+		}
+		info.Initialize()
+		dbmaker.CreateLexiconDatabase(name, info, symbols, lexiconMap,
+			outputDir)
 	}
 }
