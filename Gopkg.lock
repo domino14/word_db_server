@@ -8,14 +8,14 @@
   version = "v1.1.1"
 
 [[projects]]
-  branch = "movegen"
   name = "github.com/domino14/macondo"
   packages = [
     "alphabet",
     "gaddag",
     "gaddagmaker"
   ]
-  revision = "44452823f41c993da96a3312b16775f60ed98749"
+  revision = "2c818c8f73a49bb7c02d916676278ddc74a25d25"
+  version = "v0.2.0"
 
 [[projects]]
   name = "github.com/mattn/go-sqlite3"
@@ -38,6 +38,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "2913f93188cd14eb792044aeb7c3cf533faaa0a4522451395a17375a95e11513"
+  inputs-digest = "dba114ed5019f5c298170dd6083d07f6f16616862c587cced8aa90de11fe2a31"
   solver-name = "gps-cdcl"
   solver-version = 1
