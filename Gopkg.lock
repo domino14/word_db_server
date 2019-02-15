@@ -2,23 +2,42 @@
 
 
 [[projects]]
+  name = "github.com/davecgh/go-spew"
+  packages = ["spew"]
+  revision = "8991bc29aa16c548c550c7ff78260e27b9ab7c73"
+  version = "v1.1.1"
+
+[[projects]]
   name = "github.com/domino14/macondo"
   packages = [
+    "alphabet",
     "gaddag",
-    "lexicon"
+    "gaddagmaker"
   ]
-  revision = "cf6416ad1d46634913cf52ae444f3cd41573eb08"
-  version = "v0.0.10"
+  revision = "2c818c8f73a49bb7c02d916676278ddc74a25d25"
+  version = "v0.2.0"
 
 [[projects]]
   name = "github.com/mattn/go-sqlite3"
   packages = ["."]
-  revision = "6c771bb9887719704b210e87e934f08be014bdb1"
-  version = "v1.6.0"
+  revision = "c7c4067b79cc51e6dfdcef5c702e74b1e0fa7c75"
+  version = "v1.10.0"
+
+[[projects]]
+  name = "github.com/pmezard/go-difflib"
+  packages = ["difflib"]
+  revision = "792786c7400a136282c1664665ae0a8db921c6c2"
+  version = "v1.0.0"
+
+[[projects]]
+  name = "github.com/stretchr/testify"
+  packages = ["assert"]
+  revision = "ffdc059bfe9ce6a4e144ba849dbedead332c6053"
+  version = "v1.3.0"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e46c90526554e36611a0890daeafa09626a50baf99ea78575e1001e9036d0a42"
+  inputs-digest = "dba114ed5019f5c298170dd6083d07f6f16616862c587cced8aa90de11fe2a31"
   solver-name = "gps-cdcl"
   solver-version = 1

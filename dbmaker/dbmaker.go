@@ -5,14 +5,18 @@ package dbmaker
 import (
 	"bufio"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
+	"github.com/domino14/macondo/alphabet"
 	"github.com/domino14/macondo/gaddag"
-	"github.com/domino14/macondo/lexicon"
+
+	// sqlite3 db driver is needed for the word db maker
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -29,7 +33,7 @@ func (a *Alphagram) String() string {
 	return fmt.Sprintf("Alphagram: %s (%d)", a.alphagram, a.combinations)
 }
 
-func (a *Alphagram) pointValue(dist lexicon.LetterDistribution) uint8 {
+func (a *Alphagram) pointValue(dist alphabet.LetterDistribution) uint8 {
 	pts := uint8(0)
 	for _, rn := range a.alphagram {
 		pts += dist.PointValues[rn]
@@ -41,7 +45,7 @@ func (a *Alphagram) numVowels() uint8 {
 	vowels := uint8(0)
 	for _, rn := range a.alphagram {
 		if rn == 'A' || rn == 'E' || rn == 'I' || rn == 'O' || rn == 'U' {
-			vowels += 1
+			vowels++
 		}
 	}
 	return vowels
@@ -58,12 +62,11 @@ func (a AlphByCombos) Less(i, j int) bool {
 	// to use the old DBs until there is a lexicon update :(
 	if a[i].combinations == a[j].combinations {
 		return a[i].alphagram < a[j].alphagram
-	} else {
-		return a[i].combinations > a[j].combinations
 	}
+	return a[i].combinations > a[j].combinations
 }
 
-type LexiconMap map[string]lexicon.LexiconInfo
+type LexiconMap map[string]LexiconInfo
 
 type LexiconSymbolDefinition struct {
 	In     string // The word is in this lexicon
@@ -116,7 +119,7 @@ func createSqliteDb(outputDir string, lexiconName string) string {
 	return dbName
 }
 
-func CreateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo,
+func CreateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo,
 	lexSymbols []LexiconSymbolDefinition, lexMap LexiconMap,
 	outputDir string) {
 	fmt.Println("Creating lexicon database", lexiconName)
@@ -127,9 +130,6 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo,
 	sort.Sort(AlphByCombos(alphs))
 
 	var probs [16]uint32
-	for i := 0; i < 16; i++ {
-		probs[i] = 0
-	}
 
 	dbName := createSqliteDb(outputDir, lexiconName)
 
@@ -173,10 +173,6 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo,
 		}
 		lexSymbolsList := []string{}
 		for _, word := range alph.words {
-			if err != nil {
-				log.Fatal(err)
-			}
-
 			backHooks := sortedHooks(gaddag.FindHooks(gd, word, gaddag.BackHooks),
 				lexiconInfo.LetterDistribution)
 			frontHooks := sortedHooks(gaddag.FindHooks(gd, word, gaddag.FrontHooks),
@@ -213,10 +209,136 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo,
 	if err != nil {
 		log.Fatal(err)
 	}
+	// log the word length dict to screen. This is needed for the lexica.yaml
+	// fixture in webolith.
+	logWordLengths(probs)
+}
+
+func logWordLengths(lengths [16]uint32) {
+	mp := map[string]uint32{}
+	for idx, lgt := range lengths {
+		if lgt == 0 {
+			continue
+		}
+		mp[strconv.Itoa(idx)] = lgt
+	}
+	bts, err := json.Marshal(mp)
+	if err != nil {
+		panic(err.Error())
+	}
+	log.Printf("Word lengths: '%s'", string(bts))
+}
+
+func FixDefinitions(lexiconName string, lexMap LexiconMap) {
+	_, err := os.Stat(lexiconName + ".db")
+	if os.IsNotExist(err) {
+		log.Fatal("Database does not exist in this directory.")
+	}
+	db, err := sql.Open("sqlite3", lexiconName+".db")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	lexiconInfo := lexMap[lexiconName]
+	lexiconInfo.Initialize()
+
+	definitions, _ := populateAlphsDefs(lexiconInfo.LexiconFilename,
+		lexiconInfo.Combinations, lexiconInfo.LetterDistribution)
+
+	definitionEditQuery := `
+	UPDATE words SET definition = ? WHERE word = ?
+	`
+
+	tx, err := db.Begin()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defStmt, err := tx.Prepare(definitionEditQuery)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for word, def := range definitions {
+		_, err := defStmt.Exec(def, word)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	tx.Commit()
+
+	defer defStmt.Close()
+	defer db.Close()
 
 }
 
-// FixLexiconDatabase assumes the database has already been created with
+func FixLexiconSymbols(lexiconName string, lexMap LexiconMap,
+	symbols []LexiconSymbolDefinition) {
+
+	_, err := os.Stat(lexiconName + ".db")
+	if os.IsNotExist(err) {
+		log.Fatal("Database does not exist in this directory.")
+	}
+	db, err := sql.Open("sqlite3", lexiconName+".db")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	lexiconInfo := lexMap[lexiconName]
+	lexiconInfo.Initialize()
+
+	_, alphagrams := populateAlphsDefs(lexiconInfo.LexiconFilename,
+		lexiconInfo.Combinations, lexiconInfo.LetterDistribution)
+
+	lexSymbolEditQuery := `
+	UPDATE words SET lexicon_symbols = ? WHERE word = ?
+	`
+
+	alphaLexEditQuery := `
+	UPDATE alphagrams SET contains_word_uniq_to_lex_split = ?,
+		contains_update_to_lex = ?
+	WHERE alphagram = ?`
+
+	alphStmt, err := tx.Prepare(alphaLexEditQuery)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	wordStmt, err := tx.Prepare(lexSymbolEditQuery)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer alphStmt.Close()
+	defer wordStmt.Close()
+
+	for _, alphagramObj := range alphagrams {
+		lexSymbolsList := []string{}
+		for _, word := range alphagramObj.words {
+			theseLexSymbols := findLexSymbols(word, lexiconName, lexMap, symbols)
+			_, err := wordStmt.Exec(theseLexSymbols, word)
+			if err != nil {
+				log.Fatal(err)
+			}
+			lexSymbolsList = append(lexSymbolsList, theseLexSymbols)
+		}
+		_, err := alphStmt.Exec(containsWordUniqueToLexSplit(lexSymbolsList),
+			containsUpdateToLex(lexSymbolsList), alphagramObj.alphagram)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	tx.Commit()
+
+}
+
+// MigrateLexiconDatabase assumes the database has already been created with
 // a previous version of this program. At the minimum, the schema looks like:
 // sqlStmt := `
 // CREATE TABLE alphagrams (probability int, alphagram varchar(20),
@@ -233,7 +355,7 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo,
 // CREATE INDEX alphagram_index on words(alphagram);
 // `
 // This function assumes the above schema.
-func FixLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo) {
+func MigrateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo) {
 	dbName := "./" + lexiconName + ".db"
 
 	db, err := sql.Open("sqlite3", dbName)
@@ -286,7 +408,7 @@ func FixLexiconDatabase(lexiconName string, lexiconInfo lexicon.LexiconInfo) {
 
 }
 
-func migrateToV2(db *sql.DB, dist lexicon.LetterDistribution) {
+func migrateToV2(db *sql.DB, dist alphabet.LetterDistribution) {
 	// Version 2 has the following improvements:
 	// An index on point value, and point value
 	// An index on num anagrams, and num anagrams
@@ -461,8 +583,8 @@ func migrateToV4(db *sql.DB) {
 	}
 }
 
-func sortedHooks(hooks []rune, dist lexicon.LetterDistribution) string {
-	w := lexicon.Word{Word: string(hooks), Dist: dist}
+func sortedHooks(hooks []rune, dist alphabet.LetterDistribution) string {
+	w := alphabet.Word{Word: string(hooks), Dist: dist}
 	return w.MakeAlphagram()
 }
 
@@ -474,7 +596,7 @@ func findLexSymbols(word string, lexiconName string, lexMap LexiconMap,
 	for _, def := range lexSymbols {
 		if lexiconName == def.In {
 			lex := lexMap[def.NotIn]
-			if lex.Gaddag.GetAlphabet() != nil &&
+			if lex.Gaddag != nil && lex.Gaddag.GetAlphabet() != nil &&
 				!gaddag.FindWord(lex.Gaddag, word) &&
 				!strings.Contains(symbols, def.Symbol) {
 				symbols += def.Symbol
@@ -486,8 +608,9 @@ func findLexSymbols(word string, lexiconName string, lexMap LexiconMap,
 
 // This is a bit of a special function, used only for the annoying lexical
 // split in English-language Scrabble. If the lexiconName is "America",
-// this will return a 1 if any of the strings in the lexSymbols array contains
-// a $ sign. If the lexiconName is "CSW15", the string to look for is #.
+// or "NWL18", this will return a 1 if any of the strings in the lexSymbols
+// array contains a $ sign. If the lexiconName is "CSW15", the string to
+// look for is #.
 // All other cases return a 0.
 // Note that this will need to be updated when new versions of America/ CSW
 // are added.
@@ -514,7 +637,7 @@ func containsUpdateToLex(lexSymbolsList []string) uint8 {
 
 // The values of the map.
 func alphaMapValues(theMap map[string]Alphagram) []Alphagram {
-	x := make([]Alphagram, len(theMap))
+	x := make([]Alphagram, len(theMap)) // thelf
 	i := 0
 	for _, value := range theMap {
 		x[i] = value
@@ -524,9 +647,9 @@ func alphaMapValues(theMap map[string]Alphagram) []Alphagram {
 }
 
 func populateAlphsDefs(filename string, combinations func(string, bool) uint64,
-	dist lexicon.LetterDistribution) (
-	map[string]string, map[string]Alphagram) {
-	definitions := make(map[string]string)
+	dist alphabet.LetterDistribution) (map[string]string, map[string]Alphagram) {
+
+	definitions := make(map[string]*FullDefinition)
 	alphagrams := make(map[string]Alphagram)
 	file, _ := os.Open(filename)
 	// XXX: Check error
@@ -534,12 +657,12 @@ func populateAlphsDefs(filename string, combinations func(string, bool) uint64,
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
 		if len(fields) > 0 {
-			word := lexicon.Word{Word: strings.ToUpper(fields[0]), Dist: dist}
+			word := alphabet.Word{Word: strings.ToUpper(fields[0]), Dist: dist}
 			definition := ""
 			if len(fields) > 1 {
 				definition = strings.Join(fields[1:], " ")
 			}
-			definitions[word.Word] = definition
+			addToDefinitions(word.Word, definition, definitions)
 			alphagram := word.MakeAlphagram()
 			alph, ok := alphagrams[alphagram]
 			if !ok {
@@ -554,5 +677,8 @@ func populateAlphsDefs(filename string, combinations func(string, bool) uint64,
 		}
 	}
 	file.Close()
-	return definitions, alphagrams
+
+	definitionMap := expandDefinitions(definitions)
+
+	return definitionMap, alphagrams
 }
