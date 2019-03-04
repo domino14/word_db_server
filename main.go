@@ -103,6 +103,14 @@ func main() {
 			DescriptiveName:    "NASPA Word List, 2018 Edition",
 			LetterDistribution: alphabet.EnglishLetterDistribution(),
 		},
+		"OSPS38": dbmaker.LexiconInfo{
+			LexiconName:        "OSPS38",
+			LexiconFilename:    filepath.Join(lexiconPrefix, "OSPS38.txt"),
+			Gaddag:             gaddag.LoadGaddag(filepath.Join(gaddagPrefix, "OSPS38.gaddag")),
+			LexiconIndex:       11,
+			DescriptiveName:    "Polska Federacja Scrabble - Update 38",
+			LetterDistribution: alphabet.PolishLetterDistribution(),
+		},
 	}
 	if dbToMigrate != "" {
 		info, ok := lexiconMap[dbToMigrate]

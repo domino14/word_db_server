@@ -14,8 +14,8 @@
     "gaddag",
     "gaddagmaker"
   ]
-  revision = "2c818c8f73a49bb7c02d916676278ddc74a25d25"
-  version = "v0.2.0"
+  revision = "1eaaa60e7c789cbd3cccb3b601fc7eedca498328"
+  version = "v0.2.1"
 
 [[projects]]
   name = "github.com/mattn/go-sqlite3"
@@ -38,6 +38,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "dba114ed5019f5c298170dd6083d07f6f16616862c587cced8aa90de11fe2a31"
+  inputs-digest = "c5d83d6109660e6e14ee9f14022e016cef77168834e037624f3a13ee91a3aa05"
   solver-name = "gps-cdcl"
   solver-version = 1
