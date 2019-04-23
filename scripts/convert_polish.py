@@ -1,5 +1,5 @@
 """
-Convert the raw osps38utf.txt file into something that can be read
+Convert the raw osps(x)utf.txt file into something that can be read
 by the definition maker.
 
 The raw file has definitions that are minimal, and repeated words.
