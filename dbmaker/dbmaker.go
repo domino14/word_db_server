@@ -41,10 +41,15 @@ func (a *Alphagram) pointValue(dist alphabet.LetterDistribution) uint8 {
 	return pts
 }
 
-func (a *Alphagram) numVowels() uint8 {
+func (a *Alphagram) numVowels(dist alphabet.LetterDistribution) uint8 {
 	vowels := uint8(0)
+	vowelMap := map[rune]bool{}
+	for _, v := range dist.Vowels {
+		vowelMap[v] = true
+	}
+
 	for _, rn := range a.alphagram {
-		if rn == 'A' || rn == 'E' || rn == 'I' || rn == 'O' || rn == 'U' {
+		if vowelMap[rn] {
 			vowels++
 		}
 	}
@@ -196,7 +201,8 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo,
 
 		_, err = alphStmt.Exec(probs[wl], alph.alphagram, wl, alph.combinations,
 			len(alph.words), alph.pointValue(lexiconInfo.LetterDistribution),
-			alph.numVowels(), containsWordUniqueToLexSplit(lexSymbolsList),
+			alph.numVowels(lexiconInfo.LetterDistribution),
+			containsWordUniqueToLexSplit(lexSymbolsList),
 			containsUpdateToLex(lexSymbolsList))
 		if err != nil {
 			log.Fatal(err)
@@ -466,7 +472,7 @@ func migrateToV2(db *sql.DB, dist alphabet.LetterDistribution) {
 	updateStmt, err := tx.Prepare(updateQuery)
 	for _, alph := range alphagrams {
 		_, err := updateStmt.Exec(alph.wordCount, alph.pointValue(dist),
-			alph.numVowels(), alph.alphagram)
+			alph.numVowels(dist), alph.alphagram)
 		if err != nil {
 			log.Fatal(err)
 		}
