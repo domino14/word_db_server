@@ -10,7 +10,7 @@ import (
 
 	"github.com/domino14/macondo/alphabet"
 	"github.com/domino14/macondo/gaddag"
-	"github.com/domino14/word_db_maker/dbmaker"
+	"github.com/domino14/word_db_server/dbmaker"
 )
 
 func stringInSlice(a string, list []string) bool {
