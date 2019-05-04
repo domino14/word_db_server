@@ -18,12 +18,21 @@ func whereClauseRender(table string, column string, condition string) string {
 	return fmt.Sprintf("%s.%s %s", table, column, condition)
 }
 
+// XXX Consider this file knowing nothing about protobufs. That might be ok,
+// but there's also a case to be made for the way it is now. Since this
+// is all in an "internal" package it's probably ok to leave it. It just
+// makes this file less reusable.
+
+// WhereBetweenClause is a "between" clause in SQL.
 type WhereBetweenClause struct {
 	conditionParams *wordsearcher.SearchRequest_MinMax
 	table           string
 	column          string
 }
 
+// NewWhereBetweenClause creates a WhereBetweenClause with a given table,
+// column, and search request. The search request must be of the MinMax
+// type.
 func NewWhereBetweenClause(table string, column string,
 	smm *wordsearcher.SearchRequest_MinMax) *WhereBetweenClause {
 	return &WhereBetweenClause{
@@ -33,6 +42,8 @@ func NewWhereBetweenClause(table string, column string,
 	}
 }
 
+// Render implements the Clause.Render function basically. If only one
+// parameter is passed in, the between turns into a '= ?'.
 func (w *WhereBetweenClause) Render() (string, []interface{}) {
 	var conditionTemplate string
 	bindParams := make([]interface{}, 0)
@@ -43,7 +54,7 @@ func (w *WhereBetweenClause) Render() (string, []interface{}) {
 		conditionTemplate = `= ?`
 		bindParams = append(bindParams, min)
 	} else {
-		conditionTemplate = `between ? and ?`
+		conditionTemplate = `BETWEEN ? and ?`
 		bindParams = append(bindParams, min, max)
 	}
 	return whereClauseRender(w.table, w.column, conditionTemplate), bindParams
@@ -71,6 +82,30 @@ func (w *WhereEqualsClause) Render() (string, []interface{}) {
 
 	conditionTemplate = `= ?`
 	bindParams = append(bindParams, val)
+
+	return whereClauseRender(w.table, w.column, conditionTemplate), bindParams
+}
+
+// WhereEqualsNumberClause is a special case of a WhereEqualsClause. This
+// one does not use any special protobuf classes.
+type WhereEqualsNumberClause struct {
+	num    int
+	table  string
+	column string
+}
+
+func NewWhereEqualsNumberClause(table string, column string, num int) *WhereEqualsNumberClause {
+	return &WhereEqualsNumberClause{
+		num:    num,
+		table:  table,
+		column: column,
+	}
+}
+
+func (w *WhereEqualsNumberClause) Render() (string, []interface{}) {
+	var conditionTemplate string
+	bindParams := []interface{}{w.num}
+	conditionTemplate = `= ?`
 
 	return whereClauseRender(w.table, w.column, conditionTemplate), bindParams
 }
@@ -103,7 +138,7 @@ func (w *WhereInClause) Render() (string, []interface{}) {
 	} else {
 		markers := strings.Repeat("?,", numVals)
 		// Remove last comma:
-		conditionTemplate = `in (` + markers[:len(markers)-1] + ")"
+		conditionTemplate = `IN (` + markers[:len(markers)-1] + ")"
 		bindParams = make([]interface{}, numVals)
 		for i, v := range vals {
 			bindParams[i] = v
@@ -111,4 +146,26 @@ func (w *WhereInClause) Render() (string, []interface{}) {
 	}
 
 	return whereClauseRender(w.table, w.column, conditionTemplate), bindParams
+}
+
+// LimitOffsetClause represents a limit/offset SQL statement.
+type LimitOffsetClause struct {
+	conditionParams *wordsearcher.SearchRequest_MinMax
+}
+
+// NewLimitOffsetClause creates a new LimitOffsetClause
+func NewLimitOffsetClause(smm *wordsearcher.SearchRequest_MinMax) *LimitOffsetClause {
+	return &LimitOffsetClause{
+		conditionParams: smm,
+	}
+}
+
+// Render renders the limit/offset clause. Note that there is a calculation
+// done here. The MinMax passed in to the NewLimitOffsetClause is assumed
+// to begin counting at 1, for example, as a probability. The limit and offset
+// must take this into account.
+func (lc *LimitOffsetClause) Render() (string, []interface{}) {
+	limit := lc.conditionParams.Max - lc.conditionParams.Min + 1
+	offset := lc.conditionParams.Min - 1
+	return "LIMIT ? OFFSET ?", []interface{}{limit, offset}
 }

@@ -1,6 +1,16 @@
 syntax = "proto3";
 package wordsearcher;
 
+
+// An UnexpandedQuestion is a simple dictionary with a string alphagram and
+// a list of words for the answer. It does not contain any of the extra info
+// in the Alphagram and Word objects below. An API call here can turn a list
+// of unexpanded questions into a proper list of Alphagram objects.
+message UnexpandedQuestion {
+    string alphagram = 1;
+    ListOfWords words = 2;
+}
+
 // An Alphagram encapsulates info about an alphagram, including the words,
 // length, probability, combinations.
 message Alphagram {
@@ -53,7 +63,7 @@ message SearchRequest {
         // For ALPHAGRAM_DICTIONARY, basically the questions and answers
         // are already known, but we wish to fetch more information
         // (like the definitions, etc).
-        ALPHAGRAM_DICTIONARY = 13;
+        // ALPHAGRAM_DICTIONARY = 13;
     }
 
     message MinMax {
@@ -73,10 +83,10 @@ message SearchRequest {
         repeated string values = 1;
     }
 
-    message AlphagramMap {
-        // Used for alphagram_dictionary
-        map<string, ListOfWords> values = 1;
-    }
+    // message AlphagramMap {
+    //     // Used for alphagram_dictionary
+    //     map<string, ListOfWords> values = 1;
+    // }
 
     message SearchParam {
         Condition condition = 1;
@@ -84,9 +94,13 @@ message SearchRequest {
             MinMax minmax = 2;
             StringValue stringvalue = 3;
             StringArray stringarray = 4;
-            AlphagramMap alphamap = 5;
+            // AlphagramMap alphamap = 5;
         };
     }
+}
+
+message UnexpandedSearchResponse {
+    repeated UnexpandedQuestion questions = 1;
 }
 
 message SearchResponse {
@@ -95,6 +109,10 @@ message SearchResponse {
 
 // QuestionSearcher service searches for questions (duh!)
 service QuestionSearcher {
-    // Search takes in a search request and returns a search response.
-    rpc Search (SearchRequest) returns (SearchResponse);
+    // Search takes in a search request and returns an unexpanded
+    // search response.
+    rpc Search (SearchRequest) returns (UnexpandedSearchResponse);
+    // Expand takes in an unexpanded search response and returns a
+    // search response (fully expanded).
+    rpc Expand (UnexpandedSearchResponse) returns (SearchResponse);
 }
