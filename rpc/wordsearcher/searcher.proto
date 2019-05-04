@@ -1,0 +1,100 @@
+syntax = "proto3";
+package wordsearcher;
+
+// An Alphagram encapsulates info about an alphagram, including the words,
+// length, probability, combinations.
+message Alphagram {
+    string alphagram = 1;
+    repeated Word words = 2;
+    int32 length = 3;
+    int32 probability = 4;
+    int64 combinations = 5;
+}
+
+// A Word is more than just the string representing the word. It has other
+// info like the definition, hooks, lex symbols, etc.
+message Word {
+    string word = 1;
+    string alphagram = 2; // Note that this alphagram is not the same as Alphagram above.
+    string definition = 3;
+    string front_hooks = 4;
+    string back_hooks = 5;
+    string lexicon_symbols = 6;
+    bool inner_front_hook = 7;
+    bool inner_back_hook = 8;
+}
+
+// A ListOfWords is just a simple list of strings. The strings represent
+// words, but nothing else about them.
+message ListOfWords {
+    repeated string word = 1;
+}
+
+// A SearchRequest encapsulates a number of varied conditions and lets one
+// search for questions.
+message SearchRequest {
+
+    repeated SearchParam searchparams = 1;
+
+    enum Condition {
+        LEXICON = 0;
+        LENGTH = 1;
+        PROBABILITY_RANGE = 2;
+        PROBABILITY_LIST = 3;
+        PROBABILITY_LIMIT = 4;
+        NUMBER_OF_ANAGRAMS = 5;
+        NUMBER_OF_VOWELS = 6;
+        HAS_TAGS = 7;
+        POINT_VALUE = 8;
+        MATCHING_ANAGRAM = 9;
+        ALPHAGRAM_LIST = 10;
+        NOT_IN_LEXICON = 11;
+        REGEX = 12;  // Not yet implemented.
+        // For ALPHAGRAM_DICTIONARY, basically the questions and answers
+        // are already known, but we wish to fetch more information
+        // (like the definitions, etc).
+        ALPHAGRAM_DICTIONARY = 13;
+    }
+
+    message MinMax {
+        // Used for length, prob range, prob list, prob limit, num anagrams,
+        // num_vowels, point value
+        int32 min = 1;
+        int32 max = 2;
+    }
+
+    message StringValue {
+        // Used for lexicon, matching anagram, not_in_lexicon
+        string value = 1;
+    }
+
+    message StringArray {
+        // Used for has_tags, alphagram_list
+        repeated string values = 1;
+    }
+
+    message AlphagramMap {
+        // Used for alphagram_dictionary
+        map<string, ListOfWords> values = 1;
+    }
+
+    message SearchParam {
+        Condition condition = 1;
+        oneof conditionparam {
+            MinMax minmax = 2;
+            StringValue stringvalue = 3;
+            StringArray stringarray = 4;
+            AlphagramMap alphamap = 5;
+        };
+    }
+}
+
+message SearchResponse {
+    repeated Alphagram alphagrams = 1;
+}
+
+// QuestionSearcher service searches for questions (duh!)
+service QuestionSearcher {
+    // Search takes in a search request and returns a search response.
+    rpc Search (SearchRequest) returns (SearchResponse);
+}

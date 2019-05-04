@@ -1,0 +1,68 @@
+This folder contains the .proto file(s) and auto-generated files. The auto-generated files were created as follows:
+
+```
+protoc --twirp_out=. --go_out=. ./rpc/wordsearcher/searcher.proto
+```
+
+Python client/definition files can be created like this:
+
+```
+protoc  --twirp_python_out=. --python_out=. ./rpc/searcher.proto
+```
+
+
+Some example JSON requests for debugging (should use Protobuf in prod!):
+
+```
+curl -vvv -X POST localhost:8180/twirp/wordsearcher.QuestionSearcher/Search -H "Content-Type: application/json" -d '{"searchparams": [{"condition": 0, "stringvalue": {"value": "NWL18"}}, {"condition": 1, "minmax": {"min": 7, "max": 8}}]}'
+```
+
+A more complicated JSON body:
+
+```
+{
+   "searchparams":[
+      {
+         "condition":0,
+         "stringvalue":{
+            "value":"NWL18"
+         }
+      },
+      {
+         "condition":1,
+         "minmax":{
+            "min":7,
+            "max":8
+         }
+      },
+      {
+         "condition":13,
+         "alphamap":{
+            "values":{
+               "ABC":{
+                  "words":[
+                     "CAB"
+                  ]
+               },
+               "AIMN":{
+                  "words":[
+                     "MAIN",
+                     "MINA"
+                  ]
+               }
+            }
+         }
+      },
+      {
+         "condition":7,
+         "stringarray":{
+            "values":[
+               "foo",
+               "bar"
+            ]
+         }
+      }
+   ]
+}
+
+```

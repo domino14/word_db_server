@@ -1,3 +1,5 @@
 word_db_server
 *.sublime-*
 *.db
+rpc/**/*.py
+cmd/searchserver/searchserver
