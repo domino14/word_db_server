@@ -2,23 +2,20 @@ syntax = "proto3";
 package wordsearcher;
 
 
-// An UnexpandedQuestion is a simple dictionary with a string alphagram and
-// a list of words for the answer. It does not contain any of the extra info
-// in the Alphagram and Word objects below. An API call here can turn a list
-// of unexpanded questions into a proper list of Alphagram objects.
-message UnexpandedQuestion {
-    string alphagram = 1;
-    ListOfWords words = 2;
-}
-
 // An Alphagram encapsulates info about an alphagram, including the words,
 // length, probability, combinations.
 message Alphagram {
     string alphagram = 1;
     repeated Word words = 2;
-    int32 length = 3;
-    int32 probability = 4;
-    int64 combinations = 5;
+    // expandedRepr is true if the length, probability, combinations are
+    // included. Otherwise, this is an "unexpanded" alphagram.
+    // Note that if expandedRepr is true, then the `words` field is also
+    // expanded (with definition, hooks, etc).
+    bool expandedRepr = 3;
+
+    int32 length = 4;
+    int32 probability = 5;
+    int64 combinations = 6;
 }
 
 // A Word is more than just the string representing the word. It has other
@@ -26,6 +23,9 @@ message Alphagram {
 message Word {
     string word = 1;
     string alphagram = 2; // Note that this alphagram is not the same as Alphagram above.
+    // Note: the following fields are not filled in if the alphagram's
+    // `expandedRepr` is false. Protobuf fields are optional already, but
+    // this lets us be explicit.
     string definition = 3;
     string front_hooks = 4;
     string back_hooks = 5;
@@ -34,17 +34,12 @@ message Word {
     bool inner_back_hook = 8;
 }
 
-// A ListOfWords is just a simple list of strings. The strings represent
-// words, but nothing else about them.
-message ListOfWords {
-    repeated string word = 1;
-}
-
 // A SearchRequest encapsulates a number of varied conditions and lets one
 // search for questions.
 message SearchRequest {
 
     repeated SearchParam searchparams = 1;
+    bool expand = 2;
 
     enum Condition {
         LEXICON = 0;
@@ -54,7 +49,7 @@ message SearchRequest {
         PROBABILITY_LIMIT = 4;
         NUMBER_OF_ANAGRAMS = 5;
         NUMBER_OF_VOWELS = 6;
-        HAS_TAGS = 7;
+        // HAS_TAGS = 7;
         POINT_VALUE = 8;
         MATCHING_ANAGRAM = 9;
         ALPHAGRAM_LIST = 10;
@@ -67,7 +62,7 @@ message SearchRequest {
     }
 
     message MinMax {
-        // Used for length, prob range, prob list, prob limit, num anagrams,
+        // Used for length, prob range, prob limit, num anagrams,
         // num_vowels, point value
         int32 min = 1;
         int32 max = 2;
@@ -79,14 +74,14 @@ message SearchRequest {
     }
 
     message StringArray {
-        // Used for has_tags, alphagram_list
+        // Used for alphagram_list
         repeated string values = 1;
     }
 
-    // message AlphagramMap {
-    //     // Used for alphagram_dictionary
-    //     map<string, ListOfWords> values = 1;
-    // }
+    message NumberArray {
+        // Used for prob list
+        repeated int32 values = 1;
+    }
 
     message SearchParam {
         Condition condition = 1;
@@ -94,13 +89,9 @@ message SearchRequest {
             MinMax minmax = 2;
             StringValue stringvalue = 3;
             StringArray stringarray = 4;
-            // AlphagramMap alphamap = 5;
+            NumberArray numberarray = 5;
         };
     }
-}
-
-message UnexpandedSearchResponse {
-    repeated UnexpandedQuestion questions = 1;
 }
 
 message SearchResponse {
@@ -109,10 +100,12 @@ message SearchResponse {
 
 // QuestionSearcher service searches for questions (duh!)
 service QuestionSearcher {
-    // Search takes in a search request and returns an unexpanded
-    // search response.
-    rpc Search (SearchRequest) returns (UnexpandedSearchResponse);
+    // Search takes in a search request and returns a search response.
+    // This response can be expanded or not, depending on the `expand` field
+    // in SearchRequest.
+    rpc Search (SearchRequest) returns (SearchResponse);
     // Expand takes in an unexpanded search response and returns a
-    // search response (fully expanded).
-    rpc Expand (UnexpandedSearchResponse) returns (SearchResponse);
+    // search response (fully expanded). See expandedRepr above in
+    // the Alphagram field.
+    rpc Expand (SearchResponse) returns (SearchResponse);
 }

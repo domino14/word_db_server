@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/domino14/macondo/alphabet"
+
+	"github.com/domino14/macondo/anagrammer"
 	"github.com/domino14/word_db_server/rpc/wordsearcher"
 )
 
@@ -34,11 +37,13 @@ combinations FROM (
 INNER JOIN words w using (alphagram)
 `
 
+// Query is a struct that encapsulates a set of bind parameters and a template.
 type Query struct {
 	bindParams []interface{}
 	template   string
 }
 
+// NewUnexpandedQuery returns a *Query that uses the Unexpanded query template.
 func NewUnexpandedQuery(bp []interface{}) *Query {
 	return &Query{
 		bindParams: bp,
@@ -46,6 +51,7 @@ func NewUnexpandedQuery(bp []interface{}) *Query {
 	}
 }
 
+// NewFullQuery returns a *Query that uses the Full query template.
 func NewFullQuery(bp []interface{}) *Query {
 	return &Query{
 		bindParams: bp,
@@ -53,15 +59,44 @@ func NewFullQuery(bp []interface{}) *Query {
 	}
 }
 
+func alphasFromWordList(words []string, dist *alphabet.LetterDistribution) []string {
+	alphaSet := map[string]bool{}
+	for _, word := range words {
+		w := alphabet.Word{
+			Word: word,
+			Dist: dist,
+		}
+		alphaSet[w.MakeAlphagram()] = true
+	}
+	vals := []string{}
+	for a := range alphaSet {
+		vals = append(vals, a)
+	}
+	return vals
+}
+
+// Render renders a list of whereClauses and a limitOffsetClause into the
+// query template.
 func (q *Query) Render(whereClauses []string, limitOffsetClause string) string {
 	where := strings.Join(whereClauses, " AND ")
 	return fmt.Sprintf(q.template, where, limitOffsetClause)
 }
 
+// QueryGen is a query generator.
 type QueryGen struct {
+	lexiconName  string
+	expanded     bool
+	searchParams []*wordsearcher.SearchRequest_SearchParam
 }
 
-func generateWhereClause(sp *wordsearcher.SearchRequest_SearchParam) (Clause, error) {
+// NewQueryGen generates a new query generator with the given parameters.
+func NewQueryGen(lexiconName string, expanded bool,
+	searchParams []*wordsearcher.SearchRequest_SearchParam) *QueryGen {
+
+	return &QueryGen{lexiconName, expanded, searchParams}
+}
+
+func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchParam) (Clause, error) {
 	condition := sp.GetCondition()
 	switch condition {
 	case wordsearcher.SearchRequest_LENGTH:
@@ -111,7 +146,65 @@ func generateWhereClause(sp *wordsearcher.SearchRequest_SearchParam) (Clause, er
 			column = "contains_update_to_lex"
 		}
 		return NewWhereEqualsNumberClause("alphagrams", column, 1), nil
-	}
-	// Otherwise we are here. It might be one of the list conditions.
 
+	case wordsearcher.SearchRequest_MATCHING_ANAGRAM:
+		desc := sp.GetStringvalue()
+		if desc == nil {
+			return nil, errors.New("stringvalue not provided for not_in_lexicon request")
+		}
+		letters := desc.GetValue()
+		dawgInfo := anagrammer.Dawgs[qg.lexiconName]
+
+		words := anagrammer.Anagram(letters, dawgInfo.GetDawg(), anagrammer.ModeExact)
+		if len(words) == 0 {
+			return nil, errors.New("no words matched this anagram search")
+		}
+		alphas := alphasFromWordList(words, dawgInfo.GetDist())
+		newSp := &wordsearcher.SearchRequest_SearchParam{
+			Conditionparam: &wordsearcher.SearchRequest_SearchParam_Stringarray{
+				Stringarray: &wordsearcher.SearchRequest_StringArray{
+					Values: alphas}}}
+
+		return NewWhereInClause("alphagrams", "alphagram", newSp), nil
+
+	case wordsearcher.SearchRequest_PROBABILITY_LIST:
+		return NewWhereInClause("alphagrams", "probability", sp), nil
+
+	case wordsearcher.SearchRequest_ALPHAGRAM_LIST:
+		return NewWhereInClause("alphagrams", "alphagram", sp), nil
+
+		// HAS_TAGS can be implemented in the caller, basically, just generate
+		// the list of alphagrams and use ALPHAGRAM_LIST.
+	default:
+		return nil, fmt.Errorf("unhandled search request condition: %v", condition)
+
+	}
+	return nil, nil
+}
+
+// Validate returns an error if the query is invalid.
+func (qg *QueryGen) Validate() error {
+	// XXX: Implement this?
+	return nil
+}
+
+// Generate returns a list of *Query objects. Each query must be individually
+// executed.
+func (qg *QueryGen) Generate() ([]*Query, error) {
+	clauses := []Clause{}
+	var loffClause Clause
+	for _, param := range qg.searchParams {
+		clause, err := qg.generateWhereClause(param)
+		if err != nil {
+			return nil, err
+		}
+		clauses = append(clauses, clause)
+		// Try to obtain limit/offset params
+		if param.Condition == wordsearcher.SearchRequest_PROBABILITY_LIMIT {
+			loffClause = NewLimitOffsetClause(param.GetMinmax())
+		}
+	}
+	// Now render.
+
+	return nil, []*Query{}
 }

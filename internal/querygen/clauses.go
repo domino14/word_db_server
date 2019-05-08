@@ -11,7 +11,7 @@ import (
 type Clause interface {
 	// Render returns a string with `?` markers, and an array of items
 	// to interpolate into those `?` markers.
-	Render() (string, []interface{})
+	Render() (string, []interface{}, error)
 }
 
 func whereClauseRender(table string, column string, condition string) string {
@@ -44,7 +44,7 @@ func NewWhereBetweenClause(table string, column string,
 
 // Render implements the Clause.Render function basically. If only one
 // parameter is passed in, the between turns into a '= ?'.
-func (w *WhereBetweenClause) Render() (string, []interface{}) {
+func (w *WhereBetweenClause) Render() (string, []interface{}, error) {
 	var conditionTemplate string
 	bindParams := make([]interface{}, 0)
 	min := w.conditionParams.GetMin()
@@ -57,7 +57,7 @@ func (w *WhereBetweenClause) Render() (string, []interface{}) {
 		conditionTemplate = `BETWEEN ? and ?`
 		bindParams = append(bindParams, min, max)
 	}
-	return whereClauseRender(w.table, w.column, conditionTemplate), bindParams
+	return whereClauseRender(w.table, w.column, conditionTemplate), bindParams, nil
 }
 
 type WhereEqualsClause struct {
@@ -75,7 +75,7 @@ func NewWhereEqualsClause(table string, column string,
 	}
 }
 
-func (w *WhereEqualsClause) Render() (string, []interface{}) {
+func (w *WhereEqualsClause) Render() (string, []interface{}, error) {
 	var conditionTemplate string
 	bindParams := make([]interface{}, 0)
 	val := w.conditionParams.GetValue()
@@ -83,7 +83,7 @@ func (w *WhereEqualsClause) Render() (string, []interface{}) {
 	conditionTemplate = `= ?`
 	bindParams = append(bindParams, val)
 
-	return whereClauseRender(w.table, w.column, conditionTemplate), bindParams
+	return whereClauseRender(w.table, w.column, conditionTemplate), bindParams, nil
 }
 
 // WhereEqualsNumberClause is a special case of a WhereEqualsClause. This
@@ -102,50 +102,70 @@ func NewWhereEqualsNumberClause(table string, column string, num int) *WhereEqua
 	}
 }
 
-func (w *WhereEqualsNumberClause) Render() (string, []interface{}) {
+func (w *WhereEqualsNumberClause) Render() (string, []interface{}, error) {
 	var conditionTemplate string
 	bindParams := []interface{}{w.num}
 	conditionTemplate = `= ?`
 
-	return whereClauseRender(w.table, w.column, conditionTemplate), bindParams
+	return whereClauseRender(w.table, w.column, conditionTemplate), bindParams, nil
 }
 
+// WhereInClause can represent a clause with a string array or a number array.
 type WhereInClause struct {
-	conditionParams *wordsearcher.SearchRequest_StringArray
+	conditionParams *wordsearcher.SearchRequest_SearchParam
 	table           string
 	column          string
 }
 
 func NewWhereInClause(table string, column string,
-	ssa *wordsearcher.SearchRequest_StringArray) *WhereInClause {
+	sr *wordsearcher.SearchRequest_SearchParam) *WhereInClause {
 	return &WhereInClause{
-		conditionParams: ssa,
+		conditionParams: sr,
 		table:           table,
 		column:          column,
 	}
 }
 
-func (w *WhereInClause) Render() (string, []interface{}) {
+func (w *WhereInClause) Render() (string, []interface{}, error) {
 	var conditionTemplate string
 	var bindParams []interface{}
-	vals := w.conditionParams.GetValues()
-	numVals := len(vals)
+	var numVals int
 
-	if numVals == 1 {
-		conditionTemplate = `= ?`
-		bindParams = make([]interface{}, 1)
-		bindParams[0] = vals[0]
-	} else {
-		markers := strings.Repeat("?,", numVals)
-		// Remove last comma:
-		conditionTemplate = `IN (` + markers[:len(markers)-1] + ")"
+	switch t := w.conditionParams.Conditionparam.(type) {
+	// This is literally the only time I've ever thought "I wish Go had generics"
+
+	case *wordsearcher.SearchRequest_SearchParam_Numberarray:
+		numarr := w.conditionParams.GetNumberarray()
+		vals := numarr.GetValues()
+		numVals = len(vals)
 		bindParams = make([]interface{}, numVals)
 		for i, v := range vals {
 			bindParams[i] = v
 		}
+
+	case *wordsearcher.SearchRequest_SearchParam_Stringarray:
+		strarr := w.conditionParams.GetStringarray()
+		vals := strarr.GetValues()
+		numVals = len(vals)
+		bindParams = make([]interface{}, numVals)
+		for i, v := range vals {
+			bindParams[i] = v
+		}
+
+	default:
+		return "", nil, fmt.Errorf("error rendering, %t is not a supported type for WhereInClause",
+			t)
 	}
 
-	return whereClauseRender(w.table, w.column, conditionTemplate), bindParams
+	if numVals == 1 {
+		conditionTemplate = `= ?`
+	} else {
+		markers := strings.Repeat("?,", numVals)
+		// Remove last comma:
+		conditionTemplate = `IN (` + markers[:len(markers)-1] + ")"
+	}
+
+	return whereClauseRender(w.table, w.column, conditionTemplate), bindParams, nil
 }
 
 // LimitOffsetClause represents a limit/offset SQL statement.
@@ -164,8 +184,8 @@ func NewLimitOffsetClause(smm *wordsearcher.SearchRequest_MinMax) *LimitOffsetCl
 // done here. The MinMax passed in to the NewLimitOffsetClause is assumed
 // to begin counting at 1, for example, as a probability. The limit and offset
 // must take this into account.
-func (lc *LimitOffsetClause) Render() (string, []interface{}) {
+func (lc *LimitOffsetClause) Render() (string, []interface{}, error) {
 	limit := lc.conditionParams.Max - lc.conditionParams.Min + 1
 	offset := lc.conditionParams.Min - 1
-	return "LIMIT ? OFFSET ?", []interface{}{limit, offset}
+	return "LIMIT ? OFFSET ?", []interface{}{limit, offset}, nil
 }

@@ -8,14 +8,15 @@
   version = "v1.1.1"
 
 [[projects]]
+  branch = "word_db_changes"
   name = "github.com/domino14/macondo"
   packages = [
     "alphabet",
+    "anagrammer",
     "gaddag",
     "gaddagmaker"
   ]
-  revision = "e565f46c1c479dc77e2467ef7f95ffe80f3bbc8c"
-  version = "v0.2.3"
+  revision = "5166266984d94be3899a9b91551686fe40d9c94e"
 
 [[projects]]
   name = "github.com/golang/protobuf"
@@ -58,6 +59,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e3ebfab8663d3f506d6054c434e4242ec119a6d55f741867d0f876e657e33117"
+  inputs-digest = "cbf2e10fbfc7663f92e795694ce70a1aaf73ade14c8e0c1e9daffaf211c1a806"
   solver-name = "gps-cdcl"
   solver-version = 1
