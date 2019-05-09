@@ -115,6 +115,7 @@ type WhereInClause struct {
 	conditionParams *wordsearcher.SearchRequest_SearchParam
 	table           string
 	column          string
+	numItems        int
 }
 
 func NewWhereInClause(table string, column string,
@@ -164,8 +165,37 @@ func (w *WhereInClause) Render() (string, []interface{}, error) {
 		// Remove last comma:
 		conditionTemplate = `IN (` + markers[:len(markers)-1] + ")"
 	}
+	w.numItems = numVals
 
 	return whereClauseRender(w.table, w.column, conditionTemplate), bindParams, nil
+}
+
+// conditionSubRange returns a contiguous subset of this clause's
+// list of values and formats it as a new search param. This function
+// is used to split up a possibly gigantic list of "where .. in" values.
+// Note: the `max` value passed in here is NOT inclusive, but `min` is.
+// this is in keeping with Go/Python/etc semantics for range.
+func (w *WhereInClause) conditionSubRange(min int, max int) *wordsearcher.SearchRequest_SearchParam {
+
+	switch w.conditionParams.Conditionparam.(type) {
+	case *wordsearcher.SearchRequest_SearchParam_Numberarray:
+		numarr := w.conditionParams.GetNumberarray()
+		vals := numarr.GetValues()
+		return &wordsearcher.SearchRequest_SearchParam{
+			Conditionparam: &wordsearcher.SearchRequest_SearchParam_Numberarray{
+				&wordsearcher.SearchRequest_NumberArray{
+					Values: vals[min:max]}}}
+
+	case *wordsearcher.SearchRequest_SearchParam_Stringarray:
+		strarr := w.conditionParams.GetStringarray()
+		vals := strarr.GetValues()
+		return &wordsearcher.SearchRequest_SearchParam{
+			Conditionparam: &wordsearcher.SearchRequest_SearchParam_Stringarray{
+				&wordsearcher.SearchRequest_StringArray{
+					Values: vals[min:max]}}}
+
+	}
+	return nil
 }
 
 // LimitOffsetClause represents a limit/offset SQL statement.
@@ -188,4 +218,10 @@ func (lc *LimitOffsetClause) Render() (string, []interface{}, error) {
 	limit := lc.conditionParams.Max - lc.conditionParams.Min + 1
 	offset := lc.conditionParams.Min - 1
 	return "LIMIT ? OFFSET ?", []interface{}{limit, offset}, nil
+}
+
+func isListClause(clause Clause) bool {
+	// try to cast to a WhereIn clause.
+	_, ok := clause.(*WhereInClause)
+	return ok
 }

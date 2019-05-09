@@ -9,6 +9,13 @@ import (
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 )
 
+const (
+	// MaxSQLChunkSize is how many parameters we allow to put in a SQLite
+	// query. The actual limit is something around 1000 unless we
+	// recompile the plugin.
+	MaxSQLChunkSize = 950
+)
+
 // Server implements the WordSearcher service
 type Server struct{}
 
@@ -21,7 +28,8 @@ func (s *Server) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchR
 	}
 	lexName := req.Searchparams[0].GetStringvalue().GetValue()
 	shouldExpand := req.Expand
-	qgen := querygen.NewQueryGen(lexName, shouldExpand, req.Searchparams[1:])
+	qgen := querygen.NewQueryGen(lexName, shouldExpand, req.Searchparams[1:],
+		MaxSQLChunkSize)
 	log.Println("[DEBUG] Creating new querygen with lexicon name", lexName,
 		"search params", req.Searchparams[1:], "expand", shouldExpand)
 
