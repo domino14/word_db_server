@@ -40,9 +40,10 @@ INNER JOIN words w using (alphagram)
 
 // Query is a struct that encapsulates a set of bind parameters and a template.
 type Query struct {
-	bindParams []interface{}
-	template   string
-	rendered   string
+	bindParams   []interface{}
+	template     string
+	rendered     string
+	expandedForm bool
 }
 
 func (q *Query) String() string {
@@ -54,13 +55,15 @@ func (q *Query) String() string {
 func NewQuery(bp []interface{}, expand bool) *Query {
 	if expand {
 		return &Query{
-			bindParams: bp,
-			template:   FullQuery,
+			bindParams:   bp,
+			template:     FullQuery,
+			expandedForm: true,
 		}
 	}
 	return &Query{
-		bindParams: bp,
-		template:   UnexpandedQuery,
+		bindParams:   bp,
+		template:     UnexpandedQuery,
+		expandedForm: false,
 	}
 }
 
@@ -73,6 +76,12 @@ func (q *Query) Rendered() string {
 // execute.
 func (q *Query) BindParams() []interface{} {
 	return q.bindParams
+}
+
+// Expanded returns whether the query uses the expanded (full) or unexpanded
+// query template.
+func (q *Query) Expanded() bool {
+	return q.expandedForm
 }
 
 func alphasFromWordList(words []string, dist *alphabet.LetterDistribution) []string {

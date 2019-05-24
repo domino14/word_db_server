@@ -2,12 +2,19 @@ package searchserver
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log"
+	"os"
+	"path/filepath"
+
+	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/domino14/word_db_server/internal/querygen"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 )
+
+var LexiconDir = os.Getenv("LEXICON_PATH")
 
 const (
 	// MaxSQLChunkSize is how many parameters we allow to put in a SQLite
@@ -37,18 +44,46 @@ func (s *Server) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchR
 	if err != nil {
 		return nil, err
 	}
+	// Try to connect to the db.
+	db, err := sql.Open("sqlite3", filepath.Join(LexiconDir, "db", lexName+".db"))
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
 
 	queries, err := qgen.Generate()
 	if err != nil {
 		return nil, err
 	}
 	log.Println("[DEBUG] Generated queries", queries)
+	alphagrams := []*pb.Alphagram{}
+	// Execute the queries.
+	for _, query := range queries {
+		rows, err := db.Query(query.Rendered(), query.BindParams()...)
+
+		if err != nil {
+			return nil, err
+		}
+
+		defer rows.Close()
+		alphagrams = append(alphagrams, processQuestionRows(rows)...)
+
+	}
 
 	return &pb.SearchResponse{
 		Alphagrams: []*pb.Alphagram{&pb.Alphagram{
 			Alphagram: "foo",
 		}},
 	}, nil
+}
+
+func processQuestionRows(rows *sql.Rows) []*pb.Alphagram {
+	for rows.Next() {
+
+		alpha := &pb.Alphagram{}
+		//rows.Scan(&alpha.Alphagram, //
+
+	}
 }
 
 // Expand implements the "expand" rpc command, which takes in a simple

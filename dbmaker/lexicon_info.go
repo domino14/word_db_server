@@ -11,7 +11,7 @@ type LexiconInfo struct {
 	LexiconIndex       uint8
 	DescriptiveName    string
 	Gaddag             *gaddag.SimpleGaddag
-	LetterDistribution alphabet.LetterDistribution
+	LetterDistribution *alphabet.LetterDistribution
 	subChooseCombos    [][]uint64
 }
 
