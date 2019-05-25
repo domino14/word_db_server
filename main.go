@@ -43,11 +43,11 @@ func main() {
 	outputDir := *outputDirF
 	//db, err := sql.Open("sqlite3", "./"+lexname+".db")
 	symbols := []dbmaker.LexiconSymbolDefinition{
-		{In: "NWL18", NotIn: "CSW15", Symbol: "$"},
+		{In: "NWL18", NotIn: "CSW19", Symbol: "$"},
 		{In: "NWL18", NotIn: "America", Symbol: "+"},
-		{In: "CSW15", NotIn: "NWL18", Symbol: "#"},
+		{In: "CSW19", NotIn: "NWL18", Symbol: "#"},
 		{In: "FISE2", NotIn: "FISE09", Symbol: "+"},
-		{In: "CSW15", NotIn: "CSW12", Symbol: "+"},
+		{In: "CSW19", NotIn: "CSW15", Symbol: "+"},
 	}
 	// set LEXICON_PATH to something.
 	// For example "/Users/cesar/coding/webolith/words/" on my computer.
@@ -69,6 +69,14 @@ func main() {
 			Gaddag:             gaddag.LoadGaddag(filepath.Join(gaddagPrefix, "CSW15.gaddag")),
 			LexiconIndex:       1,
 			DescriptiveName:    "Collins 15",
+			LetterDistribution: alphabet.EnglishLetterDistribution(),
+		},
+		"CSW19": dbmaker.LexiconInfo{
+			LexiconName:        "CSW19",
+			LexiconFilename:    filepath.Join(lexiconPrefix, "CSW19.txt"),
+			Gaddag:             gaddag.LoadGaddag(filepath.Join(gaddagPrefix, "CSW19.gaddag")),
+			LexiconIndex:       12,
+			DescriptiveName:    "Collins 2019",
 			LetterDistribution: alphabet.EnglishLetterDistribution(),
 		},
 		"America": dbmaker.LexiconInfo{

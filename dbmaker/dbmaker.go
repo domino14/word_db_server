@@ -615,7 +615,7 @@ func findLexSymbols(word string, lexiconName string, lexMap LexiconMap,
 // This is a bit of a special function, used only for the annoying lexical
 // split in English-language Scrabble. If the lexiconName is "America",
 // or "NWL18", this will return a 1 if any of the strings in the lexSymbols
-// array contains a $ sign. If the lexiconName is "CSW15", the string to
+// array contains a $ sign. If the lexiconName is "CSW19", the string to
 // look for is #.
 // All other cases return a 0.
 // Note that this will need to be updated when new versions of America/ CSW
