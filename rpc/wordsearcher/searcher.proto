@@ -61,6 +61,11 @@ message SearchRequest {
         // ALPHAGRAM_DICTIONARY = 13;
     }
 
+    enum NotInLexCondition {
+        OTHER_ENGLISH = 0;
+        PREVIOUS_VERSION = 1;
+    }
+
     message MinMax {
         // Used for length, prob range, prob limit, num anagrams,
         // num_vowels, point value
@@ -83,6 +88,10 @@ message SearchRequest {
         repeated int32 values = 1;
     }
 
+    message NumberValue {
+        int32 value = 1;
+    }
+
     message SearchParam {
         Condition condition = 1;
         oneof conditionparam {
@@ -90,12 +99,14 @@ message SearchRequest {
             StringValue stringvalue = 3;
             StringArray stringarray = 4;
             NumberArray numberarray = 5;
+            NumberValue numbervalue = 6;
         };
     }
 }
 
 message SearchResponse {
     repeated Alphagram alphagrams = 1;
+    string lexicon = 2;
 }
 
 // QuestionSearcher service searches for questions (duh!)

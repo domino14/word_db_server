@@ -120,17 +120,26 @@ type WhereInClause struct {
 
 func NewWhereInClause(table string, column string,
 	sr *wordsearcher.SearchRequest_SearchParam) *WhereInClause {
+
+	numItems := 0
+	switch sr.Conditionparam.(type) {
+	case *wordsearcher.SearchRequest_SearchParam_Numberarray:
+		numItems = len(sr.GetNumberarray().GetValues())
+	case *wordsearcher.SearchRequest_SearchParam_Stringarray:
+		numItems = len(sr.GetStringarray().GetValues())
+	}
+
 	return &WhereInClause{
 		conditionParams: sr,
 		table:           table,
 		column:          column,
+		numItems:        numItems,
 	}
 }
 
 func (w *WhereInClause) Render() (string, []interface{}, error) {
 	var conditionTemplate string
 	var bindParams []interface{}
-	var numVals int
 
 	switch t := w.conditionParams.Conditionparam.(type) {
 	// This is literally the only time I've ever thought "I wish Go had generics"
@@ -138,8 +147,7 @@ func (w *WhereInClause) Render() (string, []interface{}, error) {
 	case *wordsearcher.SearchRequest_SearchParam_Numberarray:
 		numarr := w.conditionParams.GetNumberarray()
 		vals := numarr.GetValues()
-		numVals = len(vals)
-		bindParams = make([]interface{}, numVals)
+		bindParams = make([]interface{}, w.numItems)
 		for i, v := range vals {
 			bindParams[i] = v
 		}
@@ -147,8 +155,7 @@ func (w *WhereInClause) Render() (string, []interface{}, error) {
 	case *wordsearcher.SearchRequest_SearchParam_Stringarray:
 		strarr := w.conditionParams.GetStringarray()
 		vals := strarr.GetValues()
-		numVals = len(vals)
-		bindParams = make([]interface{}, numVals)
+		bindParams = make([]interface{}, w.numItems)
 		for i, v := range vals {
 			bindParams[i] = v
 		}
@@ -158,14 +165,13 @@ func (w *WhereInClause) Render() (string, []interface{}, error) {
 			t)
 	}
 
-	if numVals == 1 {
+	if w.numItems == 1 {
 		conditionTemplate = `= ?`
 	} else {
-		markers := strings.Repeat("?,", numVals)
+		markers := strings.Repeat("?,", w.numItems)
 		// Remove last comma:
 		conditionTemplate = `IN (` + markers[:len(markers)-1] + ")"
 	}
-	w.numItems = numVals
 
 	return whereClauseRender(w.table, w.column, conditionTemplate), bindParams, nil
 }
@@ -176,11 +182,16 @@ func (w *WhereInClause) Render() (string, []interface{}, error) {
 // Note: the `max` value passed in here is NOT inclusive, but `min` is.
 // this is in keeping with Go/Python/etc semantics for range.
 func (w *WhereInClause) conditionSubRange(min int, max int) *wordsearcher.SearchRequest_SearchParam {
-
 	switch w.conditionParams.Conditionparam.(type) {
 	case *wordsearcher.SearchRequest_SearchParam_Numberarray:
 		numarr := w.conditionParams.GetNumberarray()
 		vals := numarr.GetValues()
+		if max >= len(vals) {
+			max = len(vals)
+		}
+		if min >= len(vals) {
+			min = len(vals)
+		}
 		return &wordsearcher.SearchRequest_SearchParam{
 			Conditionparam: &wordsearcher.SearchRequest_SearchParam_Numberarray{
 				&wordsearcher.SearchRequest_NumberArray{
@@ -189,6 +200,12 @@ func (w *WhereInClause) conditionSubRange(min int, max int) *wordsearcher.Search
 	case *wordsearcher.SearchRequest_SearchParam_Stringarray:
 		strarr := w.conditionParams.GetStringarray()
 		vals := strarr.GetValues()
+		if max >= len(vals) {
+			max = len(vals)
+		}
+		if min >= len(vals) {
+			min = len(vals)
+		}
 		return &wordsearcher.SearchRequest_SearchParam{
 			Conditionparam: &wordsearcher.SearchRequest_SearchParam_Stringarray{
 				&wordsearcher.SearchRequest_StringArray{

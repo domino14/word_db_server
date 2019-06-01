@@ -38,6 +38,21 @@ combinations FROM (
 INNER JOIN words w using (alphagram)
 `
 
+// AlphagramOnlyQuery is used to select only alphagrams with their info
+const AlphagramOnlyQuery = `
+SELECT alphagram, probability, combinations FROM alphagrams
+WHERE %s
+`
+
+// WordInfoQuery is used to select words with their info
+const WordInfoQuery = `
+SELECT lexicon_symbols, definition, front_hooks,
+	back_hooks, inner_front_hook, inner_back_hook, alphagram,
+	word
+FROM words WHERE %s
+ORDER BY word
+`
+
 // Query is a struct that encapsulates a set of bind parameters and a template.
 type Query struct {
 	bindParams   []interface{}
@@ -47,7 +62,7 @@ type Query struct {
 }
 
 func (q *Query) String() string {
-	return fmt.Sprintf("<Query: %s>", q.rendered)
+	return fmt.Sprintf("<Query: %s, Params: %v>", q.rendered, q.bindParams)
 }
 
 // NewQuery creates a new query, setting the template according to the
@@ -162,14 +177,14 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 		return NewWhereBetweenClause("alphagrams", "point_value", minmax), nil
 
 	case wordsearcher.SearchRequest_NOT_IN_LEXICON:
-		desc := sp.GetStringvalue()
+		desc := sp.GetNumbervalue()
 		var column string
 		if desc == nil {
-			return nil, errors.New("stringvalue not provided for not_in_lexicon request")
+			return nil, errors.New("numbervalue not provided for not_in_lexicon request")
 		}
-		if desc.GetValue() == "other_english" {
+		if desc.GetValue() == int32(wordsearcher.SearchRequest_OTHER_ENGLISH) {
 			column = "contains_word_uniq_to_lex_split"
-		} else if desc.GetValue() == "update" {
+		} else if desc.GetValue() == int32(wordsearcher.SearchRequest_PREVIOUS_VERSION) {
 			column = "contains_update_to_lex"
 		}
 		return NewWhereEqualsNumberClause("alphagrams", column, 1), nil
@@ -200,8 +215,14 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 	case wordsearcher.SearchRequest_ALPHAGRAM_LIST:
 		return NewWhereInClause("alphagrams", "alphagram", sp), nil
 
+	case wordsearcher.SearchRequest_PROBABILITY_LIMIT:
+		// This is handled by a limit offset clause, which is handled specially.
+		// Don't do anything here.
+		return nil, nil
+
 		// HAS_TAGS can be implemented in the caller, basically, just generate
 		// the list of alphagrams and use ALPHAGRAM_LIST.
+
 	default:
 		return nil, fmt.Errorf("unhandled search request condition: %v", condition)
 
@@ -262,7 +283,9 @@ func (qg *QueryGen) Generate() ([]*Query, error) {
 		if err != nil {
 			return nil, err
 		}
-		clauses = append(clauses, clause)
+		if clause != nil {
+			clauses = append(clauses, clause)
+		}
 		// Try to obtain limit/offset params
 		if param.Condition == wordsearcher.SearchRequest_PROBABILITY_LIMIT {
 			loffClause = NewLimitOffsetClause(param.GetMinmax())
@@ -333,4 +356,8 @@ func (qg *QueryGen) Generate() ([]*Query, error) {
 	log.Println("[DEBUG] Returning queries")
 
 	return queries, nil
+}
+
+func (qg *QueryGen) LexiconName() string {
+	return qg.lexiconName
 }

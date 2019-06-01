@@ -29,6 +29,64 @@ func SearchDescProbRange(min int, max int) *pb.SearchRequest_SearchParam {
 	}
 }
 
+func SearchDescProbLimit(min int, max int) *pb.SearchRequest_SearchParam {
+	return &pb.SearchRequest_SearchParam{
+		Condition:      pb.SearchRequest_PROBABILITY_LIMIT,
+		Conditionparam: minMaxParam(min, max),
+	}
+}
+
+func SearchDescPointValue(min int, max int) *pb.SearchRequest_SearchParam {
+	return &pb.SearchRequest_SearchParam{
+		Condition:      pb.SearchRequest_POINT_VALUE,
+		Conditionparam: minMaxParam(min, max),
+	}
+}
+
+func SearchDescNumAnagrams(min int, max int) *pb.SearchRequest_SearchParam {
+	return &pb.SearchRequest_SearchParam{
+		Condition:      pb.SearchRequest_NUMBER_OF_ANAGRAMS,
+		Conditionparam: minMaxParam(min, max),
+	}
+}
+
+func SearchDescAlphagramList(alphas []string) *pb.SearchRequest_SearchParam {
+	return &pb.SearchRequest_SearchParam{
+		Condition:      pb.SearchRequest_ALPHAGRAM_LIST,
+		Conditionparam: stringArrayParam(alphas),
+	}
+}
+
+func SearchDescProbabilityList(probs []int32) *pb.SearchRequest_SearchParam {
+	return &pb.SearchRequest_SearchParam{
+		Condition:      pb.SearchRequest_PROBABILITY_LIST,
+		Conditionparam: intArrayParam(probs),
+	}
+}
+
+func SearchDescNotInLexicon(n pb.SearchRequest_NotInLexCondition) *pb.SearchRequest_SearchParam {
+	return &pb.SearchRequest_SearchParam{
+		Condition:      pb.SearchRequest_NOT_IN_LEXICON,
+		Conditionparam: numberParam(int(n)),
+	}
+}
+
+func stringArrayParam(sa []string) *pb.SearchRequest_SearchParam_Stringarray {
+	return &pb.SearchRequest_SearchParam_Stringarray{
+		Stringarray: &pb.SearchRequest_StringArray{
+			Values: sa,
+		},
+	}
+}
+
+func intArrayParam(ia []int32) *pb.SearchRequest_SearchParam_Numberarray {
+	return &pb.SearchRequest_SearchParam_Numberarray{
+		Numberarray: &pb.SearchRequest_NumberArray{
+			Values: ia,
+		},
+	}
+}
+
 func stringParam(str string) *pb.SearchRequest_SearchParam_Stringvalue {
 	return &pb.SearchRequest_SearchParam_Stringvalue{
 		Stringvalue: &pb.SearchRequest_StringValue{
@@ -46,8 +104,17 @@ func minMaxParam(min int, max int) *pb.SearchRequest_SearchParam_Minmax {
 	}
 }
 
-func WordSearch(params []*pb.SearchRequest_SearchParam) *pb.SearchRequest {
+func numberParam(num int) *pb.SearchRequest_SearchParam_Numbervalue {
+	return &pb.SearchRequest_SearchParam_Numbervalue{
+		Numbervalue: &pb.SearchRequest_NumberValue{
+			Value: int32(num),
+		},
+	}
+}
+
+func WordSearch(params []*pb.SearchRequest_SearchParam, expand bool) *pb.SearchRequest {
 	return &wordsearcher.SearchRequest{
 		Searchparams: params,
+		Expand:       expand,
 	}
 }
