@@ -43,6 +43,7 @@ jobs:
       - mkdir $LEXICON_DIR/db
       - mkdir $LEXICON_DIR/gaddag
       - ./word_db_server -outputdir $LEXICON_DIR/db -dbs NWL18
+      # come on build
 
       # specify any bash command here prefixed with `run: `
       - run: go test -v ./...
