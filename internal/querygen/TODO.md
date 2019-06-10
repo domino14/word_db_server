@@ -1,10 +1,11 @@
 To move over to using this new query gen and word_db_server in general.
 
 - [ ] Finish writing it (obvs#)
-    - [ ] Move webolith word db functionality over, including tests.
+    - [x] Move webolith word db functionality over, including tests.
     - [ ] Use generated Twirp Python code to build an API client in `webolith`
     - [ ] Remove all word db related stuff from `webolith` (after deploying Twirp client & this server)
     - [ ] add circleci
+    - [ ] add to stack (in aerolith-infra and in kubernetes)
 - [ ] Fix private `webolith-word-dbs` repo.
     Consider removing dbs from it and somehow caching it. Note that `macondo` and `webolith` use it for their tests; `webolith` should not be using it anymore after we move out the db-related stuff, and `macondo` should only use it for the word lists and not the actual .db files. Move it to private Github repo.
 - [ ] Create an RPC endpoint for anagramming with `macondo`. To simplify deployment and dependencies, remove `macondo` from the stack.
