@@ -57,6 +57,13 @@ func SearchDescAlphagramList(alphas []string) *pb.SearchRequest_SearchParam {
 	}
 }
 
+func SearchDescWordList(words []string) *pb.SearchRequest_SearchParam {
+	return &pb.SearchRequest_SearchParam{
+		Condition:      pb.SearchRequest_WORD_LIST,
+		Conditionparam: stringArrayParam(words),
+	}
+}
+
 func SearchDescProbabilityList(probs []int32) *pb.SearchRequest_SearchParam {
 	return &pb.SearchRequest_SearchParam{
 		Condition:      pb.SearchRequest_PROBABILITY_LIST,

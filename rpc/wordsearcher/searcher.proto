@@ -55,10 +55,8 @@ message SearchRequest {
         ALPHAGRAM_LIST = 10;
         NOT_IN_LEXICON = 11;
         REGEX = 12;  // Not yet implemented.
-        // For ALPHAGRAM_DICTIONARY, basically the questions and answers
-        // are already known, but we wish to fetch more information
-        // (like the definitions, etc).
-        // ALPHAGRAM_DICTIONARY = 13;
+        // A list of words.
+        WORD_LIST = 13;
     }
 
     enum NotInLexCondition {

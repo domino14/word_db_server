@@ -3,11 +3,11 @@ package querygen
 import (
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 
-	"github.com/domino14/macondo/alphabet"
+	"github.com/rs/zerolog/log"
 
+	"github.com/domino14/macondo/alphabet"
 	"github.com/domino14/macondo/anagrammer"
 	"github.com/domino14/word_db_server/rpc/wordsearcher"
 )
@@ -42,6 +42,7 @@ INNER JOIN words w using (alphagram)
 const AlphagramOnlyQuery = `
 SELECT alphagram, probability, combinations FROM alphagrams
 WHERE %s
+%s
 `
 
 // WordInfoQuery is used to select words with their info
@@ -50,8 +51,18 @@ SELECT lexicon_symbols, definition, front_hooks,
 	back_hooks, inner_front_hook, inner_back_hook, alphagram,
 	word
 FROM words WHERE %s
+%s
 ORDER BY word
 `
+
+type QueryType uint8
+
+const (
+	FullExpanded QueryType = iota
+	AlphagramsOnly
+	WordsOnly
+	AlphagramsAndWords
+)
 
 // Query is a struct that encapsulates a set of bind parameters and a template.
 type Query struct {
@@ -67,18 +78,26 @@ func (q *Query) String() string {
 
 // NewQuery creates a new query, setting the template according to the
 // expand parameter.
-func NewQuery(bp []interface{}, expand bool) *Query {
-	if expand {
-		return &Query{
-			bindParams:   bp,
-			template:     FullQuery,
-			expandedForm: true,
-		}
+func NewQuery(bp []interface{}, qt QueryType) *Query {
+
+	var template string
+	var expandedForm bool
+	switch qt {
+	case FullExpanded:
+		template = FullQuery
+		expandedForm = true
+	case AlphagramsOnly:
+		template = AlphagramOnlyQuery
+	case AlphagramsAndWords:
+		template = UnexpandedQuery
+	case WordsOnly:
+		template = WordInfoQuery
 	}
+
 	return &Query{
 		bindParams:   bp,
-		template:     UnexpandedQuery,
-		expandedForm: false,
+		template:     template,
+		expandedForm: expandedForm,
 	}
 }
 
@@ -125,17 +144,17 @@ func (q *Query) Render(whereClauses []string, limitOffsetClause string) {
 // QueryGen is a query generator.
 type QueryGen struct {
 	lexiconName  string
-	expanded     bool
+	queryType    QueryType
 	searchParams []*wordsearcher.SearchRequest_SearchParam
 	maxChunkSize int
 }
 
 // NewQueryGen generates a new query generator with the given parameters.
-func NewQueryGen(lexiconName string, expanded bool,
+func NewQueryGen(lexiconName string, queryType QueryType,
 	searchParams []*wordsearcher.SearchRequest_SearchParam,
 	maxChunkSize int) *QueryGen {
 
-	return &QueryGen{lexiconName, expanded, searchParams, maxChunkSize}
+	return &QueryGen{lexiconName, queryType, searchParams, maxChunkSize}
 }
 
 func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchParam) (Clause, error) {
@@ -222,7 +241,8 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 
 		// HAS_TAGS can be implemented in the caller, basically, just generate
 		// the list of alphagrams and use ALPHAGRAM_LIST.
-
+	case wordsearcher.SearchRequest_WORD_LIST:
+		return NewWhereInClause("words", "word", sp), nil
 	default:
 		return nil, fmt.Errorf("unhandled search request condition: %v", condition)
 
@@ -270,16 +290,59 @@ func (qg *QueryGen) Validate() error {
 	return nil
 }
 
+func (qg *QueryGen) maybeChunk(clauses []Clause) (bool, []string,
+	[]interface{}, []*Query, error) {
+
+	multipleQueriesGenerated := false
+	renderedWhereClauses := []string{}
+	bindParams := []interface{}{}
+	queries := []*Query{}
+
+	for _, clause := range clauses {
+		if isListClause(clause) {
+			lc := clause.(*WhereInClause)
+			if lc.numItems == 0 {
+				return false, nil, nil, nil, errors.New("query returns no results")
+			}
+			idx := 0
+			for idx < lc.numItems {
+				newWhereClause := NewWhereInClause(lc.table, lc.column,
+					lc.conditionSubRange(idx, idx+qg.maxChunkSize))
+
+				r, bp, err := newWhereClause.Render()
+				if err != nil {
+					return false, nil, nil, nil, err
+				}
+				newRenderedWhereClauses := append(renderedWhereClauses, r)
+				query := NewQuery(append(bindParams, bp...), qg.queryType)
+				query.Render(newRenderedWhereClauses, "")
+				queries = append(queries, query)
+				multipleQueriesGenerated = true
+				idx += qg.maxChunkSize
+			}
+		} else {
+			r, bp, err := clause.Render()
+			if err != nil {
+				return false, nil, nil, nil, err
+			}
+			log.Debug().Msgf("clause is not a listclause, render returns %v %v",
+				r, bp)
+			renderedWhereClauses = append(renderedWhereClauses, r)
+			bindParams = append(bindParams, bp...)
+		}
+	}
+	return multipleQueriesGenerated, renderedWhereClauses, bindParams, queries, nil
+}
+
 // Generate returns a list of *Query objects. Each query must be individually
 // executed.
 func (qg *QueryGen) Generate() ([]*Query, error) {
 	clauses := []Clause{}
-	queries := []*Query{}
-	bindParams := []interface{}{}
+
 	var loffClause Clause
 	for _, param := range qg.searchParams {
 		clause, err := qg.generateWhereClause(param)
-		log.Println("[DEBUG] For param", param, "generated clause:", clause, err)
+		log.Debug().Msgf("For param %v generated clause %v (err %v)", param, clause, err)
 		if err != nil {
 			return nil, err
 		}
@@ -292,45 +355,16 @@ func (qg *QueryGen) Generate() ([]*Query, error) {
 		}
 	}
 	// Now render.
-	renderedWhereClauses := []string{}
-	queriesAlreadyGenerated := false
-	log.Println("[DEBUG] where clauses", clauses)
-	log.Println("[DEBUG] limit offset", loffClause)
+	log.Debug().Msgf("where clauses: %v", clauses)
+	log.Debug().Msgf("limit offset: %v", loffClause)
 
-	for _, clause := range clauses {
-		if isListClause(clause) {
-			lc := clause.(*WhereInClause)
-			if lc.numItems == 0 {
-				return nil, errors.New("query returns no results")
-			}
-			idx := 0
-			for idx < lc.numItems {
-				newWhereClause := NewWhereInClause(lc.table, lc.column,
-					lc.conditionSubRange(idx, idx+qg.maxChunkSize))
+	multipleQueriesGenerated, rwc, bindParams, queries, err := qg.maybeChunk(clauses)
 
-				r, bp, err := newWhereClause.Render()
-				if err != nil {
-					return nil, err
-				}
-				newRenderedWhereClauses := append(renderedWhereClauses, r)
-				query := NewQuery(append(bindParams, bp...), qg.expanded)
-				query.Render(newRenderedWhereClauses, "")
-				queries = append(queries, query)
-				queriesAlreadyGenerated = true
-				idx += qg.maxChunkSize
-			}
-		} else {
-			r, bp, err := clause.Render()
-			if err != nil {
-				return nil, err
-			}
-			log.Println("[DEBUG] clause is not a listclause, render returns",
-				r, bp)
-			renderedWhereClauses = append(renderedWhereClauses, r)
-			bindParams = append(bindParams, bp...)
-		}
+	if err != nil {
+		return nil, err
 	}
-	if queriesAlreadyGenerated {
+
+	if multipleQueriesGenerated {
 		if loffClause != nil {
 			return nil, errors.New("incompatible query arguments; please try " +
 				"a simpler query (remove probability limit)")
@@ -348,12 +382,11 @@ func (qg *QueryGen) Generate() ([]*Query, error) {
 		} else {
 			renderedLOClause = ""
 		}
-		query := NewQuery(bindParams, qg.expanded)
-		query.Render(renderedWhereClauses, renderedLOClause)
+		query := NewQuery(bindParams, qg.queryType)
+		query.Render(rwc, renderedLOClause)
 		queries = append(queries, query)
 
 	}
-	log.Println("[DEBUG] Returning queries")
 
 	return queries, nil
 }

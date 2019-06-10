@@ -2,6 +2,7 @@ package searchserver
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
@@ -21,7 +22,9 @@ func alphsFromPB(pba []*pb.Alphagram) []string {
 }
 
 func searchHelper(req *pb.SearchRequest) (*pb.SearchResponse, error) {
-	s := &Server{}
+	s := &Server{
+		LexiconPath: os.Getenv("LEXICON_PATH"),
+	}
 	sr, err := s.Search(context.Background(), req)
 
 	if err != nil {
@@ -237,7 +240,10 @@ func TestProbabilityListMultipleQueries(t *testing.T) {
 	maxChunkSize := 2
 	qgen, err := createQueryGen(req, maxChunkSize)
 	assert.Nil(t, err)
-	db, err := getDbConnection(qgen.LexiconName())
+	s := &Server{
+		LexiconPath: os.Getenv("LEXICON_PATH"),
+	}
+	db, err := s.getDbConnection(qgen.LexiconName())
 	assert.Nil(t, err)
 	defer db.Close()
 	queries, err := qgen.Generate()
@@ -265,7 +271,10 @@ func TestProbabilityListMultipleQueriesOther(t *testing.T) {
 
 	maxChunkSize := 3
 	qgen, _ := createQueryGen(req, maxChunkSize)
-	db, _ := getDbConnection(qgen.LexiconName())
+	s := &Server{
+		LexiconPath: os.Getenv("LEXICON_PATH"),
+	}
+	db, _ := s.getDbConnection(qgen.LexiconName())
 	defer db.Close()
 	queries, _ := qgen.Generate()
 	// There should be 3 queries (max chunk size is 2 and we have 9 elements in list)
