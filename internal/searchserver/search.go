@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/rs/zerolog/log"
 
@@ -13,12 +14,12 @@ import (
 
 // Search implements the search for alphagrams/words
 func (s *Server) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchResponse, error) {
+	defer timeTrack(time.Now(), "search")
 
 	qgen, err := createQueryGen(req, MaxSQLChunkSize)
 	if err != nil {
 		return nil, err
 	}
-
 	db, err := s.getDbConnection(qgen.LexiconName())
 	if err != nil {
 		return nil, err
@@ -35,6 +36,7 @@ func (s *Server) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchR
 	if err != nil {
 		return nil, err
 	}
+
 	return &pb.SearchResponse{
 		Alphagrams: alphagrams,
 		Lexicon:    qgen.LexiconName(),
@@ -100,7 +102,7 @@ func processQuestionRows(rows *sql.Rows, expanded bool) []*pb.Alphagram {
 			Alphagram:    alphagram,
 			Probability:  probability,
 			Combinations: combinations,
-			Length:       int32(len(alphagram)),
+			Length:       int32(len([]rune(alphagram))),
 			ExpandedRepr: expanded,
 		}
 		if lastAlphagram != nil && alpha.Alphagram != lastAlphagram.Alphagram {

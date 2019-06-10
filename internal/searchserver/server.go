@@ -4,9 +4,11 @@ import (
 	"database/sql"
 	"errors"
 	"path/filepath"
+	"time"
 
 	// sqlite3 driver is used by this server.
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -27,4 +29,9 @@ func (s *Server) getDbConnection(lexName string) (*sql.DB, error) {
 		return nil, errors.New("lexicon not specified")
 	}
 	return sql.Open("sqlite3", filepath.Join(s.LexiconPath, "db", lexName+".db"))
+}
+
+func timeTrack(start time.Time, name string) {
+	elapsed := time.Since(start)
+	log.Info().Msgf("%s took %s", name, elapsed)
 }

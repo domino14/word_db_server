@@ -7,7 +7,8 @@ protoc --twirp_out=. --go_out=. ./rpc/wordsearcher/searcher.proto
 Python client/definition files can be created like this:
 
 ```
-protoc  --twirp_python_out=. --python_out=. ./rpc/searcher.proto
+go get github.com/twitchtv/twirp/protoc-gen-twirp_python (if not installed)
+protoc  --twirp_python_out=. --python_out=. ./rpc/wordsearcher/searcher.proto
 ```
 
 

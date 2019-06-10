@@ -3,6 +3,7 @@ package searchserver
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/rs/zerolog/log"
 
@@ -14,6 +15,7 @@ import (
 // list of alphagrams with words and returns all the needed expanded info
 // (such as definitions, hooks, etc).
 func (s *Server) Expand(ctx context.Context, req *pb.SearchResponse) (*pb.SearchResponse, error) {
+	defer timeTrack(time.Now(), "expand")
 	lexName := req.Lexicon
 	// Get all the alphagrams from the search request.
 	db, err := s.getDbConnection(lexName)
@@ -73,7 +75,7 @@ func mergeInputWordInfo(req *pb.SearchResponse, alphStrToObjs map[string]*pb.Alp
 		if thisa, ok = alphStrToObjs[a.Alphagram]; !ok {
 			thisa = &pb.Alphagram{
 				Alphagram: a.Alphagram,
-				Length:    int32(len(a.Alphagram))}
+				Length:    int32(len([]rune(a.Alphagram)))}
 		}
 		for _, w := range a.Words {
 			wordToAlphagramDict[w.Word] = thisa
@@ -150,7 +152,7 @@ func processAlphagramRows(rows *sql.Rows) []*pb.Alphagram {
 			Alphagram:    alphagram,
 			Probability:  probability,
 			Combinations: combinations,
-			Length:       int32(len(alphagram)),
+			Length:       int32(len([]rune(alphagram))),
 		}
 		alphagrams = append(alphagrams, alpha)
 	}
