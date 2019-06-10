@@ -39,11 +39,10 @@ jobs:
       - run: mv /opt/word-game-lexica/*.txt $LEXICON_DIR
       # Generate the db for NWL18.txt. If we add other dbs for testing, we
       # will need to generate those as well.
-      - go build
-      - mkdir $LEXICON_DIR/db
-      - mkdir $LEXICON_DIR/gaddag
-      - ./word_db_server -outputdir $LEXICON_DIR/db -dbs NWL18
-      # come on build
+      - run: go build
+      - run: mkdir $LEXICON_DIR/db
+      - run: mkdir $LEXICON_DIR/gaddag
+      - run: ./word_db_server -outputdir $LEXICON_DIR/db -dbs NWL18
 
       # specify any bash command here prefixed with `run: `
       - run: go test -v ./...
