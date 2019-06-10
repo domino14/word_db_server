@@ -79,7 +79,7 @@ func TestNumVowels(t *testing.T) {
 	}
 	for _, tc := range vowelTestCases {
 		a := &Alphagram{nil, 0, tc.alphagram, 0, 0, 0}
-		pts := a.numVowels()
+		pts := a.numVowels(alphabet.EnglishLetterDistribution())
 		if pts != tc.expected {
 			t.Errorf("Expected %d, actual %d, alphagram %s", tc.expected,
 				pts, a.alphagram)

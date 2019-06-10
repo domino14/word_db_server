@@ -13,7 +13,7 @@ func TestWhereBetweenClause(t *testing.T) {
 			Min: 175,
 			Max: 234,
 		})
-	res, params := c.Render()
+	res, params, _ := c.Render()
 	assert.Equal(t, "test_table.foo_column BETWEEN ? and ?", res)
 	assert.Equal(t, []interface{}{int32(175), int32(234)}, params)
 }
