@@ -142,12 +142,30 @@ func combineWordQueryResults(queries []*querygen.Query, db *sql.DB) ([]*pb.Word,
 
 func processAlphagramRows(rows *sql.Rows) []*pb.Alphagram {
 	alphagrams := []*pb.Alphagram{}
+	var rawBuffer []sql.RawBytes
+	rawBuffer = make([]sql.RawBytes, 3)
+	scanCallArgs := make([]interface{}, 3)
+	for i := range rawBuffer {
+		scanCallArgs[i] = &rawBuffer[i]
+	}
 
 	for rows.Next() {
 		var alphagram string
 		var probability int32
 		var combinations int64
-		rows.Scan(&alphagram, &probability, &combinations)
+
+		rows.Scan(scanCallArgs...)
+		for i, col := range rawBuffer {
+			switch i {
+			case 0:
+				alphagram = string(col)
+			case 1:
+				probability = toint32(col)
+			case 2:
+				combinations = toint64(col)
+			}
+		}
+
 		alpha := &pb.Alphagram{
 			Alphagram:    alphagram,
 			Probability:  probability,
@@ -161,12 +179,38 @@ func processAlphagramRows(rows *sql.Rows) []*pb.Alphagram {
 
 func processWordRows(rows *sql.Rows) []*pb.Word {
 	words := []*pb.Word{}
+	var rawBuffer []sql.RawBytes
+	rawBuffer = make([]sql.RawBytes, 8)
+	scanCallArgs := make([]interface{}, 8)
+	for i := range rawBuffer {
+		scanCallArgs[i] = &rawBuffer[i]
+	}
 
 	for rows.Next() {
 		var lexSymbols, definition, frontHooks, backHooks, alphagram, word string
 		var innerFrontHook, innerBackHook bool
-		rows.Scan(&lexSymbols, &definition, &frontHooks, &backHooks,
-			&innerFrontHook, &innerBackHook, &alphagram, &word)
+		rows.Scan(scanCallArgs...)
+		for i, col := range rawBuffer {
+			switch i {
+			case 0:
+				word = string(col)
+			case 1:
+				alphagram = string(col)
+			case 2:
+				lexSymbols = string(col)
+			case 3:
+				definition = string(col)
+			case 4:
+				frontHooks = string(col)
+			case 5:
+				backHooks = string(col)
+			case 6:
+				innerFrontHook = tobool(col)
+			case 7:
+				innerBackHook = tobool(col)
+			}
+		}
+
 		pbWord := &pb.Word{
 			LexiconSymbols: lexSymbols,
 			Definition:     definition,

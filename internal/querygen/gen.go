@@ -26,8 +26,8 @@ INNER JOIN words w using (alphagram)
 
 // FullQuery selects all the words and alphagram details
 const FullQuery = `
-SELECT lexicon_symbols, definition, front_hooks, back_hooks,
-inner_front_hook, inner_back_hook, word, alphagram, probability,
+SELECT word, alphagram, lexicon_symbols, definition, front_hooks, back_hooks,
+inner_front_hook, inner_back_hook, probability,
 combinations FROM (
 	SELECT alphagrams.probability, alphagrams.combinations,
 		alphagrams.alphagram
@@ -47,9 +47,8 @@ WHERE %s
 
 // WordInfoQuery is used to select words with their info
 const WordInfoQuery = `
-SELECT lexicon_symbols, definition, front_hooks,
-	back_hooks, inner_front_hook, inner_back_hook, alphagram,
-	word
+SELECT word, alphagram, lexicon_symbols, definition, front_hooks,
+	back_hooks, inner_front_hook, inner_back_hook
 FROM words WHERE %s
 %s
 ORDER BY word
