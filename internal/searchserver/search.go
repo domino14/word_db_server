@@ -15,7 +15,7 @@ import (
 // Search implements the search for alphagrams/words
 func (s *Server) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchResponse, error) {
 	defer timeTrack(time.Now(), "search")
-
+	t := time.Now()
 	qgen, err := createQueryGen(req, MaxSQLChunkSize)
 	if err != nil {
 		return nil, err
@@ -32,7 +32,7 @@ func (s *Server) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchR
 	}
 	log.Debug().Msgf("Generated queries %v", queries)
 
-	alphagrams, err := combineQueryResults(queries, db, req.Expand)
+	alphagrams, err := combineQueryResults(queries, db, req.Expand, t)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,8 @@ func createQueryGen(req *pb.SearchRequest, maxChunkSize int) (*querygen.QueryGen
 	return qgen, nil
 }
 
-func combineQueryResults(queries []*querygen.Query, db *sql.DB, expand bool) ([]*pb.Alphagram, error) {
+func combineQueryResults(queries []*querygen.Query, db *sql.DB, expand bool,
+	t time.Time) ([]*pb.Alphagram, error) {
 	alphagrams := []*pb.Alphagram{}
 	// Execute the queries.
 	for _, query := range queries {
@@ -75,8 +76,10 @@ func combineQueryResults(queries []*querygen.Query, db *sql.DB, expand bool) ([]
 		if err != nil {
 			return nil, err
 		}
-		defer rows.Close()
+		log.Debug().Msgf("elapsed after query: %v", time.Since(t))
 		alphagrams = append(alphagrams, processQuestionRows(rows, expand)...)
+		log.Debug().Msgf("elapsed after processing rows: %v", time.Since(t))
+		rows.Close()
 	}
 	return alphagrams, nil
 }
