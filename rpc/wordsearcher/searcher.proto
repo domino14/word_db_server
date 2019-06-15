@@ -49,7 +49,11 @@ message SearchRequest {
         PROBABILITY_LIMIT = 4;
         NUMBER_OF_ANAGRAMS = 5;
         NUMBER_OF_VOWELS = 6;
-        // HAS_TAGS = 7;
+        // TAGS won't be implemented in the server, but we still want
+        // to define it here because the GUI client will use it (and
+        // undergo transformation into ALPHAGRAM_LIST before it hits
+        // the server)
+        HAS_TAGS = 7;
         POINT_VALUE = 8;
         MATCHING_ANAGRAM = 9;
         ALPHAGRAM_LIST = 10;
@@ -57,6 +61,11 @@ message SearchRequest {
         REGEX = 12;  // Not yet implemented.
         // A list of words.
         WORD_LIST = 13;
+
+        // These are used for blank challenges
+        SINGLE_VALUE_LENGTH = 14;
+        NUM_TWO_BLANKS = 15;
+        MAX_SOLUTIONS = 16;
     }
 
     enum NotInLexCondition {
