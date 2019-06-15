@@ -88,19 +88,76 @@ func processQuestionRows(rows *sql.Rows, expanded bool) []*pb.Alphagram {
 	alphagrams := []*pb.Alphagram{}
 	var lastAlphagram *pb.Alphagram
 	curWords := []*pb.Word{}
+	var rawBuffer []sql.RawBytes
+	var numColumns int
+	if expanded {
+		numColumns = 10
+	} else {
+		numColumns = 2
+	}
+	// We are using raw bytes here because scanning is slow otherwise.
+	rawBuffer = make([]sql.RawBytes, numColumns)
+	scanCallArgs := make([]interface{}, len(rawBuffer))
+	for i := range rawBuffer {
+		scanCallArgs[i] = &rawBuffer[i]
+	}
+
 	for rows.Next() {
 		var word, alphagram string
 		var lexSymbols, definition, frontHooks, backHooks string
 		var probability int32
 		var combinations int64
 		var innerFrontHook, innerBackHook bool
-		if !expanded {
-			rows.Scan(&word, &alphagram)
-		} else {
-			rows.Scan(&lexSymbols, &definition, &frontHooks, &backHooks,
-				&innerFrontHook, &innerBackHook, &word, &alphagram, &probability,
-				&combinations)
+
+		err := rows.Scan(scanCallArgs...)
+		if err != nil {
+			log.Error().Err(err).Msg("error while scanning")
+			continue
 		}
+
+		if !expanded {
+			for i, col := range rawBuffer {
+				if i == 0 {
+					word = string(col)
+				} else if i == 1 {
+					alphagram = string(col)
+				}
+			}
+		} else {
+			for i, col := range rawBuffer {
+				switch i {
+				case 0:
+					lexSymbols = string(col)
+				case 1:
+					definition = string(col)
+				case 2:
+					frontHooks = string(col)
+				case 3:
+					backHooks = string(col)
+				case 4:
+					// log.Debug().Msgf("scanned a possible inner front hook: %v", col)
+					// innerFrontHook = bool(col)
+				case 5:
+					// log.Debug().Msgf("scanned a possible inner back hook: %v", col)
+
+					// innerBackHook = bool(col)
+				case 6:
+					word = string(col)
+				case 7:
+					alphagram = string(col)
+				case 8:
+					// log.Debug().Msgf("scanned a possible probability: %v", col)
+
+					// probability = int32(col)
+				case 9:
+					// log.Debug().Msgf("scanned a possible combinations: %v", col)
+
+					// combinations = int64(col)
+
+				}
+			}
+		}
+
 		alpha := &pb.Alphagram{
 			Alphagram:    alphagram,
 			Probability:  probability,
