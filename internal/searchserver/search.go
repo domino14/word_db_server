@@ -43,7 +43,7 @@ func (s *Server) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchR
 	}, nil
 }
 func createQueryGen(req *pb.SearchRequest, maxChunkSize int) (*querygen.QueryGen, error) {
-	log.Debug().Msgf("Got request %v, getsearchparams returns %v", req.String(), req.GetSearchparams())
+	log.Info().Msgf("Creating query gen for request %v", req)
 
 	if req.Searchparams[0].Condition != pb.SearchRequest_LEXICON {
 		return nil, errors.New("the first condition must be a lexicon")

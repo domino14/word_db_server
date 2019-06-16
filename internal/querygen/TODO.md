@@ -2,7 +2,7 @@ To move over to using this new query gen and word_db_server in general.
 
 - [ ] Finish writing it (obvs#)
     - [x] Move webolith word db functionality over, including tests.
-    - [ ] Use generated Twirp Python code to build an API client in `webolith`
+    - [x] Use generated Twirp Python code to build an API client in `webolith`
     - [ ] Remove all word db related stuff from `webolith` (after deploying Twirp client & this server)
     - [ ] add circleci
     - [ ] add to stack (in aerolith-infra and in kubernetes)
@@ -14,3 +14,7 @@ To move over to using this new query gen and word_db_server in general.
     - [ ] Build a twirp API for all of those functions in this repo
     - [ ] Remove JSONRPC API from `macondo` for those functions
     - [ ] Remove all `macondo` calls from `webolith`, replace with Twirp calls
+- [ ] Make sure server is robust (ctrl + c, etc)
+- [ ] Make sure blank challenges on demand work
+    - [ ] test everything
+- [ ] Write a script to compile proto and copy to subdirs
