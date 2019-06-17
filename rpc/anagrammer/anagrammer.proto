@@ -1,0 +1,51 @@
+syntax = "proto3";
+package anagrammer;
+
+import "rpc/wordsearcher/searcher.proto";
+
+message AnagramRequest {
+    enum Mode {
+        EXACT = 0;
+        BUILD = 1;
+    }
+    string lexicon = 1;
+    string letters = 2;
+    Mode mode = 3;
+    bool expand = 4; // Whether to provide hooks, defos, ec.
+}
+
+message AnagramResponse {
+    repeated wordsearcher.Word words = 1;
+    int32 num_words = 2;
+}
+
+message BlankChallengeCreateRequest {
+    string lexicon = 1;
+    int32 num_questions = 2;   // The number of questions to generate.
+    int32 max_solutions = 3;  // The max number of solutions per question.
+    int32 num_with_2_blanks = 4; // The number of questions with two blanks.
+    int32 word_length = 5;
+}
+
+message BuildChallengeCreateRequest {
+    string lexicon = 1;
+    int32 min_solutions = 2;
+    int32 max_solutions = 3;
+    int32 min_length = 4;
+    int32 max_length = 5;
+    bool require_length_solution = 6; // Whether a solution for the given word length is required
+}
+
+
+service Anagrammer {
+    // Anagram does a simple anagram search; it can either be
+    // build mode or regular (exact) mode.
+    // Maybe can add Regex later.
+    rpc Anagram (AnagramRequest) returns (AnagramResponse);
+
+    rpc BlankChallengeCreator (BlankChallengeCreateRequest) returns (
+        wordsearcher.SearchResponse);
+
+    rpc BuildChallengeCreator (BuildChallengeCreateRequest) returns (
+        wordsearcher.SearchResponse);
+}
