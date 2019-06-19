@@ -1,6 +1,6 @@
 syntax = "proto3";
 package anagrammer;
-
+option go_package = "github.com/domino14/word_db_server/rpc/anagrammer";
 import "rpc/wordsearcher/searcher.proto";
 
 message AnagramRequest {

@@ -42,6 +42,7 @@ func (s *Server) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchR
 		Lexicon:    qgen.LexiconName(),
 	}, nil
 }
+
 func createQueryGen(req *pb.SearchRequest, maxChunkSize int) (*querygen.QueryGen, error) {
 	log.Info().Msgf("Creating query gen for request %v", req)
 

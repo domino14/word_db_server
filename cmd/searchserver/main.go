@@ -3,13 +3,13 @@ package main
 import (
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/rs/zerolog"
 
-	"github.com/domino14/macondo/anagrammer"
+	"github.com/domino14/word_db_server/internal/anagramserver"
 	"github.com/domino14/word_db_server/internal/searchserver"
+	"github.com/domino14/word_db_server/rpc/anagrammer"
 	"github.com/domino14/word_db_server/rpc/wordsearcher"
 )
 
@@ -21,14 +21,19 @@ func main() {
 	if strings.ToLower(LogLevel) == "debug" {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
-	server := &searchserver.Server{
+	searchServer := &searchserver.Server{
 		LexiconPath: LexiconPath,
 	}
-	twirpHandler := wordsearcher.NewQuestionSearcherServer(server, nil)
+	anagramServer := &anagramserver.Server{
+		LexiconPath: LexiconPath,
+	}
+	anagramServer.Initialize()
+	searchHandler := wordsearcher.NewQuestionSearcherServer(searchServer, nil)
+	anagramHandler := anagrammer.NewAnagrammerServer(anagramServer, nil)
 
-	// Initialize the Macondo anagrammer, which is needed by this search
-	// server for various conditions.
-	anagrammer.LoadDawgs(filepath.Join(LexiconPath, "dawg"))
+	mux := http.NewServeMux()
+	mux.Handle(searchHandler.PathPrefix(), searchHandler)
+	mux.Handle(anagramHandler.PathPrefix(), anagramHandler)
 
-	http.ListenAndServe(":8180", twirpHandler)
+	http.ListenAndServe(":8180", mux)
 }

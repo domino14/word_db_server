@@ -1,5 +1,6 @@
 syntax = "proto3";
 package wordsearcher;
+option go_package = "github.com/domino14/word_db_server/rpc/wordsearcher";
 
 
 // An Alphagram encapsulates info about an alphagram, including the words,
