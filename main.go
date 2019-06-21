@@ -187,7 +187,7 @@ func loadOrMakeGaddag(lexiconName string) *gaddag.SimpleGaddag {
 	}
 	// Otherwise, build it.
 	lexiconFilename := filepath.Join(LexiconPrefix, lexiconName+".txt")
-	gaddagmaker.GenerateGaddag(lexiconFilename, true, true)
+	gaddagmaker.GenerateGaddag(lexiconFilename, false, true)
 	// Rename file
 	os.Rename("out.gaddag", possibleGaddag)
 	// It should exist now.

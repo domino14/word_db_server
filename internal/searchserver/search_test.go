@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"testing"
-	"time"
 
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 	"github.com/stretchr/testify/assert"
@@ -251,7 +250,7 @@ func TestProbabilityListMultipleQueries(t *testing.T) {
 	assert.Nil(t, err)
 	// There should be 5 queries (max chunk size is 2 and we have 9 elements in list)
 	assert.Equal(t, 5, len(queries))
-	pbAlphas, err := combineQueryResults(queries, db, expand, time.Time())
+	pbAlphas, err := combineQueryResults(queries, db, expand)
 	assert.Nil(t, err)
 	assert.Equal(t, []string{
 		"ADELNOR", "EILNORS", // 73, 92
@@ -280,7 +279,7 @@ func TestProbabilityListMultipleQueriesOther(t *testing.T) {
 	queries, _ := qgen.Generate()
 	// There should be 3 queries (max chunk size is 2 and we have 9 elements in list)
 	assert.Equal(t, 3, len(queries))
-	pbAlphas, _ := combineQueryResults(queries, db, expand, time.Time())
+	pbAlphas, _ := combineQueryResults(queries, db, expand)
 	assert.Equal(t, []string{
 		"ADELNOR", "AENORSU", "EILNORS", // 73, 85, 92
 		"AEGINOS", "AINORTU", "CEINORT", // 43, 61, 185
