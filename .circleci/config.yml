@@ -96,8 +96,8 @@ jobs:
       - run:
           name: Clone private Webolith repo
           command: git clone git@bitbucket.org:cesar_del_solar/webolith-private.git /opt/webolith-private
-      - run: cd aerolith-infra/deploy && inv create_k8s_configs_word_db_server --role prod
-      - run: cd aerolith-infra/deploy && inv deploy_word_db_serve --role prod
+      - run: cd aerolith-infra/deploy && inv create-k8s-configs-word-db-server --role prod
+      - run: cd aerolith-infra/deploy && inv deploy-word-db-serve --role prod
 
 workflows:
   version: 2
