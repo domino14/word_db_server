@@ -11,11 +11,22 @@
   name = "github.com/domino14/macondo"
   packages = [
     "alphabet",
+    "anagrammer",
     "gaddag",
     "gaddagmaker"
   ]
-  revision = "e565f46c1c479dc77e2467ef7f95ffe80f3bbc8c"
-  version = "v0.2.3"
+  revision = "9cd0399441725c60afd56c6f66982c18d9396adc"
+  version = "v0.2.4"
+
+[[projects]]
+  name = "github.com/golang/protobuf"
+  packages = [
+    "jsonpb",
+    "proto",
+    "ptypes/struct"
+  ]
+  revision = "b5d812f8a3706043e23a9cd5babf2e5423744d30"
+  version = "v1.3.1"
 
 [[projects]]
   name = "github.com/mattn/go-sqlite3"
@@ -30,14 +41,35 @@
   version = "v1.0.0"
 
 [[projects]]
+  name = "github.com/rs/zerolog"
+  packages = [
+    ".",
+    "internal/cbor",
+    "internal/json",
+    "log"
+  ]
+  revision = "acf3980132bfcdc48638724e6e3d9e5749b85999"
+  version = "v1.14.3"
+
+[[projects]]
   name = "github.com/stretchr/testify"
   packages = ["assert"]
   revision = "ffdc059bfe9ce6a4e144ba849dbedead332c6053"
   version = "v1.3.0"
 
+[[projects]]
+  name = "github.com/twitchtv/twirp"
+  packages = [
+    ".",
+    "ctxsetters",
+    "internal/contextkeys"
+  ]
+  revision = "701935a9a4c5f89a28cab40d7741d9a0fbdb74a3"
+  version = "v5.7.0"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "7d8ea7fe00b64c1abe1c57d93a9c8527f1bd805ed862ad6117c4711f83f143e2"
+  inputs-digest = "3ca18ebae00acc31617a0b9c5ccfbb6374a5f1f91468153ae1a1c55b07aa05af"
   solver-name = "gps-cdcl"
   solver-version = 1

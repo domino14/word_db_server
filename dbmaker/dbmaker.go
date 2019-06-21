@@ -33,7 +33,7 @@ func (a *Alphagram) String() string {
 	return fmt.Sprintf("Alphagram: %s (%d)", a.alphagram, a.combinations)
 }
 
-func (a *Alphagram) pointValue(dist alphabet.LetterDistribution) uint8 {
+func (a *Alphagram) pointValue(dist *alphabet.LetterDistribution) uint8 {
 	pts := uint8(0)
 	for _, rn := range a.alphagram {
 		pts += dist.PointValues[rn]
@@ -41,7 +41,7 @@ func (a *Alphagram) pointValue(dist alphabet.LetterDistribution) uint8 {
 	return pts
 }
 
-func (a *Alphagram) numVowels(dist alphabet.LetterDistribution) uint8 {
+func (a *Alphagram) numVowels(dist *alphabet.LetterDistribution) uint8 {
 	vowels := uint8(0)
 	vowelMap := map[rune]bool{}
 	for _, v := range dist.Vowels {
@@ -414,7 +414,7 @@ func MigrateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo) {
 
 }
 
-func migrateToV2(db *sql.DB, dist alphabet.LetterDistribution) {
+func migrateToV2(db *sql.DB, dist *alphabet.LetterDistribution) {
 	// Version 2 has the following improvements:
 	// An index on point value, and point value
 	// An index on num anagrams, and num anagrams
@@ -589,7 +589,7 @@ func migrateToV4(db *sql.DB) {
 	}
 }
 
-func sortedHooks(hooks []rune, dist alphabet.LetterDistribution) string {
+func sortedHooks(hooks []rune, dist *alphabet.LetterDistribution) string {
 	w := alphabet.Word{Word: string(hooks), Dist: dist}
 	return w.MakeAlphagram()
 }
@@ -653,7 +653,7 @@ func alphaMapValues(theMap map[string]Alphagram) []Alphagram {
 }
 
 func populateAlphsDefs(filename string, combinations func(string, bool) uint64,
-	dist alphabet.LetterDistribution) (map[string]string, map[string]Alphagram) {
+	dist *alphabet.LetterDistribution) (map[string]string, map[string]Alphagram) {
 
 	definitions := make(map[string]*FullDefinition)
 	alphagrams := make(map[string]Alphagram)

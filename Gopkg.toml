@@ -27,7 +27,7 @@
 
 [[constraint]]
   name = "github.com/domino14/macondo"
-  version = "0.2.3"
+  version = "0.2.4"
 
 [[constraint]]
   name = "github.com/mattn/go-sqlite3"
