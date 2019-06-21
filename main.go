@@ -35,6 +35,7 @@ func main() {
 	// lists.
 	var migratedb = flag.String("migratedb", "", "Migrate a DB instead of generating it")
 	var createdbs = flag.String("dbs", "", "Pass in comma-separated list of dbs to make, instead of all")
+	var forcecreation = flag.Bool("force", false, "Create DB even if it already exists (overwrite)")
 	var dbToFixDefs = flag.String("fixdefs", "",
 		"Pass in lexicon name to fix definitions on. DB <lexiconname>.db must exist in this dir.")
 	var dbToFixSymbols = flag.String("fixsymbols", "",
@@ -46,6 +47,7 @@ func main() {
 	dbToMigrate := *migratedb
 	dbsToMake := *createdbs
 	outputDir := *outputDirF
+	force := *forcecreation
 	//db, err := sql.Open("sqlite3", "./"+lexname+".db")
 	symbols := []dbmaker.LexiconSymbolDefinition{
 		{In: "NWL18", NotIn: "CSW19", Symbol: "$"},
@@ -135,7 +137,7 @@ func main() {
 	} else if *dbToFixSymbols != "" {
 		fixSymbols(*dbToFixSymbols, lexiconMap, symbols)
 	} else {
-		makeDbs(dbsToMake, lexiconMap, symbols, outputDir)
+		makeDbs(dbsToMake, lexiconMap, symbols, outputDir, force)
 	}
 }
 
@@ -154,7 +156,8 @@ func fixSymbols(dbToFixSymbols string, lexiconMap dbmaker.LexiconMap,
 }
 
 func makeDbs(dbsToMake string, lexiconMap dbmaker.LexiconMap,
-	symbols []dbmaker.LexiconSymbolDefinition, outputDir string) {
+	symbols []dbmaker.LexiconSymbolDefinition, outputDir string,
+	forceCreation bool) {
 
 	dbs := []string{}
 	if dbsToMake != "" {
@@ -175,7 +178,7 @@ func makeDbs(dbsToMake string, lexiconMap dbmaker.LexiconMap,
 		}
 		info.Initialize()
 		dbmaker.CreateLexiconDatabase(name, info, symbols, lexiconMap,
-			outputDir)
+			outputDir, !forceCreation)
 	}
 }
 

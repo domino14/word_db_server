@@ -82,8 +82,18 @@ type LexiconSymbolDefinition struct {
 const CurrentVersion = 4
 
 // create a sqlite db for this lexicon name.
-func createSqliteDb(outputDir string, lexiconName string) string {
+func createSqliteDb(outputDir string, lexiconName string, quitIfExists bool) (
+	string, error) {
 	dbName := outputDir + "/" + lexiconName + ".db"
+
+	if quitIfExists {
+		_, err := os.Stat(dbName)
+		if err == nil {
+			return "", fmt.Errorf("db %v existed, and not overwriting it; "+
+				"use -force if you would like to overwrite", dbName)
+		}
+	}
+
 	os.Remove(dbName)
 	sqlStmt := `
 	CREATE TABLE alphagrams (probability int, alphagram varchar(20),
@@ -121,13 +131,21 @@ func createSqliteDb(outputDir string, lexiconName string) string {
 	if err != nil {
 		log.Fatal(err)
 	}
-	return dbName
+	return dbName, nil
 }
 
 func CreateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo,
 	lexSymbols []LexiconSymbolDefinition, lexMap LexiconMap,
-	outputDir string) {
+	outputDir string, quitIfExists bool) {
+
 	fmt.Println("Creating lexicon database", lexiconName)
+
+	dbName, err := createSqliteDb(outputDir, lexiconName, quitIfExists)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+
 	definitions, alphagrams := populateAlphsDefs(lexiconInfo.LexiconFilename,
 		lexiconInfo.Combinations, lexiconInfo.LetterDistribution)
 	fmt.Println("Sorting by probability")
@@ -135,8 +153,6 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo,
 	sort.Sort(AlphByCombos(alphs))
 
 	var probs [16]uint32
-
-	dbName := createSqliteDb(outputDir, lexiconName)
 
 	alphInsertQuery := `
 	INSERT INTO alphagrams(probability, alphagram, length, combinations,
