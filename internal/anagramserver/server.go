@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/domino14/macondo/anagrammer"
+	"github.com/domino14/word_db_server/internal/searchserver"
 	pb "github.com/domino14/word_db_server/rpc/anagrammer"
 	"github.com/domino14/word_db_server/rpc/wordsearcher"
 	"github.com/rs/zerolog/log"
@@ -48,6 +49,19 @@ func wordsToPBWords(strs []string) []*wordsearcher.Word {
 	return words
 }
 
+func expandWords(ctx context.Context, ss *searchserver.Server,
+	req *wordsearcher.SearchResponse) ([]*wordsearcher.Word, error) {
+
+	expansion, err := ss.Expand(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if len(expansion.Alphagrams) != 1 {
+		return nil, errors.New("expansion failed, alphagrams length not 1")
+	}
+	return expansion.Alphagrams[0].Words, nil
+}
+
 func (s *Server) Anagram(ctx context.Context, req *pb.AnagramRequest) (
 	*pb.AnagramResponse, error) {
 	defer timeTrack(time.Now(), "anagram")
@@ -69,8 +83,32 @@ func (s *Server) Anagram(ctx context.Context, req *pb.AnagramRequest) (
 	}
 	sols := anagrammer.Anagram(req.Letters, dinfo.GetDawg(), mode)
 
+	var words []*wordsearcher.Word
+	var err error
+	if req.Expand {
+		// Build an expand request.
+		expander := &searchserver.Server{
+			LexiconPath: s.LexiconPath,
+		}
+		alphagram := &wordsearcher.Alphagram{
+			Alphagram: req.Letters, // not technically an alphagram but doesn't matter rn
+			Words:     wordsToPBWords(sols),
+		}
+		expandReq := &wordsearcher.SearchResponse{
+			Alphagrams: []*wordsearcher.Alphagram{alphagram},
+			Lexicon:    req.Lexicon,
+		}
+
+		words, err = expandWords(ctx, expander, expandReq)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		words = wordsToPBWords(sols)
+	}
+
 	return &pb.AnagramResponse{
-		Words:    wordsToPBWords(sols),
+		Words:    words,
 		NumWords: int32(len(sols)),
 	}, nil
 }
