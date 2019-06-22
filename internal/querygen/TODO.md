@@ -21,3 +21,4 @@ To move over to using this new query gen and word_db_server in general.
 - [x] Make sure blank challenges on demand work
     - [ ] test everything
 - [x] Write a script to compile proto and copy to subdirs
+- [ ] deploy webolith! make sure to add word_db_server address to k8s file
