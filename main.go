@@ -4,6 +4,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -182,6 +183,36 @@ func makeDbs(dbsToMake string, lexiconMap dbmaker.LexiconMap,
 	}
 }
 
+/*
+   GoLang: os.Rename() give error "invalid cross-device link" for Docker
+   container with Volumes.
+   MoveFile(source, destination) will work moving file between folders
+   https://gist.github.com/var23rav/23ae5d0d4d830aff886c3c970b8f6c6b
+*/
+func MoveFile(sourcePath, destPath string) error {
+	inputFile, err := os.Open(sourcePath)
+	if err != nil {
+		return fmt.Errorf("Couldn't open source file: %s", err)
+	}
+	outputFile, err := os.Create(destPath)
+	if err != nil {
+		inputFile.Close()
+		return fmt.Errorf("Couldn't open dest file: %s", err)
+	}
+	defer outputFile.Close()
+	_, err = io.Copy(outputFile, inputFile)
+	inputFile.Close()
+	if err != nil {
+		return fmt.Errorf("Writing to output file failed: %s", err)
+	}
+	// The copy was successful, so now delete the original file
+	err = os.Remove(sourcePath)
+	if err != nil {
+		return fmt.Errorf("Failed removing original file: %s", err)
+	}
+	return nil
+}
+
 func loadOrMakeGaddag(lexiconName string) *gaddag.SimpleGaddag {
 	possibleGaddag := filepath.Join(LexiconPrefix, "gaddag", lexiconName+".gaddag")
 	sg := gaddag.LoadGaddag(possibleGaddag)
@@ -196,7 +227,7 @@ func loadOrMakeGaddag(lexiconName string) *gaddag.SimpleGaddag {
 		return nil
 	}
 	// Otherwise, rename file
-	err := os.Rename("out.gaddag", possibleGaddag)
+	err := MoveFile("out.gaddag", possibleGaddag)
 	if err != nil {
 		panic(err)
 	}
