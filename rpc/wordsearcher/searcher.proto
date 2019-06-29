@@ -63,7 +63,9 @@ message SearchRequest {
         // A list of words.
         WORD_LIST = 13;
 
-        // These are used for blank challenges
+        // These are reserved for blank challenges. They're not even actually
+        // used by this proto, but by the front end when displaying search
+        // boxes.
         SINGLE_VALUE_LENGTH = 14;
         NUM_TWO_BLANKS = 15;
         MAX_SOLUTIONS = 16;
@@ -117,6 +119,40 @@ message SearchResponse {
     string lexicon = 2;
 }
 
+
+message AnagramRequest {
+    enum Mode {
+        EXACT = 0;
+        BUILD = 1;
+    }
+    string lexicon = 1;
+    string letters = 2;
+    Mode mode = 3;
+    bool expand = 4; // Whether to provide hooks, defos, ec.
+}
+
+message AnagramResponse {
+    repeated Word words = 1;
+    int32 num_words = 2;
+}
+
+message BlankChallengeCreateRequest {
+    string lexicon = 1;
+    int32 num_questions = 2;   // The number of questions to generate.
+    int32 max_solutions = 3;  // The max number of solutions per question.
+    int32 num_with_2_blanks = 4; // The number of questions with two blanks.
+    int32 word_length = 5;
+}
+
+message BuildChallengeCreateRequest {
+    string lexicon = 1;
+    int32 min_solutions = 2;
+    int32 max_solutions = 3;
+    int32 min_length = 4;
+    int32 max_length = 5;
+    bool require_length_solution = 6; // Whether a solution for the given word length is required
+}
+
 // QuestionSearcher service searches for questions (duh!)
 service QuestionSearcher {
     // Search takes in a search request and returns a search response.
@@ -127,4 +163,15 @@ service QuestionSearcher {
     // search response (fully expanded). See expandedRepr above in
     // the Alphagram field.
     rpc Expand (SearchResponse) returns (SearchResponse);
+}
+
+service Anagrammer {
+    // Anagram does a simple anagram search; it can either be
+    // build mode or regular (exact) mode.
+    // Maybe can add Regex later.
+    rpc Anagram (AnagramRequest) returns (AnagramResponse);
+    // BlankChallengeCreator creates blank challenges for Aerolith
+    rpc BlankChallengeCreator (BlankChallengeCreateRequest) returns (SearchResponse);
+    // BuildChallengeCreator creates build challenges for Aerolith.
+    rpc BuildChallengeCreator (BuildChallengeCreateRequest) returns (SearchResponse);
 }

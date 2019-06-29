@@ -11,7 +11,6 @@ go get github.com/twitchtv/twirp/protoc-gen-twirp_python (if not installed)
 protoc  --twirp_python_out=. --python_out=. ./rpc/wordsearcher/searcher.proto
 ```
 
-
 Some example JSON requests for debugging (should use Protobuf in prod!):
 
 ```

@@ -14,7 +14,6 @@ import (
 
 	"github.com/domino14/word_db_server/internal/anagramserver"
 	"github.com/domino14/word_db_server/internal/searchserver"
-	"github.com/domino14/word_db_server/rpc/anagrammer"
 	"github.com/domino14/word_db_server/rpc/wordsearcher"
 )
 
@@ -38,7 +37,7 @@ func main() {
 	}
 	anagramServer.Initialize()
 	searchHandler := wordsearcher.NewQuestionSearcherServer(searchServer, nil)
-	anagramHandler := anagrammer.NewAnagrammerServer(anagramServer, nil)
+	anagramHandler := wordsearcher.NewAnagrammerServer(anagramServer, nil)
 
 	mux := http.NewServeMux()
 	mux.Handle(searchHandler.PathPrefix(), searchHandler)
