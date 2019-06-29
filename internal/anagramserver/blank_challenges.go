@@ -11,8 +11,7 @@ import (
 	"github.com/domino14/macondo/alphabet"
 	"github.com/domino14/macondo/anagrammer"
 	"github.com/domino14/macondo/gaddag"
-	pb "github.com/domino14/word_db_server/rpc/anagrammer"
-	"github.com/domino14/word_db_server/rpc/wordsearcher"
+	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 )
 
 // try tries to generate challenges. It returns an error if it fails
@@ -20,7 +19,7 @@ import (
 // an answer has already been generated.
 func try(nBlanks int32, dist *alphabet.LetterDistribution, wordLength int32,
 	dawg *gaddag.SimpleGaddag, maxSolutions int32, answerMap map[string]bool) (
-	*wordsearcher.Alphagram, error) {
+	*pb.Alphagram, error) {
 
 	alph := dawg.GetAlphabet()
 	rack := alphabet.MachineWord(genRack(dist, wordLength, nBlanks, alph))
@@ -40,7 +39,7 @@ func try(nBlanks int32, dist *alphabet.LetterDistribution, wordLength int32,
 	}
 	w := alphabet.Word{Word: rack.UserVisible(alph), Dist: dist}
 
-	return &wordsearcher.Alphagram{
+	return &pb.Alphagram{
 		Alphagram: w.MakeAlphagram(),
 		Words:     wordsToPBWords(answers),
 	}, nil
@@ -50,7 +49,7 @@ func try(nBlanks int32, dist *alphabet.LetterDistribution, wordLength int32,
 // GenerateBlanks - Generate a list of blank word challenges given the
 // parameters in args.
 func GenerateBlanks(ctx context.Context, req *pb.BlankChallengeCreateRequest) (
-	[]*wordsearcher.Alphagram, error) {
+	[]*pb.Alphagram, error) {
 
 	dinfo, ok := anagrammer.Dawgs[req.Lexicon]
 	if !ok {
@@ -62,13 +61,13 @@ func GenerateBlanks(ctx context.Context, req *pb.BlankChallengeCreateRequest) (
 	// First gen 1-blank challenges.
 	answerMap := make(map[string]bool)
 
-	questions := []*wordsearcher.Alphagram{}
+	questions := []*pb.Alphagram{}
 	qIndex := int32(0)
 
 	defer func() {
 		log.Debug().Msg("Leaving GenerateBlanks")
 	}()
-	doIteration := func() (*wordsearcher.Alphagram, error) {
+	doIteration := func() (*pb.Alphagram, error) {
 		if qIndex < req.NumQuestions-req.NumWith_2Blanks {
 			question, err := try(1, dinfo.GetDist(), req.WordLength, dinfo.GetDawg(),
 				req.MaxSolutions, answerMap)

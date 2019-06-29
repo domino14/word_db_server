@@ -6,8 +6,7 @@ import (
 
 	"github.com/domino14/macondo/alphabet"
 	"github.com/domino14/macondo/anagrammer"
-	pb "github.com/domino14/word_db_server/rpc/anagrammer"
-	"github.com/domino14/word_db_server/rpc/wordsearcher"
+	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 	"github.com/rs/zerolog/log"
 )
 
@@ -15,7 +14,7 @@ import (
 // As an additional condition, letters must anagram exactly to at least
 // one word, if that argument is passed in.
 func GenerateBuildChallenge(ctx context.Context, req *pb.BuildChallengeCreateRequest) (
-	*wordsearcher.Alphagram, error) {
+	*pb.Alphagram, error) {
 
 	dinfo, ok := anagrammer.Dawgs[req.Lexicon]
 	if !ok {
@@ -25,7 +24,7 @@ func GenerateBuildChallenge(ctx context.Context, req *pb.BuildChallengeCreateReq
 	tries := 0
 	alph := dinfo.GetDawg().GetAlphabet()
 
-	doIteration := func() (*wordsearcher.Alphagram, error) {
+	doIteration := func() (*pb.Alphagram, error) {
 		rack := alphabet.MachineWord(genRack(dinfo.GetDist(), req.MaxLength, 0, alph))
 		tries++
 		answers := anagrammer.Anagram(rack.UserVisible(alph), dinfo.GetDawg(), anagrammer.ModeExact)
@@ -52,7 +51,7 @@ func GenerateBuildChallenge(ctx context.Context, req *pb.BuildChallengeCreateReq
 				len(meetingCriteria), req.MinSolutions, req.MaxSolutions)
 		}
 		w := alphabet.Word{Word: rack.UserVisible(alph), Dist: dinfo.GetDist()}
-		return &wordsearcher.Alphagram{
+		return &pb.Alphagram{
 			Alphagram: w.MakeAlphagram(),
 			Words:     wordsToPBWords(meetingCriteria),
 		}, nil

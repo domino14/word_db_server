@@ -11,7 +11,7 @@ import (
 	"github.com/domino14/macondo/anagrammer"
 	"github.com/domino14/macondo/gaddag"
 	"github.com/domino14/macondo/gaddagmaker"
-	pb "github.com/domino14/word_db_server/rpc/anagrammer"
+	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 )
 
 var LexiconPath = os.Getenv("LEXICON_PATH")

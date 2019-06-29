@@ -10,8 +10,7 @@ import (
 
 	"github.com/domino14/macondo/anagrammer"
 	"github.com/domino14/word_db_server/internal/searchserver"
-	pb "github.com/domino14/word_db_server/rpc/anagrammer"
-	"github.com/domino14/word_db_server/rpc/wordsearcher"
+	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 	"github.com/rs/zerolog/log"
 	"github.com/twitchtv/twirp"
 )
@@ -39,10 +38,10 @@ func (s *Server) Initialize() {
 	anagrammer.LoadDawgs(filepath.Join(s.LexiconPath, "dawg"))
 }
 
-func wordsToPBWords(strs []string) []*wordsearcher.Word {
-	words := []*wordsearcher.Word{}
+func wordsToPBWords(strs []string) []*pb.Word {
+	words := []*pb.Word{}
 	for _, s := range strs {
-		words = append(words, &wordsearcher.Word{
+		words = append(words, &pb.Word{
 			Word: s,
 		})
 	}
@@ -50,7 +49,7 @@ func wordsToPBWords(strs []string) []*wordsearcher.Word {
 }
 
 func expandWords(ctx context.Context, ss *searchserver.Server,
-	req *wordsearcher.SearchResponse) ([]*wordsearcher.Word, error) {
+	req *pb.SearchResponse) ([]*pb.Word, error) {
 
 	expansion, err := ss.Expand(ctx, req)
 	if err != nil {
@@ -83,19 +82,19 @@ func (s *Server) Anagram(ctx context.Context, req *pb.AnagramRequest) (
 	}
 	sols := anagrammer.Anagram(req.Letters, dinfo.GetDawg(), mode)
 
-	var words []*wordsearcher.Word
+	var words []*pb.Word
 	var err error
 	if req.Expand {
 		// Build an expand request.
 		expander := &searchserver.Server{
 			LexiconPath: s.LexiconPath,
 		}
-		alphagram := &wordsearcher.Alphagram{
+		alphagram := &pb.Alphagram{
 			Alphagram: req.Letters, // not technically an alphagram but doesn't matter rn
 			Words:     wordsToPBWords(sols),
 		}
-		expandReq := &wordsearcher.SearchResponse{
-			Alphagrams: []*wordsearcher.Alphagram{alphagram},
+		expandReq := &pb.SearchResponse{
+			Alphagrams: []*pb.Alphagram{alphagram},
 			Lexicon:    req.Lexicon,
 		}
 
@@ -114,18 +113,20 @@ func (s *Server) Anagram(ctx context.Context, req *pb.AnagramRequest) (
 }
 
 func (s *Server) BlankChallengeCreator(ctx context.Context, req *pb.BlankChallengeCreateRequest) (
-	*wordsearcher.SearchResponse, error) {
+	*pb.SearchResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, BlankQuestionsTimeout)
 	defer cancel()
 
 	blanks, err := GenerateBlanks(ctx, req)
 	if err == context.DeadlineExceeded {
-		return nil, twirp.NewError(twirp.DeadlineExceeded, "blank challenge timed out")
+		// Sadly, using twirp.DeadlineExceeded results in a 408 status code,
+		// which causes web browsers to keep trying request again!
+		return nil, twirp.NewError(twirp.Internal, "blank challenge timed out")
 	}
 	if err != nil {
 		return nil, err
 	}
-	return &wordsearcher.SearchResponse{
+	return &pb.SearchResponse{
 		Alphagrams: blanks,
 		Lexicon:    req.Lexicon,
 	}, nil
@@ -133,7 +134,7 @@ func (s *Server) BlankChallengeCreator(ctx context.Context, req *pb.BlankChallen
 }
 
 func (s *Server) BuildChallengeCreator(ctx context.Context, req *pb.BuildChallengeCreateRequest) (
-	*wordsearcher.SearchResponse, error) {
+	*pb.SearchResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, BuildQuestionsTimeout)
 	defer cancel()
 	question, err := GenerateBuildChallenge(ctx, req)
@@ -143,9 +144,9 @@ func (s *Server) BuildChallengeCreator(ctx context.Context, req *pb.BuildChallen
 	if err != nil {
 		return nil, err
 	}
-	return &wordsearcher.SearchResponse{
+	return &pb.SearchResponse{
 		// A 1-element array is fine.
-		Alphagrams: []*wordsearcher.Alphagram{question},
+		Alphagrams: []*pb.Alphagram{question},
 		Lexicon:    req.Lexicon,
 	}, nil
 }
