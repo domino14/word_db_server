@@ -109,9 +109,9 @@ workflows:
           filters:
             branches:
               only: master
-      - deploy:
-          requires:
-            - build_docker
-          filters:
-            branches:
-              only: master
+      # - deploy:
+      #     requires:
+      #       - build_docker
+      #     filters:
+      #       branches:
+      #         only: master

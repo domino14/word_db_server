@@ -19,6 +19,7 @@ func (s *Server) Expand(ctx context.Context, req *pb.SearchResponse) (*pb.Search
 	lexName := req.Lexicon
 	// Get all the alphagrams from the search request.
 	db, err := s.getDbConnection(lexName)
+	defer db.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -121,8 +122,8 @@ func combineAlphaQueryResults(queries []*querygen.Query, db *sql.DB) ([]*pb.Alph
 		if err != nil {
 			return nil, err
 		}
-		defer rows.Close()
 		alphagrams = append(alphagrams, processAlphagramRows(rows)...)
+		rows.Close()
 	}
 	return alphagrams, nil
 }
@@ -134,8 +135,8 @@ func combineWordQueryResults(queries []*querygen.Query, db *sql.DB) ([]*pb.Word,
 		if err != nil {
 			return nil, err
 		}
-		defer rows.Close()
 		words = append(words, processWordRows(rows)...)
+		rows.Close()
 	}
 	return words, nil
 }
