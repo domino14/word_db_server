@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"github.com/domino14/word_db_server/dbmaker"
 	"github.com/domino14/word_db_server/internal/anagramserver"
 	"github.com/domino14/word_db_server/internal/searchserver"
 	"github.com/domino14/word_db_server/rpc/wordsearcher"
@@ -19,6 +20,7 @@ import (
 
 var LogLevel = os.Getenv("LOG_LEVEL")
 var LexiconPath = os.Getenv("LEXICON_PATH")
+var InitializeSelf = os.Getenv("INITIALIZE_SELF")
 
 const (
 	GracefulShutdownTimeout = 10 * time.Second
@@ -29,6 +31,11 @@ func main() {
 	if strings.ToLower(LogLevel) == "debug" {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
+
+	if InitializeSelf == "true" {
+		recreateDataStructures()
+	}
+
 	searchServer := &searchserver.Server{
 		LexiconPath: LexiconPath,
 	}
@@ -70,4 +77,12 @@ func main() {
 	}
 	<-idleConnsClosed
 	log.Info().Msg("server gracefully shutting down")
+}
+
+func recreateDataStructures() {
+	// Fetch the lexica files.
+
+	// Create all the needed lexica files (db and dawg) and save them into
+	// the LexiconPath above.
+	symbols, lexiconMap := dbmaker.LexiconMappings()
 }
