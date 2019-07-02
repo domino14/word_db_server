@@ -3,8 +3,9 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"strings"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/domino14/word_db_server/dbmaker"
 )
@@ -45,7 +46,7 @@ func main() {
 	if dbToMigrate != "" {
 		info, ok := lexiconMap[dbToMigrate]
 		if !ok {
-			fmt.Printf("That lexicon is not supported\n")
+			log.Error().Msg("That lexicon is not supported")
 			return
 		}
 		dbmaker.MigrateLexiconDatabase(dbToMigrate, info)
@@ -86,11 +87,11 @@ func makeDbs(dbsToMake string, lexiconMap dbmaker.LexiconMap,
 	}
 	for name, info := range lexiconMap {
 		if !stringInSlice(name, dbs) {
-			fmt.Println(name, "was not in list of dbs, skipping...")
+			log.Info().Msgf("%v was not in list of dbs, skipping...", name)
 			continue
 		}
 		if info.Dawg == nil || info.Dawg.GetAlphabet() == nil {
-			fmt.Println(name, "was not supplied, skipping...")
+			log.Info().Msgf("%v was not supplied, skipping...", name)
 			continue
 		}
 		info.Initialize()

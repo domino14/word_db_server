@@ -108,6 +108,6 @@ func recreateDataStructures(supportedLexica []string) {
 		info.Initialize()
 		log.Info().Msgf("Creating database for %v", lexName)
 		dbmaker.CreateLexiconDatabase(lexName, info, symbols, lexiconMap,
-			filepath.Join(LexiconPath, "db"), false)
+			filepath.Join(LexiconPath, "db"), true)
 	}
 }

@@ -7,11 +7,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/domino14/macondo/alphabet"
 	"github.com/domino14/macondo/gaddag"
@@ -121,15 +122,15 @@ func createSqliteDb(outputDir string, lexiconName string, quitIfExists bool) (
 	CREATE TABLE db_version (version integer);
 	`
 	db, err := sql.Open("sqlite3", dbName)
-	fmt.Println("Opened database file at", dbName)
+	log.Info().Msgf("Opened database file at %v", dbName)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 	defer db.Close()
 
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 	return dbName, nil
 }
@@ -138,17 +139,17 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo,
 	lexSymbols []LexiconSymbolDefinition, lexMap LexiconMap,
 	outputDir string, quitIfExists bool) {
 
-	fmt.Println("Creating lexicon database", lexiconName)
+	log.Info().Msgf("Creating lexicon database for %v", lexiconName)
 
 	dbName, err := createSqliteDb(outputDir, lexiconName, quitIfExists)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		log.Error().Err(err).Msg("")
 		return
 	}
 
 	definitions, alphagrams := populateAlphsDefs(lexiconInfo.LexiconFilename,
 		lexiconInfo.Combinations, lexiconInfo.LetterDistribution)
-	fmt.Println("Sorting by probability")
+	log.Debug().Msg("Sorting by probability")
 	alphs := alphaMapValues(alphagrams)
 	sort.Sort(AlphByCombos(alphs))
 
@@ -166,20 +167,20 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo,
 
 	db, err := sql.Open("sqlite3", dbName)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 	tx, err := db.Begin()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 
 	alphStmt, err := tx.Prepare(alphInsertQuery)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 	wordStmt, err := tx.Prepare(wordInsertQuery)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 	defer alphStmt.Close()
 	defer wordStmt.Close()
@@ -187,7 +188,7 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo,
 	rDawg := lexiconInfo.RDawg
 	for idx, alph := range alphs {
 		if idx%10000 == 0 {
-			log.Println(idx, "...")
+			log.Debug().Msgf("%d...", idx)
 		}
 		wl := len([]rune(alph.alphagram))
 		if wl <= 15 {
@@ -222,7 +223,7 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo,
 			containsWordUniqueToLexSplit(lexSymbolsList),
 			containsUpdateToLex(lexSymbolsList))
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal().Err(err).Msg("")
 		}
 
 	}
@@ -230,7 +231,7 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo,
 
 	_, err = db.Exec("INSERT INTO db_version(version) VALUES(?)", CurrentVersion)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 	// log the word length dict to screen. This is needed for the lexica.yaml
 	// fixture in webolith.
@@ -249,17 +250,17 @@ func logWordLengths(lengths [16]uint32) {
 	if err != nil {
 		panic(err.Error())
 	}
-	log.Printf("Word lengths: '%s'", string(bts))
+	log.Info().Msgf("Word lengths: '%s'", string(bts))
 }
 
 func FixDefinitions(lexiconName string, lexMap LexiconMap) {
 	_, err := os.Stat(lexiconName + ".db")
 	if os.IsNotExist(err) {
-		log.Fatal("Database does not exist in this directory.")
+		log.Fatal().Msg("Database does not exist in this directory.")
 	}
 	db, err := sql.Open("sqlite3", lexiconName+".db")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 
 	lexiconInfo := lexMap[lexiconName]
@@ -274,18 +275,18 @@ func FixDefinitions(lexiconName string, lexMap LexiconMap) {
 
 	tx, err := db.Begin()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 
 	defStmt, err := tx.Prepare(definitionEditQuery)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 
 	for word, def := range definitions {
 		_, err := defStmt.Exec(def, word)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal().Err(err).Msg("")
 		}
 	}
 
@@ -301,16 +302,16 @@ func FixLexiconSymbols(lexiconName string, lexMap LexiconMap,
 
 	_, err := os.Stat(lexiconName + ".db")
 	if os.IsNotExist(err) {
-		log.Fatal("Database does not exist in this directory.")
+		log.Fatal().Msg("Database does not exist in this directory.")
 	}
 	db, err := sql.Open("sqlite3", lexiconName+".db")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 
 	tx, err := db.Begin()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 
 	lexiconInfo := lexMap[lexiconName]
@@ -330,12 +331,12 @@ func FixLexiconSymbols(lexiconName string, lexMap LexiconMap,
 
 	alphStmt, err := tx.Prepare(alphaLexEditQuery)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 
 	wordStmt, err := tx.Prepare(lexSymbolEditQuery)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 
 	defer alphStmt.Close()
@@ -347,14 +348,14 @@ func FixLexiconSymbols(lexiconName string, lexMap LexiconMap,
 			theseLexSymbols := findLexSymbols(word, lexiconName, lexMap, symbols)
 			_, err := wordStmt.Exec(theseLexSymbols, word)
 			if err != nil {
-				log.Fatal(err)
+				log.Fatal().Err(err).Msg("")
 			}
 			lexSymbolsList = append(lexSymbolsList, theseLexSymbols)
 		}
 		_, err := alphStmt.Exec(containsWordUniqueToLexSplit(lexSymbolsList),
 			containsUpdateToLex(lexSymbolsList), alphagramObj.alphagram)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal().Err(err).Msg("")
 		}
 	}
 	tx.Commit()
@@ -383,49 +384,49 @@ func MigrateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo) {
 
 	db, err := sql.Open("sqlite3", dbName)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 	var version int
 	err = db.QueryRow("SELECT version FROM db_version").Scan(&version)
 	switch {
 	case err == sql.ErrNoRows:
-		log.Fatal("There is a version table but it has no values in it")
+		log.Fatal().Msg("There is a version table but it has no values in it")
 	case err != nil:
 		if err.Error() == "no such table: db_version" {
 			log.Printf("No version table, creating one...")
 			_, err = db.Exec("CREATE TABLE db_version (version integer)")
 			if err != nil {
-				log.Fatal(err)
+				log.Fatal().Err(err).Msg("")
 			}
 			_, err = db.Exec("INSERT INTO db_version(version) VALUES(?)", 1)
 			if err != nil {
-				log.Fatal(err)
+				log.Fatal().Err(err).Msg("")
 			}
 			version = 1
 		} else {
-			log.Fatal(err)
+			log.Fatal().Err(err).Msg("")
 		}
 	default:
 		if version == CurrentVersion {
-			fmt.Printf("DB Version is up to date (version %d)\n", version)
+			log.Info().Msgf("DB Version is up to date (version %d)", version)
 		} else {
-			fmt.Printf("Version of this table is %d, moving to %d\n", version,
+			log.Info().Msgf("Version of this table is %d, moving to %d", version,
 				version+1)
 		}
 	}
 
 	if version == 1 {
-		fmt.Println("Migrating to version 2...")
+		log.Info().Msg("Migrating to version 2...")
 		migrateToV2(db, lexiconInfo.LetterDistribution)
-		fmt.Println("Run again to migrate to version 3")
+		log.Info().Msg("Run again to migrate to version 3")
 	}
 	if version == 2 {
-		fmt.Printf("Migrating to version 3...")
+		log.Info().Msg("Migrating to version 3...")
 		migrateToV3(db)
-		fmt.Println("Run again to migrate to version 4")
+		log.Info().Msg("Run again to migrate to version 4")
 	}
 	if version == 3 {
-		fmt.Printf("Migrating to version 4...")
+		log.Info().Msg("Migrating to version 4...")
 		migrateToV4(db)
 	}
 
@@ -447,7 +448,7 @@ func migrateToV2(db *sql.DB, dist *alphabet.LetterDistribution) {
 			CREATE INDEX num_vowels_index on alphagrams(num_vowels);
 			`)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 
 	// Read in all the alphagrams.
@@ -457,13 +458,13 @@ func migrateToV2(db *sql.DB, dist *alphabet.LetterDistribution) {
 			GROUP BY words.alphagram
 			`)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 	defer rows.Close()
 
 	tx, err := db.Begin()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 
 	updateQuery := `
@@ -479,7 +480,7 @@ func migrateToV2(db *sql.DB, dist *alphabet.LetterDistribution) {
 			wordCount int
 		)
 		if err := rows.Scan(&alph, &wordCount); err != nil {
-			log.Fatal(err)
+			log.Fatal().Err(err).Msg("")
 		}
 		alphagrams = append(alphagrams, Alphagram{alphagram: alph,
 			wordCount: uint8(wordCount)})
@@ -491,29 +492,29 @@ func migrateToV2(db *sql.DB, dist *alphabet.LetterDistribution) {
 		_, err := updateStmt.Exec(alph.wordCount, alph.pointValue(dist),
 			alph.numVowels(dist), alph.alphagram)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal().Err(err).Msg("")
 		}
 		i++
 		if i%10000 == 0 {
-			log.Printf("%d...", i)
+			log.Debug().Msgf("%d...", i)
 		}
 	}
 	tx.Commit()
 
 	_, err = db.Exec("UPDATE db_version SET version = ?", 2)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 }
 
 func migrateToV3(db *sql.DB) {
 	_, err := db.Exec("CREATE INDEX length_index on alphagrams(length);")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 	_, err = db.Exec("UPDATE db_version SET version = ?", 3)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 }
 
@@ -526,7 +527,7 @@ func migrateToV4(db *sql.DB) {
 	CREATE INDEX update_word_index on alphagrams(contains_update_to_lex);
 	`)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 	log.Printf("Created new columns and indices")
 	// Read in all the words.
@@ -535,13 +536,13 @@ func migrateToV4(db *sql.DB) {
 	order by alphagram
 	`)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 	defer rows.Close()
 
 	tx, err := db.Begin()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 
 	updateQuery := `
@@ -561,7 +562,7 @@ func migrateToV4(db *sql.DB) {
 			lexiconSymbols string
 		)
 		if err := rows.Scan(&word, &alph, &lexiconSymbols); err != nil {
-			log.Fatal(err)
+			log.Fatal().Err(err).Msg("")
 		}
 		//log.Println(word, alph, lexiconSymbols)
 
@@ -591,7 +592,7 @@ func migrateToV4(db *sql.DB) {
 		_, err := updateStmt.Exec(alph.uniqToLexSplit, alph.updateToLex,
 			alph.alphagram)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal().Err(err).Msg("")
 		}
 		i++
 		if i%10000 == 0 {
@@ -602,7 +603,7 @@ func migrateToV4(db *sql.DB) {
 
 	_, err = db.Exec("UPDATE db_version SET version = ?", 4)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("")
 	}
 }
 
