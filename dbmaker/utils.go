@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/domino14/macondo/alphabet"
 	"github.com/domino14/macondo/gaddag"
 	"github.com/domino14/macondo/gaddagmaker"
@@ -27,7 +29,8 @@ func LexiconMappings() ([]LexiconSymbolDefinition, LexiconMap) {
 		"CSW15": LexiconInfo{
 			LexiconName:        "CSW15",
 			LexiconFilename:    filepath.Join(LexiconPath, "CSW15.txt"),
-			Gaddag:             LoadOrMakeGaddag(LexiconPath, "CSW15"),
+			Dawg:               LoadOrMakeDawg(LexiconPath, "CSW15", false),
+			RDawg:              LoadOrMakeDawg(LexiconPath, "CSW15", true),
 			LexiconIndex:       1,
 			DescriptiveName:    "Collins 15",
 			LetterDistribution: alphabet.EnglishLetterDistribution(),
@@ -35,7 +38,8 @@ func LexiconMappings() ([]LexiconSymbolDefinition, LexiconMap) {
 		"CSW19": LexiconInfo{
 			LexiconName:        "CSW19",
 			LexiconFilename:    filepath.Join(LexiconPath, "CSW19.txt"),
-			Gaddag:             LoadOrMakeGaddag(LexiconPath, "CSW19"),
+			Dawg:               LoadOrMakeDawg(LexiconPath, "CSW19", false),
+			RDawg:              LoadOrMakeDawg(LexiconPath, "CSW19", true),
 			LexiconIndex:       12,
 			DescriptiveName:    "Collins 2019",
 			LetterDistribution: alphabet.EnglishLetterDistribution(),
@@ -43,7 +47,8 @@ func LexiconMappings() ([]LexiconSymbolDefinition, LexiconMap) {
 		"America": LexiconInfo{
 			LexiconName:        "America",
 			LexiconFilename:    filepath.Join(LexiconPath, "America.txt"),
-			Gaddag:             LoadOrMakeGaddag(LexiconPath, "America"),
+			Dawg:               LoadOrMakeDawg(LexiconPath, "America", false),
+			RDawg:              LoadOrMakeDawg(LexiconPath, "America", true),
 			LexiconIndex:       7,
 			DescriptiveName:    "I am America, and so can you.",
 			LetterDistribution: alphabet.EnglishLetterDistribution(),
@@ -51,7 +56,8 @@ func LexiconMappings() ([]LexiconSymbolDefinition, LexiconMap) {
 		"FISE09": LexiconInfo{
 			LexiconName:        "FISE09",
 			LexiconFilename:    filepath.Join(LexiconPath, "FISE09.txt"),
-			Gaddag:             LoadOrMakeGaddag(LexiconPath, "FISE09"),
+			Dawg:               LoadOrMakeDawg(LexiconPath, "FISE09", false),
+			RDawg:              LoadOrMakeDawg(LexiconPath, "FISE09", true),
 			LexiconIndex:       8,
 			DescriptiveName:    "Federación Internacional de Scrabble en Español",
 			LetterDistribution: alphabet.SpanishLetterDistribution(),
@@ -59,7 +65,8 @@ func LexiconMappings() ([]LexiconSymbolDefinition, LexiconMap) {
 		"FISE2": LexiconInfo{
 			LexiconName:        "FISE2",
 			LexiconFilename:    filepath.Join(LexiconPath, "FISE2.txt"),
-			Gaddag:             LoadOrMakeGaddag(LexiconPath, "FISE2"),
+			Dawg:               LoadOrMakeDawg(LexiconPath, "FISE2", false),
+			RDawg:              LoadOrMakeDawg(LexiconPath, "FISE2", true),
 			LexiconIndex:       10,
 			DescriptiveName:    "Federación Internacional de Scrabble en Español, 2017 Edition",
 			LetterDistribution: alphabet.SpanishLetterDistribution(),
@@ -67,7 +74,8 @@ func LexiconMappings() ([]LexiconSymbolDefinition, LexiconMap) {
 		"NWL18": LexiconInfo{
 			LexiconName:        "NWL18",
 			LexiconFilename:    filepath.Join(LexiconPath, "NWL18.txt"),
-			Gaddag:             LoadOrMakeGaddag(LexiconPath, "NWL18"),
+			Dawg:               LoadOrMakeDawg(LexiconPath, "NWL18", false),
+			RDawg:              LoadOrMakeDawg(LexiconPath, "NWL18", true),
 			LexiconIndex:       9,
 			DescriptiveName:    "NASPA Word List, 2018 Edition",
 			LetterDistribution: alphabet.EnglishLetterDistribution(),
@@ -75,7 +83,8 @@ func LexiconMappings() ([]LexiconSymbolDefinition, LexiconMap) {
 		"OSPS40": LexiconInfo{
 			LexiconName:        "OSPS40",
 			LexiconFilename:    filepath.Join(LexiconPath, "OSPS40.txt"),
-			Gaddag:             LoadOrMakeGaddag(LexiconPath, "OSPS40"),
+			Dawg:               LoadOrMakeDawg(LexiconPath, "OSPS40", false),
+			RDawg:              LoadOrMakeDawg(LexiconPath, "OSPS40", true),
 			LexiconIndex:       11,
 			DescriptiveName:    "Polska Federacja Scrabble - Update 40",
 			LetterDistribution: alphabet.PolishLetterDistribution(),
@@ -114,46 +123,35 @@ func MoveFile(sourcePath, destPath string) error {
 	return nil
 }
 
-func LoadOrMakeGaddag(prefix, lexiconName string) *gaddag.SimpleGaddag {
-	possibleGaddag := filepath.Join(prefix, "gaddag", lexiconName+".gaddag")
-	sg := gaddag.LoadGaddag(possibleGaddag)
-	if sg != nil {
-		return sg
+func LoadOrMakeDawg(prefix, lexiconName string, reverse bool) *gaddag.SimpleDawg {
+	dawgfilename := lexiconName + ".dawg"
+	if reverse {
+		dawgfilename = lexiconName + "-r.dawg"
 	}
-	// Otherwise, build it.
-	lexiconFilename := filepath.Join(prefix, lexiconName+".txt")
-	gd := gaddagmaker.GenerateGaddag(lexiconFilename, false, true)
-	if gd.Root == nil {
-		// Gaddag could not be generated at all, maybe lexicon is missing.
-		return nil
-	}
-	// Otherwise, rename file
-	err := MoveFile("out.gaddag", possibleGaddag)
-	if err != nil {
-		panic(err)
-	}
-	// It should exist now.
-	return gaddag.LoadGaddag(possibleGaddag)
-}
 
-func LoadOrMakeDawg(prefix, lexiconName string) *gaddag.SimpleGaddag {
-	possibleDawg := filepath.Join(prefix, "dawg", lexiconName+".dawg")
-	sg := gaddag.LoadGaddag(possibleDawg)
-	if sg != nil {
-		return sg
+	possibleDawg := filepath.Join(prefix, "dawg", dawgfilename)
+
+	d, err := gaddag.LoadDawg(possibleDawg)
+	if err == nil {
+		return d
 	}
 	// Otherwise, build it.
 	lexiconFilename := filepath.Join(prefix, lexiconName+".txt")
-	gd := gaddagmaker.GenerateDawg(lexiconFilename, true, true)
+	gd := gaddagmaker.GenerateDawg(lexiconFilename, true, true, reverse)
 	if gd.Root == nil {
 		// Gaddag could not be generated at all, maybe lexicon is missing.
+		log.Error().Err(err).Msg("")
 		return nil
 	}
 	// Otherwise, rename file
-	err := MoveFile("out.gaddag", possibleDawg)
+	err = MoveFile("out.dawg", possibleDawg)
 	if err != nil {
 		panic(err)
 	}
 	// It should exist now.
-	return gaddag.LoadGaddag(possibleDawg)
+	d, err = gaddag.LoadDawg(possibleDawg)
+	if err != nil {
+		panic(err)
+	}
+	return d
 }

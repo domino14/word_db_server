@@ -2,9 +2,10 @@ package alphabet
 
 import (
 	"fmt"
-	"log"
 	"sort"
 	"unicode"
+
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -260,7 +261,7 @@ func (a *Alphabet) genLetterSlice() {
 		a.letterSlice = append(a.letterSlice, rn)
 	}
 	sort.Sort(a.letterSlice)
-	fmt.Println("After sorting", a.letterSlice)
+	log.Debug().Msgf("After sorting: %v", a.letterSlice)
 	// These maps are now deterministic. Renumber them according to
 	// sort order.
 	for idx, rn := range a.letterSlice {
@@ -272,7 +273,7 @@ func (a *Alphabet) genLetterSlice() {
 // Reconcile will take a populated alphabet, sort the glyphs, and re-index
 // the numbers.
 func (a *Alphabet) Reconcile() {
-	fmt.Println("[DEBUG] Reconciling alphabet")
+	log.Debug().Msg("Reconciling alphabet")
 	a.genLetterSlice()
 }
 
@@ -285,7 +286,7 @@ func (a *Alphabet) Serialize() []uint32 {
 		// Append the rune
 		els = append(els, uint32(rn))
 	}
-	log.Println("[DEBUG] Serializing", els)
+	log.Debug().Msgf("Serializing %v", els)
 	return els
 }
 

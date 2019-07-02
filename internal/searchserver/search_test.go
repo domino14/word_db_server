@@ -238,7 +238,7 @@ func TestProbabilityListMultipleQueries(t *testing.T) {
 	}, expand)
 
 	maxChunkSize := 2
-	qgen, err := createQueryGen(req, maxChunkSize)
+	qgen, err := createQueryGen(req, []string{"NWL18"}, maxChunkSize)
 	assert.Nil(t, err)
 	s := &Server{
 		LexiconPath: os.Getenv("LEXICON_PATH"),
@@ -270,7 +270,7 @@ func TestProbabilityListMultipleQueriesOther(t *testing.T) {
 	}, expand)
 
 	maxChunkSize := 3
-	qgen, _ := createQueryGen(req, maxChunkSize)
+	qgen, _ := createQueryGen(req, []string{"NWL18"}, maxChunkSize)
 	s := &Server{
 		LexiconPath: os.Getenv("LEXICON_PATH"),
 	}

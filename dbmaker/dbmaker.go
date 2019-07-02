@@ -183,7 +183,8 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo,
 	}
 	defer alphStmt.Close()
 	defer wordStmt.Close()
-	gd := lexiconInfo.Gaddag
+	dawg := lexiconInfo.Dawg
+	rDawg := lexiconInfo.RDawg
 	for idx, alph := range alphs {
 		if idx%10000 == 0 {
 			log.Println(idx, "...")
@@ -194,16 +195,16 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo,
 		}
 		lexSymbolsList := []string{}
 		for _, word := range alph.words {
-			backHooks := sortedHooks(gaddag.FindHooks(gd, word, gaddag.BackHooks),
+			backHooks := sortedHooks(gaddag.FindHooks(dawg, word, gaddag.BackHooks),
 				lexiconInfo.LetterDistribution)
-			frontHooks := sortedHooks(gaddag.FindHooks(gd, word, gaddag.FrontHooks),
+			frontHooks := sortedHooks(gaddag.FindHooks(rDawg, word, gaddag.FrontHooks),
 				lexiconInfo.LetterDistribution)
 			frontInnerHook := 0
 			backInnerHook := 0
-			if gaddag.FindInnerHook(gd, word, gaddag.BackInnerHook) {
+			if gaddag.FindInnerHook(dawg, word, gaddag.BackInnerHook) {
 				backInnerHook = 1
 			}
-			if gaddag.FindInnerHook(gd, word, gaddag.FrontInnerHook) {
+			if gaddag.FindInnerHook(dawg, word, gaddag.FrontInnerHook) {
 				frontInnerHook = 1
 			}
 
@@ -618,8 +619,8 @@ func findLexSymbols(word string, lexiconName string, lexMap LexiconMap,
 	for _, def := range lexSymbols {
 		if lexiconName == def.In {
 			lex := lexMap[def.NotIn]
-			if lex.Gaddag != nil && lex.Gaddag.GetAlphabet() != nil &&
-				!gaddag.FindWord(lex.Gaddag, word) &&
+			if lex.Dawg != nil && lex.Dawg.GetAlphabet() != nil &&
+				!gaddag.FindWord(lex.Dawg, word) &&
 				!strings.Contains(symbols, def.Symbol) {
 				symbols += def.Symbol
 			}

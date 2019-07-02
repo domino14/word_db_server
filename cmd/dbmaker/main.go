@@ -59,7 +59,7 @@ func main() {
 }
 
 func fixDefinitions(dbToFixDefs string, lexiconMap dbmaker.LexiconMap) {
-	// open existing databases but new dictionary files/gaddags etc
+	// open existing databases but new dictionary files/dawgs etc
 	// and apply new definitions
 	dbmaker.FixDefinitions(dbToFixDefs, lexiconMap)
 }
@@ -67,7 +67,7 @@ func fixDefinitions(dbToFixDefs string, lexiconMap dbmaker.LexiconMap) {
 func fixSymbols(dbToFixSymbols string, lexiconMap dbmaker.LexiconMap,
 	symbols []dbmaker.LexiconSymbolDefinition) {
 
-	// open existing databases but new dictionary files/gaddags etc
+	// open existing databases but new dictionary files/dawgs etc
 	// and apply lex symbols.
 	dbmaker.FixLexiconSymbols(dbToFixSymbols, lexiconMap, symbols)
 }
@@ -89,7 +89,7 @@ func makeDbs(dbsToMake string, lexiconMap dbmaker.LexiconMap,
 			fmt.Println(name, "was not in list of dbs, skipping...")
 			continue
 		}
-		if info.Gaddag == nil || info.Gaddag.GetAlphabet() == nil {
+		if info.Dawg == nil || info.Dawg.GetAlphabet() == nil {
 			fmt.Println(name, "was not supplied, skipping...")
 			continue
 		}

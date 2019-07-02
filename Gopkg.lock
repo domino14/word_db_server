@@ -15,8 +15,8 @@
     "gaddag",
     "gaddagmaker"
   ]
-  revision = "9cd0399441725c60afd56c6f66982c18d9396adc"
-  version = "v0.2.4"
+  revision = "ced49b547d0d3f8b93637a08b685eb92d6d9a375"
+  version = "v0.2.8"
 
 [[projects]]
   name = "github.com/golang/protobuf"
@@ -70,6 +70,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "3ca18ebae00acc31617a0b9c5ccfbb6374a5f1f91468153ae1a1c55b07aa05af"
+  inputs-digest = "ce15f092e9b5c70e3c1f1612b139661b9735911e6a8a5f88ffbfc29a76c17ba9"
   solver-name = "gps-cdcl"
   solver-version = 1

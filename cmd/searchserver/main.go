@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -21,6 +22,7 @@ import (
 var LogLevel = os.Getenv("LOG_LEVEL")
 var LexiconPath = os.Getenv("LEXICON_PATH")
 var InitializeSelf = os.Getenv("INITIALIZE_SELF")
+var SupportedLexica = os.Getenv("SUPPORTED_LEXICA")
 
 const (
 	GracefulShutdownTimeout = 10 * time.Second
@@ -31,14 +33,22 @@ func main() {
 	if strings.ToLower(LogLevel) == "debug" {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
+	supportedLexica := []string{}
+	for _, sl := range strings.Split(SupportedLexica, ",") {
+		supportedLexica = append(supportedLexica,
+			strings.ToUpper(strings.TrimSpace(sl)))
+	}
 
 	if InitializeSelf == "true" {
-		recreateDataStructures()
+		recreateDataStructures(supportedLexica)
 	}
 
 	searchServer := &searchserver.Server{
-		LexiconPath: LexiconPath,
+		LexiconPath:     LexiconPath,
+		SupportedLexica: supportedLexica,
 	}
+	// anagramServer doesn't need supportedLexica because it loads all its
+	// structures from the dawgs directory.
 	anagramServer := &anagramserver.Server{
 		LexiconPath: LexiconPath,
 	}
@@ -79,10 +89,25 @@ func main() {
 	log.Info().Msg("server gracefully shutting down")
 }
 
-func recreateDataStructures() {
+func recreateDataStructures(supportedLexica []string) {
 	// Fetch the lexica files.
-
-	// Create all the needed lexica files (db and dawg) and save them into
-	// the LexiconPath above.
+	// XXX: assume they are in LEXICON_PATH
+	os.MkdirAll(filepath.Join(LexiconPath, "dawg"), os.ModePerm)
+	os.MkdirAll(filepath.Join(LexiconPath, "db"), os.ModePerm)
+	log.Info().Msg("creating databases...")
 	symbols, lexiconMap := dbmaker.LexiconMappings()
+	for lexName, info := range lexiconMap {
+		if !searchserver.StrInList(lexName, supportedLexica) {
+			log.Info().Msgf("%v not in supported lexica list, skipping", lexName)
+			continue
+		}
+		if info.Dawg == nil || info.Dawg.GetAlphabet() == nil {
+			log.Info().Msgf("%v info dawg was null", lexName)
+			continue
+		}
+		info.Initialize()
+		log.Info().Msgf("Creating database for %v", lexName)
+		dbmaker.CreateLexiconDatabase(lexName, info, symbols, lexiconMap,
+			filepath.Join(LexiconPath, "db"), false)
+	}
 }

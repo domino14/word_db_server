@@ -20,7 +20,8 @@ const (
 
 // Server implements the WordSearcher service
 type Server struct {
-	LexiconPath string
+	LexiconPath     string
+	SupportedLexica []string
 }
 
 func (s *Server) getDbConnection(lexName string) (*sql.DB, error) {

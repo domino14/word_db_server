@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -15,7 +16,7 @@ import (
 // Search implements the search for alphagrams/words
 func (s *Server) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchResponse, error) {
 	defer timeTrack(time.Now(), "search")
-	qgen, err := createQueryGen(req, MaxSQLChunkSize)
+	qgen, err := createQueryGen(req, s.SupportedLexica, MaxSQLChunkSize)
 	if err != nil {
 		return nil, err
 	}
@@ -42,13 +43,28 @@ func (s *Server) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchR
 	}, nil
 }
 
-func createQueryGen(req *pb.SearchRequest, maxChunkSize int) (*querygen.QueryGen, error) {
-	log.Info().Msgf("Creating query gen for request %v", req)
+func StrInList(str string, list []string) bool {
+	for _, member := range list {
+		if str == member {
+			return true
+		}
+	}
+	return false
+}
 
+func createQueryGen(req *pb.SearchRequest, supportedLexica []string, maxChunkSize int) (*querygen.QueryGen, error) {
+	log.Info().Msgf("Creating query gen for request %v", req)
+	if req.Searchparams == nil || len(req.Searchparams) < 1 {
+		return nil, errors.New("no search params provided")
+	}
 	if req.Searchparams[0].Condition != pb.SearchRequest_LEXICON {
 		return nil, errors.New("the first condition must be a lexicon")
 	}
-	lexName := req.Searchparams[0].GetStringvalue().GetValue()
+	lexName := strings.ToUpper(req.Searchparams[0].GetStringvalue().GetValue())
+	validLexicon := StrInList(lexName, supportedLexica)
+	if !validLexicon {
+		return nil, errors.New("lexicon " + lexName + " is not a supported lexicon")
+	}
 
 	var queryType querygen.QueryType
 	if req.Expand {
