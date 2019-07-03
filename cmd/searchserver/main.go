@@ -22,7 +22,6 @@ import (
 var LogLevel = os.Getenv("LOG_LEVEL")
 var LexiconPath = os.Getenv("LEXICON_PATH")
 var InitializeSelf = os.Getenv("INITIALIZE_SELF")
-var SupportedLexica = os.Getenv("SUPPORTED_LEXICA")
 
 const (
 	GracefulShutdownTimeout = 10 * time.Second
@@ -33,22 +32,14 @@ func main() {
 	if strings.ToLower(LogLevel) == "debug" {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
-	supportedLexica := []string{}
-	for _, sl := range strings.Split(SupportedLexica, ",") {
-		supportedLexica = append(supportedLexica,
-			strings.ToUpper(strings.TrimSpace(sl)))
-	}
 
 	if InitializeSelf == "true" {
-		recreateDataStructures(supportedLexica)
+		recreateDataStructures()
 	}
 
 	searchServer := &searchserver.Server{
-		LexiconPath:     LexiconPath,
-		SupportedLexica: supportedLexica,
+		LexiconPath: LexiconPath,
 	}
-	// anagramServer doesn't need supportedLexica because it loads all its
-	// structures from the dawgs directory.
 	anagramServer := &anagramserver.Server{
 		LexiconPath: LexiconPath,
 	}
@@ -89,7 +80,7 @@ func main() {
 	log.Info().Msg("server gracefully shutting down")
 }
 
-func recreateDataStructures(supportedLexica []string) {
+func recreateDataStructures() {
 	// Fetch the lexica files.
 	// XXX: assume they are in LEXICON_PATH
 	os.MkdirAll(filepath.Join(LexiconPath, "dawg"), os.ModePerm)
@@ -97,10 +88,6 @@ func recreateDataStructures(supportedLexica []string) {
 	log.Info().Msg("creating databases...")
 	symbols, lexiconMap := dbmaker.LexiconMappings(LexiconPath)
 	for lexName, info := range lexiconMap {
-		if !searchserver.StrInList(lexName, supportedLexica) {
-			log.Info().Msgf("%v not in supported lexica list, skipping", lexName)
-			continue
-		}
 		if info.Dawg == nil || info.Dawg.GetAlphabet() == nil {
 			log.Info().Msgf("%v info dawg was null", lexName)
 			continue

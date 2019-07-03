@@ -44,8 +44,8 @@ func TestExpandHuge(t *testing.T) {
 		SearchDescLength(8, 8),
 		SearchDescProbRange(3060, 6060),
 	}, false)
-	resp, _ := searchHelper(req)
-
+	resp, err := searchHelper(req)
+	assert.Nil(t, err)
 	s := &Server{
 		LexiconPath: os.Getenv("LEXICON_PATH"),
 	}
