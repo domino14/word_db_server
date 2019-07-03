@@ -37,12 +37,13 @@ jobs:
           command: git clone git@github.com:domino14/word-game-lexica /opt/word-game-lexica
       - run: mkdir $LEXICON_PATH
       - run: mv /opt/word-game-lexica/*.txt $LEXICON_PATH
+      - run: cd cmd/searchserver && go build
       # Generate the db for NWL18.txt. If we add other dbs for testing, we
       # will need to generate those as well.
-      - run: go build
       - run: mkdir $LEXICON_PATH/db
       - run: mkdir $LEXICON_PATH/gaddag
-      - run: ./word_db_server -outputdir $LEXICON_PATH/db -dbs NWL18
+      - run: cd cmd/dbmaker && go build
+      - run: ./cmd/dbmaker/dbmaker -outputdir $LEXICON_PATH/db -dbs NWL18
 
       # specify any bash command here prefixed with `run: `
       - run: go test -v ./...
