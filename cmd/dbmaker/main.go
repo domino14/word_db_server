@@ -3,6 +3,8 @@ package main
 
 import (
 	"flag"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/rs/zerolog/log"
@@ -18,6 +20,8 @@ func stringInSlice(a string, list []string) bool {
 	}
 	return false
 }
+
+var LexiconPath = os.Getenv("LEXICON_PATH")
 
 func main() {
 	// We are going to have a flag to migrate a database. This is due to a
@@ -40,8 +44,10 @@ func main() {
 	dbsToMake := *createdbs
 	outputDir := *outputDirF
 	force := *forcecreation
-
-	symbols, lexiconMap := dbmaker.LexiconMappings()
+	// MkdirAll will make any intermediate dirs but fail gracefully if they exist.
+	os.MkdirAll(filepath.Join(LexiconPath, "dawg"), os.ModePerm)
+	os.MkdirAll(outputDir, os.ModePerm)
+	symbols, lexiconMap := dbmaker.LexiconMappings(LexiconPath)
 
 	if dbToMigrate != "" {
 		info, ok := lexiconMap[dbToMigrate]

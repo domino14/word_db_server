@@ -12,6 +12,7 @@ import (
 	"github.com/domino14/macondo/gaddag"
 	"github.com/domino14/macondo/gaddagmaker"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
+	"github.com/stretchr/testify/assert"
 )
 
 var LexiconPath = os.Getenv("LEXICON_PATH")
@@ -19,11 +20,11 @@ var LexiconPath = os.Getenv("LEXICON_PATH")
 func TestMain(m *testing.M) {
 	os.MkdirAll("/tmp/dawg", os.ModePerm)
 	if _, err := os.Stat("/tmp/dawg/gen_america.dawg"); os.IsNotExist(err) {
-		gaddagmaker.GenerateDawg(filepath.Join(LexiconPath, "America.txt"), true, true)
+		gaddagmaker.GenerateDawg(filepath.Join(LexiconPath, "America.txt"), true, true, false)
 		os.Rename("out.dawg", "/tmp/dawg/gen_america.dawg")
 	}
 	if _, err := os.Stat("/tmp/dawg/gen_fise2.dawg"); os.IsNotExist(err) {
-		gaddagmaker.GenerateDawg(filepath.Join(LexiconPath, "FISE2.txt"), true, true)
+		gaddagmaker.GenerateDawg(filepath.Join(LexiconPath, "FISE2.txt"), true, true, false)
 		os.Rename("out.dawg", "/tmp/dawg/gen_fise2.dawg")
 	}
 
@@ -31,8 +32,10 @@ func TestMain(m *testing.M) {
 }
 
 func TestRacks(t *testing.T) {
-	eng := gaddag.LoadGaddag("/tmp/dawg/gen_america.dawg")
-	span := gaddag.LoadGaddag("/tmp/dawg/gen_fise2.dawg")
+	eng, err := gaddag.LoadDawg("/tmp/dawg/gen_america.dawg")
+	assert.Nil(t, err)
+	span, err := gaddag.LoadDawg("/tmp/dawg/gen_fise2.dawg")
+	assert.Nil(t, err)
 	engAlph := eng.GetAlphabet()
 	spanAlph := span.GetAlphabet()
 	dists := []*alphabet.LetterDistribution{

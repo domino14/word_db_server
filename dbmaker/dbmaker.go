@@ -122,10 +122,10 @@ func createSqliteDb(outputDir string, lexiconName string, quitIfExists bool) (
 	CREATE TABLE db_version (version integer);
 	`
 	db, err := sql.Open("sqlite3", dbName)
-	log.Info().Msgf("Opened database file at %v", dbName)
 	if err != nil {
 		log.Fatal().Err(err).Msg("")
 	}
+	log.Info().Msgf("Opened database file at %v for writing", dbName)
 	defer db.Close()
 
 	_, err = db.Exec(sqlStmt)

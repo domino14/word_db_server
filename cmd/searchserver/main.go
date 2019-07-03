@@ -95,7 +95,7 @@ func recreateDataStructures(supportedLexica []string) {
 	os.MkdirAll(filepath.Join(LexiconPath, "dawg"), os.ModePerm)
 	os.MkdirAll(filepath.Join(LexiconPath, "db"), os.ModePerm)
 	log.Info().Msg("creating databases...")
-	symbols, lexiconMap := dbmaker.LexiconMappings()
+	symbols, lexiconMap := dbmaker.LexiconMappings(LexiconPath)
 	for lexName, info := range lexiconMap {
 		if !searchserver.StrInList(lexName, supportedLexica) {
 			log.Info().Msgf("%v not in supported lexica list, skipping", lexName)
