@@ -15,6 +15,7 @@ import (
 
 func LexiconMappings(lexiconPath string) ([]LexiconSymbolDefinition, LexiconMap) {
 	symbols := []LexiconSymbolDefinition{
+		{In: "America", NotIn: "OWL2", Symbol: "+"},
 		{In: "NWL18", NotIn: "CSW19", Symbol: "$"},
 		{In: "NWL18", NotIn: "America", Symbol: "+"},
 		{In: "CSW19", NotIn: "NWL18", Symbol: "#"},
@@ -40,6 +41,15 @@ func LexiconMappings(lexiconPath string) ([]LexiconSymbolDefinition, LexiconMap)
 			RDawg:              LoadOrMakeDawg(lexiconPath, "CSW19", true),
 			LexiconIndex:       12,
 			DescriptiveName:    "Collins 2019",
+			LetterDistribution: alphabet.EnglishLetterDistribution(),
+		},
+		"OWL2": LexiconInfo{
+			LexiconName:        "OWL2",
+			LexiconFilename:    filepath.Join(lexiconPath, "OWL2.txt"),
+			Dawg:               LoadOrMakeDawg(lexiconPath, "OWL2", false),
+			RDawg:              LoadOrMakeDawg(lexiconPath, "OWL2", true),
+			LexiconIndex:       4,
+			DescriptiveName:    "OWL2",
 			LetterDistribution: alphabet.EnglishLetterDistribution(),
 		},
 		"America": LexiconInfo{
