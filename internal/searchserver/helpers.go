@@ -29,6 +29,13 @@ func SearchDescProbRange(min int, max int) *pb.SearchRequest_SearchParam {
 	}
 }
 
+func SearchDescDifficultyRange(min int, max int) *pb.SearchRequest_SearchParam {
+	return &pb.SearchRequest_SearchParam{
+		Condition:      pb.SearchRequest_DIFFICULTY_RANGE,
+		Conditionparam: minMaxParam(min, max),
+	}
+}
+
 func SearchDescProbLimit(min int, max int) *pb.SearchRequest_SearchParam {
 	return &pb.SearchRequest_SearchParam{
 		Condition:      pb.SearchRequest_PROBABILITY_LIMIT,

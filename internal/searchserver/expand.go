@@ -144,15 +144,15 @@ func combineWordQueryResults(queries []*querygen.Query, db *sql.DB) ([]*pb.Word,
 func processAlphagramRows(rows *sql.Rows) []*pb.Alphagram {
 	alphagrams := []*pb.Alphagram{}
 	var rawBuffer []sql.RawBytes
-	rawBuffer = make([]sql.RawBytes, 3)
-	scanCallArgs := make([]interface{}, 3)
+	rawBuffer = make([]sql.RawBytes, 4)
+	scanCallArgs := make([]interface{}, len(rawBuffer))
 	for i := range rawBuffer {
 		scanCallArgs[i] = &rawBuffer[i]
 	}
 
 	for rows.Next() {
 		var alphagram string
-		var probability int32
+		var probability, difficulty int32
 		var combinations int64
 
 		rows.Scan(scanCallArgs...)
@@ -164,6 +164,8 @@ func processAlphagramRows(rows *sql.Rows) []*pb.Alphagram {
 				probability = toint32(col)
 			case 2:
 				combinations = toint64(col)
+			case 3:
+				difficulty = toint32(col)
 			}
 		}
 
@@ -171,6 +173,7 @@ func processAlphagramRows(rows *sql.Rows) []*pb.Alphagram {
 			Alphagram:    alphagram,
 			Probability:  probability,
 			Combinations: combinations,
+			Difficulty:   difficulty,
 			Length:       int32(len([]rune(alphagram))),
 		}
 		alphagrams = append(alphagrams, alpha)
@@ -182,7 +185,7 @@ func processWordRows(rows *sql.Rows) []*pb.Word {
 	words := []*pb.Word{}
 	var rawBuffer []sql.RawBytes
 	rawBuffer = make([]sql.RawBytes, 8)
-	scanCallArgs := make([]interface{}, 8)
+	scanCallArgs := make([]interface{}, len(rawBuffer))
 	for i := range rawBuffer {
 		scanCallArgs[i] = &rawBuffer[i]
 	}

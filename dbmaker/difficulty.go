@@ -19,8 +19,7 @@ func createDifficultyMap(lexiconPath string, lexiconName string) map[string]int 
 		filename := filepath.Join(difficultyPath, strconv.Itoa(length)+".csv")
 		f, err := os.Open(filename)
 		if err != nil {
-			log.Info().Msgf("difficulty map creation: no file named %v found", lexiconName,
-				filename)
+			log.Info().Msgf("difficulty map creation: no file named %v found", filename)
 			continue
 		}
 		defer f.Close()

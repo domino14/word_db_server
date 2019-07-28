@@ -72,8 +72,8 @@ message SearchRequest {
         MAX_SOLUTIONS = 16;
 
         // More alphagram searches
-        DIFFICULTY = 17;
-        PLAYABILITY = 18;
+        DIFFICULTY_RANGE = 17;
+        PLAYABILITY_RANGE = 18;
     }
 
     enum NotInLexCondition {
