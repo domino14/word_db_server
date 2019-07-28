@@ -17,6 +17,7 @@ message Alphagram {
     int32 length = 4;
     int32 probability = 5;
     int64 combinations = 6;
+    int32 difficulty = 7;
 }
 
 // A Word is more than just the string representing the word. It has other
@@ -69,6 +70,10 @@ message SearchRequest {
         SINGLE_VALUE_LENGTH = 14;
         NUM_TWO_BLANKS = 15;
         MAX_SOLUTIONS = 16;
+
+        // More alphagram searches
+        DIFFICULTY = 17;
+        PLAYABILITY = 18;
     }
 
     enum NotInLexCondition {

@@ -13,6 +13,8 @@ type LexiconInfo struct {
 	Dawg               *gaddag.SimpleDawg
 	RDawg              *gaddag.SimpleDawg
 	LetterDistribution *alphabet.LetterDistribution
+	Difficulties       map[string]int
+	Playabilities      map[string]int
 	subChooseCombos    [][]uint64
 }
 

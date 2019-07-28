@@ -80,7 +80,7 @@ type LexiconSymbolDefinition struct {
 	Symbol string // The corresponding lexicon symbol
 }
 
-const CurrentVersion = 4
+const CurrentVersion = 5
 
 // create a sqlite db for this lexicon name.
 func createSqliteDb(outputDir string, lexiconName string, quitIfExists bool) (
@@ -100,7 +100,7 @@ func createSqliteDb(outputDir string, lexiconName string, quitIfExists bool) (
 	CREATE TABLE alphagrams (probability int, alphagram varchar(20),
 	    length int, combinations int, num_anagrams int,
 		point_value int, num_vowels int, contains_word_uniq_to_lex_split int,
-		contains_update_to_lex int);
+		contains_update_to_lex int, difficulty int);
 
 	CREATE TABLE words (word varchar(20), alphagram varchar(20),
 	    lexicon_symbols varchar(5), definition varchar(512),
@@ -112,6 +112,7 @@ func createSqliteDb(outputDir string, lexiconName string, quitIfExists bool) (
 	CREATE INDEX word_index on words(word);
 	CREATE INDEX alphagram_index on words(alphagram);
 	CREATE INDEX length_index on alphagrams(length);
+	CREATE INDEX difficulty_index on alphagrams(difficulty);
 
 	CREATE INDEX num_anagrams_index on alphagrams(num_anagrams);
 	CREATE INDEX point_value_index on alphagrams(point_value);
@@ -158,8 +159,8 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo,
 	alphInsertQuery := `
 	INSERT INTO alphagrams(probability, alphagram, length, combinations,
 		num_anagrams, point_value, num_vowels, contains_word_uniq_to_lex_split,
-		contains_update_to_lex)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		contains_update_to_lex, difficulty)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	wordInsertQuery := `
 	INSERT INTO words (word, alphagram, lexicon_symbols, definition,
 		front_hooks, back_hooks, inner_front_hook, inner_back_hook)
@@ -221,7 +222,8 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo,
 			len(alph.words), alph.pointValue(lexiconInfo.LetterDistribution),
 			alph.numVowels(lexiconInfo.LetterDistribution),
 			containsWordUniqueToLexSplit(lexSymbolsList),
-			containsUpdateToLex(lexSymbolsList))
+			containsUpdateToLex(lexSymbolsList),
+			alphagramDifficulty(alph.alphagram, lexiconInfo.Difficulties))
 		if err != nil {
 			log.Fatal().Err(err).Msg("")
 		}
@@ -393,7 +395,7 @@ func MigrateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo) {
 		log.Fatal().Msg("There is a version table but it has no values in it")
 	case err != nil:
 		if err.Error() == "no such table: db_version" {
-			log.Printf("No version table, creating one...")
+			log.Info().Msg("No version table, creating one...")
 			_, err = db.Exec("CREATE TABLE db_version (version integer)")
 			if err != nil {
 				log.Fatal().Err(err).Msg("")
@@ -428,6 +430,11 @@ func MigrateLexiconDatabase(lexiconName string, lexiconInfo LexiconInfo) {
 	if version == 3 {
 		log.Info().Msg("Migrating to version 4...")
 		migrateToV4(db)
+		log.Info().Msg("Run again to migrate to version 5")
+	}
+	if version == 4 {
+		log.Info().Msg("Migrating to version 5...")
+		migrateToV5(db, lexiconInfo)
 	}
 
 }
@@ -529,7 +536,7 @@ func migrateToV4(db *sql.DB) {
 	if err != nil {
 		log.Fatal().Err(err).Msg("")
 	}
-	log.Printf("Created new columns and indices")
+	log.Info().Msg("Created new columns and indices")
 	// Read in all the words.
 	rows, err := db.Query(`
 	SELECT word, alphagram, lexicon_symbols from words
@@ -602,6 +609,27 @@ func migrateToV4(db *sql.DB) {
 	tx.Commit()
 
 	_, err = db.Exec("UPDATE db_version SET version = ?", 4)
+	if err != nil {
+		log.Fatal().Err(err).Msg("")
+	}
+}
+
+func migrateToV5(db *sql.DB, lexiconInfo LexiconInfo) {
+	_, err := db.Exec(`
+	-- ALTER TABLE alphagrams ADD COLUMN playability int;
+	ALTER TABLE alphagrams ADD COLUMN difficulty int;
+
+	-- CREATE INDEX playability_index on alphagrams(playability);
+	CREATE INDEX difficulty_index on alphagrams(difficulty);
+	`)
+	if err != nil {
+		log.Fatal().Err(err).Msg("")
+	}
+	log.Info().Msg("Created new columns and indices")
+
+	loadDifficulty(db, lexiconInfo)
+
+	_, err = db.Exec("UPDATE db_version SET version = ?", 5)
 	if err != nil {
 		log.Fatal().Err(err).Msg("")
 	}

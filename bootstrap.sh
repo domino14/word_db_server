@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # This script "bootstraps" a container to fetch the lexicon files from git
 # and create the databases/dawgs. See Dockerfile-bootstrap as well.
+# XXX: THIS NEEDS TO BE UPDATED TO JUST FETCH THE LEXICA .DB FILES FROM
+# AN S3 OR SPACES FOLDER.
+# Otherwise, this initialization takes forever - more than 10 minutes.
+# K8s does not deal well with containers that take that long to start,
+# and along with the high CPU use during initialization, it's just not a
+# great idea.
 
 # Add more DBs here as Aerolith growz:  (or make this generic? maybe not)
 SUPPORTED_LEXICA=("CSW15" "NWL18" "FISE2" "OSPS40")

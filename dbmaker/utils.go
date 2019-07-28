@@ -87,6 +87,7 @@ func LexiconMappings(lexiconPath string) ([]LexiconSymbolDefinition, LexiconMap)
 			LexiconIndex:       9,
 			DescriptiveName:    "NASPA Word List, 2018 Edition",
 			LetterDistribution: alphabet.EnglishLetterDistribution(),
+			Difficulties:       createDifficultyMap(lexiconPath, "NWL18"),
 		},
 		"OSPS40": LexiconInfo{
 			LexiconName:        "OSPS40",
