@@ -74,6 +74,8 @@ func mergeInputWordInfo(req *pb.SearchResponse, alphStrToObjs map[string]*pb.Alp
 		var thisa *pb.Alphagram
 		var ok bool
 		if thisa, ok = alphStrToObjs[a.Alphagram]; !ok {
+			// The alphagram might not have been found in the DB if for
+			// example it contained a blank.
 			thisa = &pb.Alphagram{
 				Alphagram: a.Alphagram,
 				Length:    int32(len([]rune(a.Alphagram)))}
