@@ -41,11 +41,13 @@ func (ws ByLonger) Less(i, j int) bool {
 
 func main() {
 	var build = flag.Bool("b", false, "Build mode")
+	var stats = flag.Bool("t", false, "Show stats")
 	flag.Parse()
 
 	if flag.NArg() != 1 {
-		fmt.Println("Usage: ./cwl [-b] letters")
+		fmt.Println("Usage: ./cwl [-b] [-t] letters")
 		fmt.Println("use -b for build mode; default is exact anagram")
+		fmt.Println("-t shows stats (number of words in each lexicon")
 		os.Exit(-1)
 	}
 	zerolog.SetGlobalLevel(zerolog.WarnLevel)
@@ -84,9 +86,11 @@ func main() {
 	outputWords, amOnly, britOnly := merge(amResp, britResp)
 	sort.Sort(ByLonger{outputWords})
 	printWords(outputWords)
-	fmt.Printf("\u001b[32mTotal: %v -- In %v: %v -- In %v: %v -- British-only: %v -- American-only: %v\033[0m",
-		len(outputWords), AmericanDict, len(outputWords)-britOnly, BritishDict,
-		len(outputWords)-amOnly, britOnly, amOnly)
+	if *stats {
+		fmt.Printf("\u001b[32mTotal: %v -- In %v: %v -- In %v: %v -- British-only: %v -- American-only: %v\033[0m",
+			len(outputWords), AmericanDict, len(outputWords)-britOnly, BritishDict,
+			len(outputWords)-amOnly, britOnly, amOnly)
+	}
 }
 
 func merge(american *pb.AnagramResponse, british *pb.AnagramResponse) (outputWords, int, int) {
@@ -132,7 +136,7 @@ func printWords(words []*pb.Word) {
 	var Red = "\u001b[31m"
 	var Blue = "\u001b[34m"
 
-	for _, word := range words {
+	for idx, word := range words {
 		color := ""
 		reset := ""
 		if strings.Contains(word.LexiconSymbols, "#") {
@@ -143,7 +147,10 @@ func printWords(words []*pb.Word) {
 			reset = Reset
 		}
 		def := strings.Replace(word.Definition, "\n", " / ", -1)
-		fmt.Printf("%v%v%v: %v%v\n", color, word.Word, word.LexiconSymbols,
+		fmt.Printf("%v%v%v: %v%v", color, word.Word, word.LexiconSymbols,
 			def, reset)
+		if idx != len(words)-1 {
+			fmt.Printf("\n")
+		}
 	}
 }
