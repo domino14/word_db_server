@@ -21,7 +21,7 @@ func LexiconMappings(lexiconPath string) ([]LexiconSymbolDefinition, LexiconMap)
 		{In: "CSW19", NotIn: "NWL18", Symbol: "#"},
 		{In: "FISE2", NotIn: "FISE09", Symbol: "+"},
 		{In: "CSW19", NotIn: "CSW15", Symbol: "+"},
-		{In: "OSPS41", NotIn: "OSPS40", Symbol: "+"},
+		{In: "OSPS42", NotIn: "OSPS40", Symbol: "+"},
 	}
 	// set LEXICON_PATH to something.
 	// For example "/Users/cesar/coding/webolith/words/" on my computer.
@@ -99,13 +99,13 @@ func LexiconMappings(lexiconPath string) ([]LexiconSymbolDefinition, LexiconMap)
 			DescriptiveName:    "Polska Federacja Scrabble - Update 40",
 			LetterDistribution: alphabet.PolishLetterDistribution(),
 		},
-		"OSPS41": LexiconInfo{
-			LexiconName:        "OSPS41",
-			LexiconFilename:    filepath.Join(lexiconPath, "OSPS41.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "OSPS41", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "OSPS41", true),
-			LexiconIndex:       13,
-			DescriptiveName:    "Polska Federacja Scrabble - Update 41",
+		"OSPS42": LexiconInfo{
+			LexiconName:        "OSPS42",
+			LexiconFilename:    filepath.Join(lexiconPath, "OSPS42.txt"),
+			Dawg:               LoadOrMakeDawg(lexiconPath, "OSPS42", false),
+			RDawg:              LoadOrMakeDawg(lexiconPath, "OSPS42", true),
+			LexiconIndex:       14,
+			DescriptiveName:    "Polska Federacja Scrabble - Update 42",
 			LetterDistribution: alphabet.PolishLetterDistribution(),
 		},
 	}
