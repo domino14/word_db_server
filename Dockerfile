@@ -18,6 +18,7 @@ RUN go build
 
 # Build minimal image:
 FROM alpine
+COPY --from=build-env /opt/word_db_server/README.md /opt/README.md
 COPY --from=build-env /opt/word_db_server/cmd/searchserver/searchserver /opt/searchserver
 EXPOSE 8180
 
