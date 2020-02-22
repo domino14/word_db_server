@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -44,11 +45,13 @@ func (s *Server) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchR
 
 func createQueryGen(req *pb.SearchRequest, maxChunkSize int) (*querygen.QueryGen, error) {
 	log.Info().Msgf("Creating query gen for request %v", req)
-
+	if req.Searchparams == nil || len(req.Searchparams) < 1 {
+		return nil, errors.New("no search params provided")
+	}
 	if req.Searchparams[0].Condition != pb.SearchRequest_LEXICON {
 		return nil, errors.New("the first condition must be a lexicon")
 	}
-	lexName := req.Searchparams[0].GetStringvalue().GetValue()
+	lexName := strings.ToUpper(req.Searchparams[0].GetStringvalue().GetValue())
 
 	var queryType querygen.QueryType
 	if req.Expand {
@@ -90,7 +93,7 @@ func processQuestionRows(rows *sql.Rows, expanded bool) []*pb.Alphagram {
 	var rawBuffer []sql.RawBytes
 	var numColumns int
 	if expanded {
-		numColumns = 10
+		numColumns = 11
 	} else {
 		numColumns = 2
 	}
@@ -104,7 +107,7 @@ func processQuestionRows(rows *sql.Rows, expanded bool) []*pb.Alphagram {
 	for rows.Next() {
 		var word, alphagram string
 		var lexSymbols, definition, frontHooks, backHooks string
-		var probability int32
+		var probability, difficulty int32
 		var combinations int64
 		var innerFrontHook, innerBackHook bool
 
@@ -135,6 +138,8 @@ func processQuestionRows(rows *sql.Rows, expanded bool) []*pb.Alphagram {
 				probability = toint32(col)
 			case 9:
 				combinations = toint64(col)
+			case 10:
+				difficulty = toint32(col)
 			}
 		}
 
@@ -144,6 +149,7 @@ func processQuestionRows(rows *sql.Rows, expanded bool) []*pb.Alphagram {
 			Combinations: combinations,
 			Length:       int32(len([]rune(alphagram))),
 			ExpandedRepr: expanded,
+			Difficulty:   difficulty,
 		}
 		if lastAlphagram != nil && alpha.Alphagram != lastAlphagram.Alphagram {
 			lastAlphagram.Words = curWords

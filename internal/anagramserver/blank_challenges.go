@@ -18,7 +18,7 @@ import (
 // to generate a challenge with too many or too few answers, or if
 // an answer has already been generated.
 func try(nBlanks int32, dist *alphabet.LetterDistribution, wordLength int32,
-	dawg *gaddag.SimpleGaddag, maxSolutions int32, answerMap map[string]bool) (
+	dawg *gaddag.SimpleDawg, maxSolutions int32, answerMap map[string]bool) (
 	*pb.Alphagram, error) {
 
 	alph := dawg.GetAlphabet()

@@ -1,0 +1,14 @@
+# For use with the aerolith-infra repo.
+FROM golang:alpine as build-env
+
+RUN mkdir /opt/word_db_server
+WORKDIR /opt/word_db_server
+
+RUN apk update
+RUN apk add build-base ca-certificates git
+
+COPY go.mod .
+COPY go.sum .
+RUN go mod download
+
+EXPOSE 8180

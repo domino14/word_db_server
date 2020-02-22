@@ -28,9 +28,9 @@ INNER JOIN words w using (alphagram)
 const FullQuery = `
 SELECT word, alphagram, lexicon_symbols, definition, front_hooks, back_hooks,
 inner_front_hook, inner_back_hook, probability,
-combinations FROM (
+combinations, difficulty FROM (
 	SELECT alphagrams.probability, alphagrams.combinations,
-		alphagrams.alphagram
+		alphagrams.alphagram, alphagrams.difficulty
 	FROM alphagrams
 	WHERE %s
 	ORDER BY alphagrams.probability
@@ -40,7 +40,7 @@ INNER JOIN words w using (alphagram)
 
 // AlphagramOnlyQuery is used to select only alphagrams with their info
 const AlphagramOnlyQuery = `
-SELECT alphagram, probability, combinations FROM alphagrams
+SELECT alphagram, probability, combinations, difficulty FROM alphagrams
 WHERE %s
 %s
 `
@@ -179,6 +179,13 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 			return nil, errors.New("minmax not provided for prob range request")
 		}
 		return NewWhereBetweenClause("alphagrams", "probability", minmax), nil
+
+	case wordsearcher.SearchRequest_DIFFICULTY_RANGE:
+		minmax := sp.GetMinmax()
+		if minmax == nil {
+			return nil, errors.New("minmax not provided for difficulty range request")
+		}
+		return NewWhereBetweenClause("alphagrams", "difficulty", minmax), nil
 
 	case wordsearcher.SearchRequest_NUMBER_OF_VOWELS:
 		minmax := sp.GetMinmax()

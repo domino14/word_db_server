@@ -10,8 +10,11 @@ type LexiconInfo struct {
 	LexiconFilename    string
 	LexiconIndex       uint8
 	DescriptiveName    string
-	Gaddag             *gaddag.SimpleGaddag
+	Dawg               *gaddag.SimpleDawg
+	RDawg              *gaddag.SimpleDawg
 	LetterDistribution *alphabet.LetterDistribution
+	Difficulties       map[string]int
+	Playabilities      map[string]int
 	subChooseCombos    [][]uint64
 }
 

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"github.com/domino14/word_db_server/dbmaker"
 	"github.com/domino14/word_db_server/internal/anagramserver"
 	"github.com/domino14/word_db_server/internal/searchserver"
 	"github.com/domino14/word_db_server/rpc/wordsearcher"
@@ -19,6 +21,7 @@ import (
 
 var LogLevel = os.Getenv("LOG_LEVEL")
 var LexiconPath = os.Getenv("LEXICON_PATH")
+var InitializeSelf = os.Getenv("INITIALIZE_SELF")
 
 const (
 	GracefulShutdownTimeout = 10 * time.Second
@@ -29,6 +32,11 @@ func main() {
 	if strings.ToLower(LogLevel) == "debug" {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
+
+	if InitializeSelf == "true" {
+		recreateDataStructures()
+	}
+
 	searchServer := &searchserver.Server{
 		LexiconPath: LexiconPath,
 	}
@@ -70,4 +78,23 @@ func main() {
 	}
 	<-idleConnsClosed
 	log.Info().Msg("server gracefully shutting down")
+}
+
+func recreateDataStructures() {
+	// Fetch the lexica files.
+	// XXX: assume they are in LEXICON_PATH
+	os.MkdirAll(filepath.Join(LexiconPath, "dawg"), os.ModePerm)
+	os.MkdirAll(filepath.Join(LexiconPath, "db"), os.ModePerm)
+	log.Info().Msg("creating databases...")
+	symbols, lexiconMap := dbmaker.LexiconMappings(LexiconPath)
+	for lexName, info := range lexiconMap {
+		if info.Dawg == nil || info.Dawg.GetAlphabet() == nil {
+			log.Info().Msgf("%v info dawg was null", lexName)
+			continue
+		}
+		info.Initialize()
+		log.Info().Msgf("Creating database for %v", lexName)
+		dbmaker.CreateLexiconDatabase(lexName, info, symbols, lexiconMap,
+			filepath.Join(LexiconPath, "db"), true)
+	}
 }

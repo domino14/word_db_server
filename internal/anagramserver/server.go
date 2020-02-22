@@ -81,10 +81,9 @@ func (s *Server) Anagram(ctx context.Context, req *pb.AnagramRequest) (
 		return nil, errors.New("query too complex")
 	}
 	sols := anagrammer.Anagram(req.Letters, dinfo.GetDawg(), mode)
-
 	var words []*pb.Word
 	var err error
-	if req.Expand {
+	if req.Expand && len(sols) > 0 {
 		// Build an expand request.
 		expander := &searchserver.Server{
 			LexiconPath: s.LexiconPath,
