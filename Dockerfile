@@ -17,8 +17,9 @@ WORKDIR /opt/word_db_server/cmd/searchserver
 RUN go build
 
 # Build minimal image:
-FROM scratch
+FROM alpine
 COPY --from=build-env /opt/word_db_server/cmd/searchserver/searchserver /opt/searchserver
 EXPOSE 8180
 
-ENTRYPOINT ["/opt/searchserver"]
+WORKDIR /opt
+CMD ./searchserver
