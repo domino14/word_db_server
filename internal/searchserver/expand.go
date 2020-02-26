@@ -19,11 +19,10 @@ func (s *Server) Expand(ctx context.Context, req *pb.SearchResponse) (*pb.Search
 	lexName := req.Lexicon
 	// Get all the alphagrams from the search request.
 	db, err := s.getDbConnection(lexName)
-	defer db.Close()
 	if err != nil {
 		return nil, err
 	}
-
+	defer db.Close()
 	alphStrToObjs, err := getInputAlphagramInfo(req, db)
 	if err != nil {
 		return nil, err
