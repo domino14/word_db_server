@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -51,7 +50,7 @@ func createQueryGen(req *pb.SearchRequest, maxChunkSize int) (*querygen.QueryGen
 	if req.Searchparams[0].Condition != pb.SearchRequest_LEXICON {
 		return nil, errors.New("the first condition must be a lexicon")
 	}
-	lexName := strings.ToUpper(req.Searchparams[0].GetStringvalue().GetValue())
+	lexName := req.Searchparams[0].GetStringvalue().GetValue()
 
 	var queryType querygen.QueryType
 	if req.Expand {
@@ -83,11 +82,14 @@ func combineQueryResults(queries []*querygen.Query, db *sql.DB, expand bool) (
 		alphagrams = append(alphagrams, processQuestionRows(rows, expand)...)
 		rows.Close()
 	}
+
 	return alphagrams, nil
 }
 
 func processQuestionRows(rows *sql.Rows, expanded bool) []*pb.Alphagram {
 	alphagrams := []*pb.Alphagram{}
+	start := time.Now()
+
 	var lastAlphagram *pb.Alphagram
 	curWords := []*pb.Word{}
 	var rawBuffer []sql.RawBytes
@@ -104,13 +106,15 @@ func processQuestionRows(rows *sql.Rows, expanded bool) []*pb.Alphagram {
 		scanCallArgs[i] = &rawBuffer[i]
 	}
 
+	rowCtr := 0
+	log.Info().Msgf("before rows.Next() took %s", time.Since(start))
+
 	for rows.Next() {
 		var word, alphagram string
 		var lexSymbols, definition, frontHooks, backHooks string
 		var probability, difficulty int32
 		var combinations int64
 		var innerFrontHook, innerBackHook bool
-
 		err := rows.Scan(scanCallArgs...)
 		if err != nil {
 			log.Error().Err(err).Msg("error while scanning")
@@ -172,11 +176,14 @@ func processQuestionRows(rows *sql.Rows, expanded bool) []*pb.Alphagram {
 			InnerFrontHook: innerFrontHook,
 			InnerBackHook:  innerBackHook,
 		})
+
 		lastAlphagram = alpha
+		rowCtr++
 	}
 	if lastAlphagram != nil {
 		lastAlphagram.Words = curWords
 		alphagrams = append(alphagrams, lastAlphagram)
 	}
+	log.Debug().Msgf("Scanned %v rows", rowCtr)
 	return alphagrams
 }
