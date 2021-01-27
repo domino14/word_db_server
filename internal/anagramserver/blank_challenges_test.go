@@ -8,40 +8,55 @@ import (
 	"testing"
 
 	"github.com/domino14/macondo/alphabet"
-	"github.com/domino14/macondo/anagrammer"
+	mcconfig "github.com/domino14/macondo/config"
 	"github.com/domino14/macondo/gaddag"
 	"github.com/domino14/macondo/gaddagmaker"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 	"github.com/stretchr/testify/assert"
 )
 
-var LexiconPath = os.Getenv("LEXICON_PATH")
+var DefaultConfig = mcconfig.Config{
+	StrategyParamsPath:        os.Getenv("STRATEGY_PARAMS_PATH"),
+	LexiconPath:               os.Getenv("LEXICON_PATH"),
+	LetterDistributionPath:    os.Getenv("LETTER_DISTRIBUTION_PATH"),
+	DefaultLexicon:            "NWL18",
+	DefaultLetterDistribution: "English",
+}
 
 func TestMain(m *testing.M) {
 	os.MkdirAll("/tmp/dawg", os.ModePerm)
-	if _, err := os.Stat("/tmp/dawg/gen_america.dawg"); os.IsNotExist(err) {
-		gaddagmaker.GenerateDawg(filepath.Join(LexiconPath, "America.txt"), true, true, false)
-		os.Rename("out.dawg", "/tmp/dawg/gen_america.dawg")
+	if _, err := os.Stat("/tmp/dawg/America.dawg"); os.IsNotExist(err) {
+		gaddagmaker.GenerateDawg(filepath.Join(DefaultConfig.LexiconPath, "America.txt"), true, true, false)
+		os.Rename("out.dawg", "/tmp/dawg/America.dawg")
 	}
-	if _, err := os.Stat("/tmp/dawg/gen_fise2.dawg"); os.IsNotExist(err) {
-		gaddagmaker.GenerateDawg(filepath.Join(LexiconPath, "FISE2.txt"), true, true, false)
-		os.Rename("out.dawg", "/tmp/dawg/gen_fise2.dawg")
+	if _, err := os.Stat("/tmp/dawg/FISE2.dawg"); os.IsNotExist(err) {
+		gaddagmaker.GenerateDawg(filepath.Join(DefaultConfig.LexiconPath, "FISE2.txt"), true, true, false)
+		os.Rename("out.dawg", "/tmp/dawg/FISE2.dawg")
 	}
 
 	os.Exit(m.Run())
 }
 
 func TestRacks(t *testing.T) {
-	eng, err := gaddag.LoadDawg("/tmp/dawg/gen_america.dawg")
+	eng, err := gaddag.LoadDawg("/tmp/dawg/America.dawg")
 	assert.Nil(t, err)
-	span, err := gaddag.LoadDawg("/tmp/dawg/gen_fise2.dawg")
+	span, err := gaddag.LoadDawg("/tmp/dawg/FISE2.dawg")
 	assert.Nil(t, err)
 	engAlph := eng.GetAlphabet()
 	spanAlph := span.GetAlphabet()
-	dists := []*alphabet.LetterDistribution{
-		alphabet.EnglishLetterDistribution(),
-		alphabet.SpanishLetterDistribution(),
+
+	eld, err := alphabet.Get(&DefaultConfig, "english")
+	if err != nil {
+		t.Error(err)
 	}
+
+	sld, err := alphabet.Get(&DefaultConfig, "spanish")
+	if err != nil {
+		t.Error(err)
+	}
+
+	dists := []*alphabet.LetterDistribution{eld, sld}
+
 	for distIdx, dist := range dists {
 		for l := int32(7); l <= 8; l++ {
 			for n := int32(1); n <= 2; n++ {
@@ -75,7 +90,6 @@ func TestRacks(t *testing.T) {
 
 func TestGenBlanks(t *testing.T) {
 	ctx := context.Background()
-	anagrammer.LoadDawgs("/tmp/dawg")
 
 	req := &pb.BlankChallengeCreateRequest{
 		Lexicon:         "America",
@@ -84,7 +98,12 @@ func TestGenBlanks(t *testing.T) {
 		MaxSolutions:    5,
 		NumWith_2Blanks: 6,
 	}
-	qs, err := GenerateBlanks(ctx, req)
+
+	cfgCopy := DefaultConfig
+	// Read dawgs created in this lexicon path
+	cfgCopy.LexiconPath = "/tmp"
+
+	qs, err := GenerateBlanks(ctx, &cfgCopy, req)
 	if err != nil {
 		t.Errorf("GenBlanks returned an error: %v", err)
 	}

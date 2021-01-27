@@ -5,14 +5,21 @@ package anagramserver
 import (
 	"context"
 	"fmt"
+	"math/rand"
+	"time"
+
+	"github.com/domino14/word_db_server/internal/dawg"
 
 	"github.com/rs/zerolog/log"
 
 	"github.com/domino14/macondo/alphabet"
 	"github.com/domino14/macondo/anagrammer"
+	mcconfig "github.com/domino14/macondo/config"
 	"github.com/domino14/macondo/gaddag"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 )
+
+var randSource = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 // try tries to generate challenges. It returns an error if it fails
 // to generate a challenge with too many or too few answers, or if
@@ -48,13 +55,14 @@ func try(nBlanks int32, dist *alphabet.LetterDistribution, wordLength int32,
 
 // GenerateBlanks - Generate a list of blank word challenges given the
 // parameters in args.
-func GenerateBlanks(ctx context.Context, req *pb.BlankChallengeCreateRequest) (
+func GenerateBlanks(ctx context.Context, cfg *mcconfig.Config, req *pb.BlankChallengeCreateRequest) (
 	[]*pb.Alphagram, error) {
 
-	dinfo, ok := anagrammer.Dawgs[req.Lexicon]
-	if !ok {
-		return nil, fmt.Errorf("lexicon %v not found", req.Lexicon)
+	di, err := dawg.GetDawgInfo(cfg, req.Lexicon)
+	if err != nil {
+		return nil, err
 	}
+	dist, dawg := di.GetDist(), di.GetDawg()
 
 	tries := 0
 	// Handle 2-blank challenges at the end.
@@ -69,12 +77,12 @@ func GenerateBlanks(ctx context.Context, req *pb.BlankChallengeCreateRequest) (
 	}()
 	doIteration := func() (*pb.Alphagram, error) {
 		if qIndex < req.NumQuestions-req.NumWith_2Blanks {
-			question, err := try(1, dinfo.GetDist(), req.WordLength, dinfo.GetDawg(),
+			question, err := try(1, dist, req.WordLength, dawg,
 				req.MaxSolutions, answerMap)
 			tries++
 			return question, err
 		} else if qIndex < req.NumQuestions {
-			question, err := try(2, dinfo.GetDist(), req.WordLength, dinfo.GetDawg(),
+			question, err := try(2, dist, req.WordLength, dawg,
 				req.MaxSolutions, answerMap)
 			tries++
 			return question, err
@@ -108,7 +116,7 @@ func GenerateBlanks(ctx context.Context, req *pb.BlankChallengeCreateRequest) (
 func genRack(dist *alphabet.LetterDistribution, wordLength, blanks int32,
 	alph *alphabet.Alphabet) []alphabet.MachineLetter {
 
-	bag := dist.MakeBag(alph)
+	bag := dist.MakeBag(randSource)
 	// it's a bag of machine letters.
 	rack := make([]alphabet.MachineLetter, wordLength)
 	idx := int32(0)

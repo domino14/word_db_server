@@ -2,14 +2,16 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"os"
 	"sort"
 	"strings"
 
+	"github.com/namsral/flag"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+
+	mcconfig "github.com/domino14/macondo/config"
 
 	"github.com/domino14/word_db_server/internal/anagramserver"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
@@ -17,13 +19,12 @@ import (
 
 const (
 	BritishDict  = "CSW19"
-	AmericanDict = "NWL18"
+	AmericanDict = "NWL20"
 )
 
 // Use more specific env var names here to avoid colliding with other
 // env vars user might have on their system. (more so the case for log level)
 var LogLevel = os.Getenv("CWL_LOG_LEVEL")
-var LexiconPath = os.Getenv("CWL_LEXICON_PATH")
 
 type outputWords []*pb.Word
 
@@ -39,37 +40,64 @@ func (ws ByLonger) Less(i, j int) bool {
 	return ws.outputWords[i].Word < ws.outputWords[j].Word
 }
 
-func main() {
-	var build = flag.Bool("b", false, "Build mode")
-	var stats = flag.Bool("t", false, "Show stats")
-	flag.Parse()
+type Config struct {
+	MacondoConfig mcconfig.Config
 
-	if flag.NArg() != 1 {
-		fmt.Println("Usage: ./cwl [-b] [-t] letters")
-		fmt.Println("use -b for build mode; default is exact anagram")
-		fmt.Println("-t shows stats (number of words in each lexicon")
-		os.Exit(-1)
+	buildMode bool
+	showStats bool
+	rack      string
+}
+
+func (c *Config) Load(args []string) error {
+	fs := flag.NewFlagSet("cwl", flag.ContinueOnError)
+
+	fs.BoolVar(&c.MacondoConfig.Debug, "debug", false, "debug logging on")
+
+	fs.StringVar(&c.MacondoConfig.LetterDistributionPath, "letter-distribution-path", "../macondo/data/letterdistributions", "directory holding letter distribution files")
+	fs.StringVar(&c.MacondoConfig.StrategyParamsPath, "strategy-params-path", "../macondo/data/strategy", "directory holding strategy files")
+	fs.StringVar(&c.MacondoConfig.LexiconPath, "lexicon-path", "../macondo/data/lexica", "directory holding lexicon files")
+	fs.StringVar(&c.MacondoConfig.DefaultLexicon, "default-lexicon", "NWL18", "the default lexicon to use")
+	fs.StringVar(&c.MacondoConfig.DefaultLetterDistribution, "default-letter-distribution", "English", "the default letter distribution to use. English, EnglishSuper, Spanish, Polish, etc.")
+
+	// We are going to have a flag to migrate a database. This is due to a
+	// legacy issue where alphagram sort order was not deterministic for
+	// alphagrams with equal probability, so we need to keep the old
+	// sort orders around in order to not mess up alphagrams-by-probability
+	// lists.
+
+	fs.BoolVar(&c.buildMode, "b", false, "Build mode")
+	fs.BoolVar(&c.showStats, "t", false, "Show stats")
+
+	err := fs.Parse(args)
+	if err != nil {
+		return err
 	}
+	c.rack = fs.Arg(0)
+	return nil
+}
+
+func main() {
+	cfg := &Config{}
+	cfg.Load(os.Args[1:])
+
 	zerolog.SetGlobalLevel(zerolog.WarnLevel)
 	if strings.ToLower(LogLevel) == "debug" {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
 
 	anagramMode := pb.AnagramRequest_EXACT
-	if *build {
+	if cfg.buildMode {
 		anagramMode = pb.AnagramRequest_BUILD
 	}
-	rack := flag.Arg(0)
+	log.Debug().Interface("config", cfg).Str("rack", cfg.rack).Bool("build", cfg.buildMode).Msg("input")
 
 	s := &anagramserver.Server{
-		LexiconPath: LexiconPath,
+		MacondoConfig: &cfg.MacondoConfig,
 	}
-
-	s.Initialize() // load dawgs
 
 	amResp, err := s.Anagram(context.Background(), &pb.AnagramRequest{
 		Lexicon: AmericanDict,
-		Letters: rack,
+		Letters: cfg.rack,
 		Mode:    anagramMode,
 		Expand:  true,
 	})
@@ -78,7 +106,7 @@ func main() {
 	}
 	britResp, err := s.Anagram(context.Background(), &pb.AnagramRequest{
 		Lexicon: BritishDict,
-		Letters: rack,
+		Letters: cfg.rack,
 		Mode:    anagramMode,
 		Expand:  true,
 	})
@@ -86,7 +114,7 @@ func main() {
 	outputWords, amOnly, britOnly := merge(amResp, britResp)
 	sort.Sort(ByLonger{outputWords})
 	printWords(outputWords)
-	if *stats {
+	if cfg.showStats {
 		fmt.Printf("\u001b[32mTotal: %v -- In %v: %v -- In %v: %v -- British-only: %v -- American-only: %v\033[0m",
 			len(outputWords), AmericanDict, len(outputWords)-britOnly, BritishDict,
 			len(outputWords)-amOnly, britOnly, amOnly)

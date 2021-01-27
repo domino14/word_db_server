@@ -7,6 +7,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
+	mcconfig "github.com/domino14/macondo/config"
 	"github.com/domino14/word_db_server/internal/querygen"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 )
@@ -23,12 +24,12 @@ func (s *Server) Expand(ctx context.Context, req *pb.SearchResponse) (*pb.Search
 		return nil, err
 	}
 	defer db.Close()
-	alphStrToObjs, err := getInputAlphagramInfo(req, db)
+	alphStrToObjs, err := getInputAlphagramInfo(req, s.Config, db)
 	if err != nil {
 		return nil, err
 	}
 
-	outputAlphas, err := mergeInputWordInfo(req, alphStrToObjs, db)
+	outputAlphas, err := mergeInputWordInfo(req, s.Config, alphStrToObjs, db)
 	if err != nil {
 		return nil, err
 	}
@@ -39,11 +40,11 @@ func (s *Server) Expand(ctx context.Context, req *pb.SearchResponse) (*pb.Search
 	}, nil
 }
 
-func getInputAlphagramInfo(req *pb.SearchResponse, db *sql.DB) (map[string]*pb.Alphagram, error) {
+func getInputAlphagramInfo(req *pb.SearchResponse, cfg *mcconfig.Config, db *sql.DB) (map[string]*pb.Alphagram, error) {
 	inputAlphas := alphasFromSearchResponse(req)
 	alphaQgen := querygen.NewQueryGen(req.Lexicon, querygen.AlphagramsOnly,
 		[]*pb.SearchRequest_SearchParam{SearchDescAlphagramList(inputAlphas)},
-		MaxSQLChunkSize)
+		MaxSQLChunkSize, cfg)
 
 	queries, err := alphaQgen.Generate()
 	if err != nil {
@@ -64,8 +65,8 @@ func getInputAlphagramInfo(req *pb.SearchResponse, db *sql.DB) (map[string]*pb.A
 	return alphStrToObjs, nil
 }
 
-func mergeInputWordInfo(req *pb.SearchResponse, alphStrToObjs map[string]*pb.Alphagram,
-	db *sql.DB) ([]*pb.Alphagram, error) {
+func mergeInputWordInfo(req *pb.SearchResponse, cfg *mcconfig.Config,
+	alphStrToObjs map[string]*pb.Alphagram, db *sql.DB) ([]*pb.Alphagram, error) {
 	outputAlphas := []*pb.Alphagram{}
 
 	wordToAlphagramDict := map[string]*pb.Alphagram{}
@@ -91,7 +92,7 @@ func mergeInputWordInfo(req *pb.SearchResponse, alphStrToObjs map[string]*pb.Alp
 	// Now query all of the words.
 	wordsQGen := querygen.NewQueryGen(req.Lexicon, querygen.WordsOnly,
 		[]*pb.SearchRequest_SearchParam{SearchDescWordList(listOfWords)},
-		MaxSQLChunkSize)
+		MaxSQLChunkSize, cfg)
 	queries, err := wordsQGen.Generate()
 
 	if err != nil {

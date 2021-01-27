@@ -28,12 +28,17 @@ var spanishCombinationsTests = []combinationstestpair{
 }
 
 func TestCalcCombinations(t *testing.T) {
+	ld, err := alphabet.Get(&DefaultConfig, "english")
+	if err != nil {
+		t.Error(err)
+	}
+
 	lexInfo := LexiconInfo{
 		LexiconName:        "OWL2",
 		LexiconFilename:    "./blah.txt",
 		LexiconIndex:       4,
 		DescriptiveName:    "American 06",
-		LetterDistribution: alphabet.EnglishLetterDistribution()}
+		LetterDistribution: ld}
 	lexInfo.Initialize()
 
 	for _, pair := range combinationsTests {
@@ -46,10 +51,31 @@ func TestCalcCombinations(t *testing.T) {
 	}
 }
 
+func BenchmarkCombinations(b *testing.B) {
+	ld, err := alphabet.Get(&DefaultConfig, "english")
+	if err != nil {
+		b.Error(err)
+	}
+	lexInfo := LexiconInfo{
+		LexiconName:        "OWL2",
+		LexiconFilename:    "./blah.txt",
+		LexiconIndex:       4,
+		DescriptiveName:    "American 06",
+		LetterDistribution: ld}
+	lexInfo.Initialize()
+	for i := 0; i < b.N; i++ {
+		lexInfo.Combinations("AEHINORST", true)
+	}
+}
+
 func TestSpanishCombos(t *testing.T) {
+	ld, err := alphabet.Get(&DefaultConfig, "spanish")
+	if err != nil {
+		t.Error(err)
+	}
 	lexInfo := LexiconInfo{
 		LexiconName:        "FISE09",
-		LetterDistribution: alphabet.SpanishLetterDistribution()}
+		LetterDistribution: ld}
 	lexInfo.Initialize()
 
 	for _, pair := range spanishCombinationsTests {

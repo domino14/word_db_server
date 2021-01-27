@@ -5,9 +5,18 @@ import (
 	"os"
 	"testing"
 
+	mcconfig "github.com/domino14/macondo/config"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 	"github.com/stretchr/testify/assert"
 )
+
+var DefaultConfig = mcconfig.Config{
+	StrategyParamsPath:        os.Getenv("STRATEGY_PARAMS_PATH"),
+	LexiconPath:               os.Getenv("LEXICON_PATH"),
+	LetterDistributionPath:    os.Getenv("LETTER_DISTRIBUTION_PATH"),
+	DefaultLexicon:            "NWL18",
+	DefaultLetterDistribution: "English",
+}
 
 func TestExpand(t *testing.T) {
 
@@ -24,7 +33,7 @@ func TestExpand(t *testing.T) {
 	}
 
 	s := &Server{
-		LexiconPath: os.Getenv("LEXICON_PATH"),
+		Config: &DefaultConfig,
 	}
 	resp, err := s.Expand(context.Background(), req)
 	assert.Nil(t, err)
@@ -47,7 +56,7 @@ func TestExpandHuge(t *testing.T) {
 	resp, err := searchHelper(req)
 	assert.Nil(t, err)
 	s := &Server{
-		LexiconPath: os.Getenv("LEXICON_PATH"),
+		Config: &DefaultConfig,
 	}
 	expandedResp, err := s.Expand(context.Background(), resp)
 	assert.Nil(t, err)

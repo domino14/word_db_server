@@ -1,17 +1,33 @@
 package dbmaker
 
 import (
+	"os"
 	"testing"
+
+	mcconfig "github.com/domino14/macondo/config"
 
 	"github.com/domino14/macondo/alphabet"
 )
 
+var DefaultConfig = mcconfig.Config{
+	StrategyParamsPath:        os.Getenv("STRATEGY_PARAMS_PATH"),
+	LexiconPath:               os.Getenv("LEXICON_PATH"),
+	LetterDistributionPath:    os.Getenv("LETTER_DISTRIBUTION_PATH"),
+	DefaultLexicon:            "NWL18",
+	DefaultLetterDistribution: "English",
+}
+
 func TestPopulate(t *testing.T) {
+	ld, err := alphabet.Get(&DefaultConfig, "english")
+	if err != nil {
+		t.Error(err)
+	}
+
 	lexInfo := LexiconInfo{
 		LexiconName:        "America",
 		LexiconIndex:       7,
 		DescriptiveName:    "I am America, and so can you.",
-		LetterDistribution: alphabet.EnglishLetterDistribution(),
+		LetterDistribution: ld,
 	}
 	lexInfo.Initialize()
 	defs, alphs := populateAlphsDefs("test_files/mini_america.txt",
@@ -27,9 +43,13 @@ func TestPopulate(t *testing.T) {
 }
 
 func TestSortedHooks(t *testing.T) {
+	ld, err := alphabet.Get(&DefaultConfig, "spanish")
+	if err != nil {
+		t.Error(err)
+	}
 	lexInfo := LexiconInfo{
 		LexiconName:        "FISE09",
-		LetterDistribution: alphabet.SpanishLetterDistribution(),
+		LetterDistribution: ld,
 	}
 	lexInfo.Initialize()
 	hooks := []rune("2ANRSXZ")
@@ -44,6 +64,10 @@ type alphaTestCase struct {
 }
 
 func TestPointValue(t *testing.T) {
+	ld, err := alphabet.Get(&DefaultConfig, "english")
+	if err != nil {
+		t.Error(err)
+	}
 	ptTestCases := []alphaTestCase{
 		alphaTestCase{"AEKLOVZ", 23},
 		alphaTestCase{"AVYYZZZ", 43},
@@ -60,7 +84,7 @@ func TestPointValue(t *testing.T) {
 	}
 	for _, tc := range ptTestCases {
 		a := &Alphagram{nil, 0, tc.alphagram, 0, 0, 0}
-		pts := a.pointValue(alphabet.EnglishLetterDistribution())
+		pts := a.pointValue(ld)
 		if pts != tc.expected {
 			t.Errorf("Expected %d, actual %d, alphagram %s", tc.expected,
 				pts, a.alphagram)
@@ -69,6 +93,10 @@ func TestPointValue(t *testing.T) {
 }
 
 func TestNumVowels(t *testing.T) {
+	ld, err := alphabet.Get(&DefaultConfig, "english")
+	if err != nil {
+		t.Error(err)
+	}
 	vowelTestCases := []alphaTestCase{
 		alphaTestCase{"AEKLOVZ", 3},
 		alphaTestCase{"AVYYZZZ", 1},
@@ -79,7 +107,7 @@ func TestNumVowels(t *testing.T) {
 	}
 	for _, tc := range vowelTestCases {
 		a := &Alphagram{nil, 0, tc.alphagram, 0, 0, 0}
-		pts := a.numVowels(alphabet.EnglishLetterDistribution())
+		pts := a.numVowels(ld)
 		if pts != tc.expected {
 			t.Errorf("Expected %d, actual %d, alphagram %s", tc.expected,
 				pts, a.alphagram)
