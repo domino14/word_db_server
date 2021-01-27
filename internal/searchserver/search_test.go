@@ -217,6 +217,7 @@ func TestProbabilityLimitOutsideOfRange(t *testing.T) {
 }
 
 func TestNotInLexicon(t *testing.T) {
+	t.Skip()
 	req := WordSearch([]*pb.SearchRequest_SearchParam{
 		SearchDescLexicon("NWL18"),
 		SearchDescLength(2, 4),

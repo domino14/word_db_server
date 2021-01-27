@@ -38,9 +38,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestRacks(t *testing.T) {
-	eng, err := gaddag.LoadDawg("/tmp/dawg/gen_america.dawg")
+	eng, err := gaddag.LoadDawg("/tmp/dawg/America.dawg")
 	assert.Nil(t, err)
-	span, err := gaddag.LoadDawg("/tmp/dawg/gen_fise2.dawg")
+	span, err := gaddag.LoadDawg("/tmp/dawg/FISE2.dawg")
 	assert.Nil(t, err)
 	engAlph := eng.GetAlphabet()
 	spanAlph := span.GetAlphabet()
