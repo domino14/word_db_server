@@ -6,6 +6,7 @@ jobs:
   build:
     environment:
       LEXICON_PATH: /opt/lexica/
+      LETTER_DISTRIBUTION_PATH: /opt/lexica/letterdistributions
     docker:
       # specify the version
       - image: golang:alpine
@@ -37,6 +38,7 @@ jobs:
           command: git clone git@github.com:domino14/word-game-lexica /opt/word-game-lexica
       - run: mkdir $LEXICON_PATH
       - run: mv /opt/word-game-lexica/*.txt $LEXICON_PATH
+      - run: mv /opt/word-game-lexica/letterdistributions $LETTER_DISTRIBUTION_PATH
       - run: cd cmd/searchserver && go build
       # Generate the db for NWL18.txt. If we add other dbs for testing, we
       # will need to generate those as well.

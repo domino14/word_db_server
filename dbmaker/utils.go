@@ -9,22 +9,35 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/domino14/macondo/alphabet"
+	mcconfig "github.com/domino14/macondo/config"
 	"github.com/domino14/macondo/gaddag"
 	"github.com/domino14/macondo/gaddagmaker"
 )
 
-func LexiconMappings(lexiconPath string) ([]LexiconSymbolDefinition, LexiconMap) {
+func LexiconMappings(cfg *mcconfig.Config) ([]LexiconSymbolDefinition, LexiconMap) {
 	symbols := []LexiconSymbolDefinition{
-		{In: "America", NotIn: "OWL2", Symbol: "+"},
-		{In: "NWL18", NotIn: "CSW19", Symbol: "$"},
-		{In: "NWL18", NotIn: "America", Symbol: "+"},
-		{In: "CSW19", NotIn: "NWL18", Symbol: "#"},
+		{In: "NWL20", NotIn: "CSW19", Symbol: "$"},
+		{In: "CSW19", NotIn: "NWL20", Symbol: "#"},
 		{In: "FISE2", NotIn: "FISE09", Symbol: "+"},
-		{In: "CSW19", NotIn: "CSW15", Symbol: "+"},
-		{In: "OSPS42", NotIn: "OSPS40", Symbol: "+"},
+		{In: "OSPS44", NotIn: "OSPS42", Symbol: "+"},
 	}
 	// set LEXICON_PATH to something.
 	// For example "/Users/cesar/coding/webolith/words/" on my computer.
+
+	englishLD, err := alphabet.EnglishLetterDistribution(cfg)
+	if err != nil {
+		panic(err)
+	}
+	spanishLD, err := alphabet.SpanishLetterDistribution(cfg)
+	if err != nil {
+		panic(err)
+	}
+	polishLD, err := alphabet.PolishLetterDistribution(cfg)
+	if err != nil {
+		panic(err)
+	}
+	lexiconPath := cfg.LexiconPath
+
 	lexiconMap := LexiconMap{
 		"CSW15": LexiconInfo{
 			LexiconName:        "CSW15",
@@ -33,7 +46,7 @@ func LexiconMappings(lexiconPath string) ([]LexiconSymbolDefinition, LexiconMap)
 			RDawg:              LoadOrMakeDawg(lexiconPath, "CSW15", true),
 			LexiconIndex:       1,
 			DescriptiveName:    "Collins 15",
-			LetterDistribution: alphabet.EnglishLetterDistribution(),
+			LetterDistribution: englishLD,
 		},
 		"CSW19": LexiconInfo{
 			LexiconName:        "CSW19",
@@ -42,25 +55,7 @@ func LexiconMappings(lexiconPath string) ([]LexiconSymbolDefinition, LexiconMap)
 			RDawg:              LoadOrMakeDawg(lexiconPath, "CSW19", true),
 			LexiconIndex:       12,
 			DescriptiveName:    "Collins 2019",
-			LetterDistribution: alphabet.EnglishLetterDistribution(),
-		},
-		"OWL2": LexiconInfo{
-			LexiconName:        "OWL2",
-			LexiconFilename:    filepath.Join(lexiconPath, "OWL2.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "OWL2", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "OWL2", true),
-			LexiconIndex:       4,
-			DescriptiveName:    "OWL2",
-			LetterDistribution: alphabet.EnglishLetterDistribution(),
-		},
-		"America": LexiconInfo{
-			LexiconName:        "America",
-			LexiconFilename:    filepath.Join(lexiconPath, "America.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "America", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "America", true),
-			LexiconIndex:       7,
-			DescriptiveName:    "I am America, and so can you.",
-			LetterDistribution: alphabet.EnglishLetterDistribution(),
+			LetterDistribution: englishLD,
 		},
 		"FISE09": LexiconInfo{
 			LexiconName:        "FISE09",
@@ -69,7 +64,7 @@ func LexiconMappings(lexiconPath string) ([]LexiconSymbolDefinition, LexiconMap)
 			RDawg:              LoadOrMakeDawg(lexiconPath, "FISE09", true),
 			LexiconIndex:       8,
 			DescriptiveName:    "Federación Internacional de Scrabble en Español",
-			LetterDistribution: alphabet.SpanishLetterDistribution(),
+			LetterDistribution: spanishLD,
 		},
 		"FISE2": LexiconInfo{
 			LexiconName:        "FISE2",
@@ -78,7 +73,7 @@ func LexiconMappings(lexiconPath string) ([]LexiconSymbolDefinition, LexiconMap)
 			RDawg:              LoadOrMakeDawg(lexiconPath, "FISE2", true),
 			LexiconIndex:       10,
 			DescriptiveName:    "Federación Internacional de Scrabble en Español, 2017 Edition",
-			LetterDistribution: alphabet.SpanishLetterDistribution(),
+			LetterDistribution: spanishLD,
 		},
 		"NWL18": LexiconInfo{
 			LexiconName:        "NWL18",
@@ -86,18 +81,19 @@ func LexiconMappings(lexiconPath string) ([]LexiconSymbolDefinition, LexiconMap)
 			Dawg:               LoadOrMakeDawg(lexiconPath, "NWL18", false),
 			RDawg:              LoadOrMakeDawg(lexiconPath, "NWL18", true),
 			LexiconIndex:       9,
-			DescriptiveName:    "NASPA Word List, 2018 Edition",
-			LetterDistribution: alphabet.EnglishLetterDistribution(),
+			DescriptiveName:    "NASPA Word List, 2020 Edition",
+			LetterDistribution: englishLD,
 			Difficulties:       createDifficultyMap(lexiconPath, "NWL18"),
 		},
-		"OSPS40": LexiconInfo{
-			LexiconName:        "OSPS40",
-			LexiconFilename:    filepath.Join(lexiconPath, "OSPS40.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "OSPS40", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "OSPS40", true),
-			LexiconIndex:       11,
-			DescriptiveName:    "Polska Federacja Scrabble - Update 40",
-			LetterDistribution: alphabet.PolishLetterDistribution(),
+		"NWL20": LexiconInfo{
+			LexiconName:        "NWL20",
+			LexiconFilename:    filepath.Join(lexiconPath, "NWL20.txt"),
+			Dawg:               LoadOrMakeDawg(lexiconPath, "NWL20", false),
+			RDawg:              LoadOrMakeDawg(lexiconPath, "NWL20", true),
+			LexiconIndex:       15,
+			DescriptiveName:    "NASPA Word List, 2020 Edition",
+			LetterDistribution: englishLD,
+			Difficulties:       createDifficultyMap(lexiconPath, "NWL20"),
 		},
 		"OSPS42": LexiconInfo{
 			LexiconName:        "OSPS42",
@@ -106,7 +102,16 @@ func LexiconMappings(lexiconPath string) ([]LexiconSymbolDefinition, LexiconMap)
 			RDawg:              LoadOrMakeDawg(lexiconPath, "OSPS42", true),
 			LexiconIndex:       14,
 			DescriptiveName:    "Polska Federacja Scrabble - Update 42",
-			LetterDistribution: alphabet.PolishLetterDistribution(),
+			LetterDistribution: polishLD,
+		},
+		"OSPS44": LexiconInfo{
+			LexiconName:        "OSPS44",
+			LexiconFilename:    filepath.Join(lexiconPath, "OSPS44.txt"),
+			Dawg:               LoadOrMakeDawg(lexiconPath, "OSPS44", false),
+			RDawg:              LoadOrMakeDawg(lexiconPath, "OSPS44", true),
+			LexiconIndex:       16,
+			DescriptiveName:    "Polska Federacja Scrabble - Update 44",
+			LetterDistribution: polishLD,
 		},
 	}
 	return symbols, lexiconMap

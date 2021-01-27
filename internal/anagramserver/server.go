@@ -3,12 +3,13 @@ package anagramserver
 import (
 	"context"
 	"errors"
-	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/domino14/macondo/anagrammer"
+	mcconfig "github.com/domino14/macondo/config"
+
+	"github.com/domino14/word_db_server/internal/dawg"
 	"github.com/domino14/word_db_server/internal/searchserver"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 	"github.com/rs/zerolog/log"
@@ -25,17 +26,12 @@ const (
 )
 
 type Server struct {
-	LexiconPath string
+	MacondoConfig *mcconfig.Config
 }
 
 func timeTrack(start time.Time, name string) {
 	elapsed := time.Since(start)
 	log.Info().Msgf("%s took %s", name, elapsed)
-}
-
-func (s *Server) Initialize() {
-	// Initialize the Macondo anagrammer.
-	anagrammer.LoadDawgs(filepath.Join(s.LexiconPath, "dawg"))
 }
 
 func wordsToPBWords(strs []string) []*pb.Word {
@@ -65,10 +61,11 @@ func (s *Server) Anagram(ctx context.Context, req *pb.AnagramRequest) (
 	*pb.AnagramResponse, error) {
 	defer timeTrack(time.Now(), "anagram")
 
-	dinfo, ok := anagrammer.Dawgs[req.Lexicon]
-	if !ok {
-		return nil, fmt.Errorf("lexicon %v not found", req.Lexicon)
+	dawgInfo, err := dawg.GetDawgInfo(s.MacondoConfig, req.Lexicon)
+	if err != nil {
+		return nil, err
 	}
+
 	var mode anagrammer.AnagramMode
 	switch req.Mode {
 	case pb.AnagramRequest_EXACT:
@@ -80,13 +77,12 @@ func (s *Server) Anagram(ctx context.Context, req *pb.AnagramRequest) (
 		// XXX: Add auth key?
 		return nil, errors.New("query too complex")
 	}
-	sols := anagrammer.Anagram(req.Letters, dinfo.GetDawg(), mode)
+	sols := anagrammer.Anagram(req.Letters, dawgInfo.GetDawg(), mode)
 	var words []*pb.Word
-	var err error
 	if req.Expand && len(sols) > 0 {
 		// Build an expand request.
 		expander := &searchserver.Server{
-			LexiconPath: s.LexiconPath,
+			Config: s.MacondoConfig,
 		}
 		alphagram := &pb.Alphagram{
 			Alphagram: req.Letters, // not technically an alphagram but doesn't matter rn
@@ -116,7 +112,7 @@ func (s *Server) BlankChallengeCreator(ctx context.Context, req *pb.BlankChallen
 	ctx, cancel := context.WithTimeout(ctx, BlankQuestionsTimeout)
 	defer cancel()
 
-	blanks, err := GenerateBlanks(ctx, req)
+	blanks, err := GenerateBlanks(ctx, s.MacondoConfig, req)
 	if err == context.DeadlineExceeded {
 		// Sadly, using twirp.DeadlineExceeded results in a 408 status code,
 		// which causes web browsers to keep trying request again!
@@ -136,7 +132,7 @@ func (s *Server) BuildChallengeCreator(ctx context.Context, req *pb.BuildChallen
 	*pb.SearchResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, BuildQuestionsTimeout)
 	defer cancel()
-	question, err := GenerateBuildChallenge(ctx, req)
+	question, err := GenerateBuildChallenge(ctx, s.MacondoConfig, req)
 	if err == context.DeadlineExceeded {
 		return nil, twirp.NewError(twirp.DeadlineExceeded, "build challenge timed out")
 	}

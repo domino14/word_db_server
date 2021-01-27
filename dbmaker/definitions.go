@@ -2,9 +2,10 @@ package dbmaker
 
 import (
 	"html"
-	"log"
 	"regexp"
 	"strings"
+
+	"github.com/rs/zerolog/log"
 )
 
 type SingleDefinition struct {
@@ -129,7 +130,7 @@ func expandRaw(rawdef string, word string, definitions map[string]*FullDefinitio
 
 	if visitedWords[word] {
 		// This word has already been seen.
-		log.Printf("[DEBUG] Word was seen at least once: %v", word)
+		log.Debug().Str("word", word).Msg("Word was seen at least once")
 		return BadString
 	}
 
@@ -208,6 +209,12 @@ func findLinkText(link string, pospeech string, definitions map[string]*FullDefi
 
 	def := definitions[upper]
 	var bestCandidate *SingleDefinition
+	if def == nil {
+
+		log.Debug().Str("link", link).Str("pospeech", pospeech).Str("word", word).
+			Msg("nil definition; is word missing?")
+		return ""
+	}
 	for _, sd := range def.parts {
 		if sd.partOfSpeech == pospeech {
 			if searchDeclensions && strings.Contains(sd.declensions, word) {

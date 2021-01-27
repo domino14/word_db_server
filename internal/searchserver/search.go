@@ -8,6 +8,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
+	mcconfig "github.com/domino14/macondo/config"
 	"github.com/domino14/word_db_server/internal/querygen"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 )
@@ -15,7 +16,7 @@ import (
 // Search implements the search for alphagrams/words
 func (s *Server) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchResponse, error) {
 	defer timeTrack(time.Now(), "search")
-	qgen, err := createQueryGen(req, MaxSQLChunkSize)
+	qgen, err := createQueryGen(req, s.Config, MaxSQLChunkSize)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +43,7 @@ func (s *Server) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchR
 	}, nil
 }
 
-func createQueryGen(req *pb.SearchRequest, maxChunkSize int) (*querygen.QueryGen, error) {
+func createQueryGen(req *pb.SearchRequest, cfg *mcconfig.Config, maxChunkSize int) (*querygen.QueryGen, error) {
 	log.Info().Msgf("Creating query gen for request %v", req)
 	if req.Searchparams == nil || len(req.Searchparams) < 1 {
 		return nil, errors.New("no search params provided")
@@ -58,7 +59,7 @@ func createQueryGen(req *pb.SearchRequest, maxChunkSize int) (*querygen.QueryGen
 	} else {
 		queryType = querygen.AlphagramsAndWords
 	}
-	qgen := querygen.NewQueryGen(lexName, queryType, req.Searchparams[1:], maxChunkSize)
+	qgen := querygen.NewQueryGen(lexName, queryType, req.Searchparams[1:], maxChunkSize, cfg)
 	log.Debug().Msgf("Creating new querygen with lexicon name %v, search params %v, expand %v",
 		lexName, req.Searchparams[1:], req.Expand)
 

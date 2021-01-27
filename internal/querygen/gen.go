@@ -9,6 +9,9 @@ import (
 
 	"github.com/domino14/macondo/alphabet"
 	"github.com/domino14/macondo/anagrammer"
+	mcconfig "github.com/domino14/macondo/config"
+
+	"github.com/domino14/word_db_server/internal/dawg"
 	"github.com/domino14/word_db_server/rpc/wordsearcher"
 )
 
@@ -142,18 +145,19 @@ func (q *Query) Render(whereClauses []string, limitOffsetClause string) {
 
 // QueryGen is a query generator.
 type QueryGen struct {
-	lexiconName  string
-	queryType    QueryType
-	searchParams []*wordsearcher.SearchRequest_SearchParam
-	maxChunkSize int
+	lexiconName   string
+	queryType     QueryType
+	searchParams  []*wordsearcher.SearchRequest_SearchParam
+	maxChunkSize  int
+	macondoConfig *mcconfig.Config
 }
 
 // NewQueryGen generates a new query generator with the given parameters.
 func NewQueryGen(lexiconName string, queryType QueryType,
 	searchParams []*wordsearcher.SearchRequest_SearchParam,
-	maxChunkSize int) *QueryGen {
+	maxChunkSize int, cfg *mcconfig.Config) *QueryGen {
 
-	return &QueryGen{lexiconName, queryType, searchParams, maxChunkSize}
+	return &QueryGen{lexiconName, queryType, searchParams, maxChunkSize, cfg}
 }
 
 func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchParam) (Clause, error) {
@@ -220,7 +224,10 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 			return nil, errors.New("stringvalue not provided for not_in_lexicon request")
 		}
 		letters := desc.GetValue()
-		dawgInfo := anagrammer.Dawgs[qg.lexiconName]
+		dawgInfo, err := dawg.GetDawgInfo(qg.macondoConfig, qg.lexiconName)
+		if err != nil {
+			return nil, err
+		}
 
 		words := anagrammer.Anagram(letters, dawgInfo.GetDawg(), anagrammer.ModeExact)
 		if len(words) == 0 {

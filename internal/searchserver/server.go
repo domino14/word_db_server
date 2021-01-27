@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
+	mcconfig "github.com/domino14/macondo/config"
+
 	// sqlite3 driver is used by this server.
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog/log"
@@ -22,7 +24,7 @@ const (
 
 // Server implements the WordSearcher service
 type Server struct {
-	LexiconPath string
+	Config *mcconfig.Config
 }
 
 func (s *Server) getDbConnection(lexName string) (*sql.DB, error) {
@@ -30,7 +32,7 @@ func (s *Server) getDbConnection(lexName string) (*sql.DB, error) {
 	if lexName == "" {
 		return nil, errors.New("lexicon not specified")
 	}
-	fileName := filepath.Join(s.LexiconPath, "db", lexName+".db")
+	fileName := filepath.Join(s.Config.LexiconPath, "db", lexName+".db")
 	_, err := os.Stat(fileName)
 	if os.IsNotExist(err) {
 		return nil, fmt.Errorf("the lexicon %v is not supported", lexName)

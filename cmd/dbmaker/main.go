@@ -9,6 +9,8 @@ import (
 
 	"github.com/rs/zerolog/log"
 
+	mcconfig "github.com/domino14/macondo/config"
+
 	"github.com/domino14/word_db_server/dbmaker"
 )
 
@@ -21,47 +23,72 @@ func stringInSlice(a string, list []string) bool {
 	return false
 }
 
-var LexiconPath = os.Getenv("LEXICON_PATH")
+type Config struct {
+	MacondoConfig mcconfig.Config
 
-func main() {
+	migrateDB    string
+	dbs          string
+	forceCreate  bool
+	fixDefsOn    string
+	fixSymbolsOn string
+	outputDir    string
+}
+
+// Load loads the configs from the given arguments
+func (c *Config) Load(args []string) error {
+	fs := flag.NewFlagSet("dbmaker", flag.ContinueOnError)
+
+	fs.BoolVar(&c.MacondoConfig.Debug, "debug", false, "debug logging on")
+
+	fs.StringVar(&c.MacondoConfig.LetterDistributionPath, "letter-distribution-path", "../macondo/data/letterdistributions", "directory holding letter distribution files")
+	fs.StringVar(&c.MacondoConfig.StrategyParamsPath, "strategy-params-path", "../macondo/data/strategy", "directory holding strategy files")
+	fs.StringVar(&c.MacondoConfig.LexiconPath, "lexicon-path", "../macondo/data/lexica", "directory holding lexicon files")
+	fs.StringVar(&c.MacondoConfig.DefaultLexicon, "default-lexicon", "NWL18", "the default lexicon to use")
+	fs.StringVar(&c.MacondoConfig.DefaultLetterDistribution, "default-letter-distribution", "English", "the default letter distribution to use. English, EnglishSuper, Spanish, Polish, etc.")
+
 	// We are going to have a flag to migrate a database. This is due to a
 	// legacy issue where alphagram sort order was not deterministic for
 	// alphagrams with equal probability, so we need to keep the old
 	// sort orders around in order to not mess up alphagrams-by-probability
 	// lists.
-	var migratedb = flag.String("migratedb", "", "Migrate a DB instead of generating it")
-	var createdbs = flag.String("dbs", "", "Pass in comma-separated list of dbs to make, instead of all")
-	var forcecreation = flag.Bool("force", false, "Create DB even if it already exists (overwrite)")
-	var dbToFixDefs = flag.String("fixdefs", "",
+
+	fs.StringVar(&c.migrateDB, "migratedb", "", "Migrate a DB instead of generating it")
+	fs.StringVar(&c.dbs, "dbs", "", "Pass in comma-separated list of dbs to make, instead of all")
+	fs.BoolVar(&c.forceCreate, "force", false, "Create DB even if it already exists (overwrite)")
+	fs.StringVar(&c.fixDefsOn, "fixdefs", "",
 		"Pass in lexicon name to fix definitions on. DB <lexiconname>.db must exist in this dir.")
-	var dbToFixSymbols = flag.String("fixsymbols", "",
+	fs.StringVar(&c.fixSymbolsOn, "fixsymbols", "",
 		"Pass in lexicon name to fix lexicon symbols on. DB <lexiconname>.db must exist in this dir.")
+	fs.StringVar(&c.outputDir, "outputdir", ".", "The output directory")
 
-	var outputDirF = flag.String("outputdir", ".", "The output directory")
+	return fs.Parse(args)
 
-	flag.Parse()
-	dbToMigrate := *migratedb
-	dbsToMake := *createdbs
-	outputDir := *outputDirF
-	force := *forcecreation
+}
+
+func main() {
+
+	cfg := &Config{}
+	cfg.Load(os.Args[1:])
+	log.Info().Interface("config", cfg).Msg("dbmaker-started")
+
 	// MkdirAll will make any intermediate dirs but fail gracefully if they exist.
-	os.MkdirAll(filepath.Join(LexiconPath, "dawg"), os.ModePerm)
-	os.MkdirAll(outputDir, os.ModePerm)
-	symbols, lexiconMap := dbmaker.LexiconMappings(LexiconPath)
+	os.MkdirAll(filepath.Join(cfg.MacondoConfig.LexiconPath, "dawg"), os.ModePerm)
+	os.MkdirAll(cfg.outputDir, os.ModePerm)
+	symbols, lexiconMap := dbmaker.LexiconMappings(&cfg.MacondoConfig)
 
-	if dbToMigrate != "" {
-		info, ok := lexiconMap[dbToMigrate]
+	if cfg.migrateDB != "" {
+		info, ok := lexiconMap[cfg.migrateDB]
 		if !ok {
 			log.Error().Msg("That lexicon is not supported")
 			return
 		}
-		dbmaker.MigrateLexiconDatabase(dbToMigrate, info)
-	} else if *dbToFixDefs != "" {
-		fixDefinitions(*dbToFixDefs, lexiconMap)
-	} else if *dbToFixSymbols != "" {
-		fixSymbols(*dbToFixSymbols, lexiconMap, symbols)
+		dbmaker.MigrateLexiconDatabase(cfg.migrateDB, info)
+	} else if cfg.fixDefsOn != "" {
+		fixDefinitions(cfg.fixDefsOn, lexiconMap)
+	} else if cfg.fixSymbolsOn != "" {
+		fixSymbols(cfg.fixSymbolsOn, lexiconMap, symbols)
 	} else {
-		makeDbs(dbsToMake, lexiconMap, symbols, outputDir, force)
+		makeDbs(cfg.dbs, lexiconMap, symbols, cfg.outputDir, cfg.forceCreate)
 	}
 }
 

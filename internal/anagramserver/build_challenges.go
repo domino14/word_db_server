@@ -6,6 +6,8 @@ import (
 
 	"github.com/domino14/macondo/alphabet"
 	"github.com/domino14/macondo/anagrammer"
+	mcconfig "github.com/domino14/macondo/config"
+	"github.com/domino14/word_db_server/internal/dawg"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 	"github.com/rs/zerolog/log"
 )
@@ -13,12 +15,12 @@ import (
 // GenerateBuildChallenge generates a build challenge with given args.
 // As an additional condition, letters must anagram exactly to at least
 // one word, if that argument is passed in.
-func GenerateBuildChallenge(ctx context.Context, req *pb.BuildChallengeCreateRequest) (
+func GenerateBuildChallenge(ctx context.Context, cfg *mcconfig.Config, req *pb.BuildChallengeCreateRequest) (
 	*pb.Alphagram, error) {
 
-	dinfo, ok := anagrammer.Dawgs[req.Lexicon]
-	if !ok {
-		return nil, fmt.Errorf("lexicon %v not found", req.Lexicon)
+	dinfo, err := dawg.GetDawgInfo(cfg, req.Lexicon)
+	if err != nil {
+		return nil, err
 	}
 
 	tries := 0
