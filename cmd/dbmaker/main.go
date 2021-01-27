@@ -2,14 +2,13 @@
 package main
 
 import (
-	"flag"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/rs/zerolog/log"
-
 	mcconfig "github.com/domino14/macondo/config"
+	"github.com/namsral/flag"
+	"github.com/rs/zerolog/log"
 
 	"github.com/domino14/word_db_server/dbmaker"
 )
