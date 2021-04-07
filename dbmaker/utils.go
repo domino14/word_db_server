@@ -36,6 +36,10 @@ func LexiconMappings(cfg *mcconfig.Config) ([]LexiconSymbolDefinition, LexiconMa
 	if err != nil {
 		panic(err)
 	}
+	germanLD, err := alphabet.GermanLetterDistribution(cfg)
+	if err != nil {
+		panic(err)
+	}
 	lexiconPath := cfg.LexiconPath
 
 	lexiconMap := LexiconMap{
@@ -112,6 +116,15 @@ func LexiconMappings(cfg *mcconfig.Config) ([]LexiconSymbolDefinition, LexiconMa
 			LexiconIndex:       16,
 			DescriptiveName:    "Polska Federacja Scrabble - Update 44",
 			LetterDistribution: polishLD,
+		},
+		"Deutsch": LexiconInfo{
+			LexiconName:        "Deutsch",
+			LexiconFilename:    filepath.Join(lexiconPath, "Deutsch.txt"),
+			Dawg:               LoadOrMakeDawg(lexiconPath, "Deutsch", false),
+			RDawg:              LoadOrMakeDawg(lexiconPath, "Deutsch", true),
+			LexiconIndex:       17,
+			DescriptiveName:    "Scrabble®-Turnierliste - based on Duden 28th edition",
+			LetterDistribution: germanLD,
 		},
 	}
 	return symbols, lexiconMap

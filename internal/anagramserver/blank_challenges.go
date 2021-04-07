@@ -116,7 +116,7 @@ func GenerateBlanks(ctx context.Context, cfg *mcconfig.Config, req *pb.BlankChal
 func genRack(dist *alphabet.LetterDistribution, wordLength, blanks int32,
 	alph *alphabet.Alphabet) []alphabet.MachineLetter {
 
-	bag := dist.MakeBag(randSource)
+	bag := dist.MakeBag()
 	// it's a bag of machine letters.
 	rack := make([]alphabet.MachineLetter, wordLength)
 	idx := int32(0)

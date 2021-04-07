@@ -31,6 +31,8 @@ func GetDawgInfo(cfg *mcconfig.Config, lexicon string) (*dawgInfo, error) {
 		distName = "spanish"
 	case strings.Contains(lexicon, "OSPS"):
 		distName = "polish"
+	case strings.Contains(lexicon, "Deutsch"):
+		distName = "german"
 	default:
 		distName = "english"
 	}
