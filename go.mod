@@ -10,6 +10,7 @@ require (
 	github.com/rs/zerolog v1.19.0
 	github.com/stretchr/testify v1.6.1
 	github.com/twitchtv/twirp v5.10.1+incompatible
+	google.golang.org/protobuf v1.25.0
 )
 
 go 1.13
