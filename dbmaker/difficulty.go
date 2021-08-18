@@ -23,22 +23,40 @@ func createDifficultyMap(lexiconPath string, lexiconName string) map[string]int 
 			continue
 		}
 		defer f.Close()
+		log.Info().Msgf("using difficulty file: %v", filename)
 		lines, err := csv.NewReader(f).ReadAll()
 		if err != nil {
 			panic(err)
 		}
-		// Skip the header row; start at lines[1:]
+		header := lines[0]
+		qidx := -1
+		aidx := -1
+		for i, h := range header {
+			if h == "Alphagram" {
+				aidx = i
+			}
+			if h == "quantile" {
+				qidx = i
+			}
+		}
+		if qidx == -1 || aidx == -1 {
+			panic("alphagram or quantile not found in file")
+		}
 		for _, line := range lines[1:] {
-			rating, err := strconv.Atoi(line[2])
+			// Each quantile starts with `q` so remove that from the string
+			// before conversion.
+			rating, err := strconv.Atoi(line[qidx][1:])
 			if err != nil {
 				panic(err)
 			}
-			dm[line[0]] = rating
+			// quantiles are 0-based; it's nicer to have a range from 1 to 100 inclusive:
+			dm[line[aidx]] = rating + 1
 		}
 	}
 	if len(dm) == 0 {
 		return nil
 	}
+	log.Info().Int("map-size", len(dm)).Int("ACCHNOOS", dm["ACCHNOOS"]).Msg("created difficulty map")
 	return dm
 }
 

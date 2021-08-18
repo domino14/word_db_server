@@ -1,3 +1,4 @@
+# XXX: This is a Python 2 script! That is bad!
 """
 Convert the raw osps(x)utf.txt file into something that can be read
 by the definition maker.

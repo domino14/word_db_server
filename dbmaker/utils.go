@@ -18,8 +18,17 @@ func LexiconMappings(cfg *mcconfig.Config) ([]LexiconSymbolDefinition, LexiconMa
 	symbols := []LexiconSymbolDefinition{
 		{In: "NWL20", NotIn: "CSW19", Symbol: "$"},
 		{In: "CSW19", NotIn: "NWL20", Symbol: "#"},
+		{In: "CSW15", NotIn: "NWL20", Symbol: "#"},
+		{In: "CSW12", NotIn: "NWL20", Symbol: "#"},
+		{In: "CSW15", NotIn: "CSW12", Symbol: "+"},
+		{In: "CSW19", NotIn: "CSW15", Symbol: "+"},
 		{In: "FISE2", NotIn: "FISE09", Symbol: "+"},
 		{In: "OSPS44", NotIn: "OSPS42", Symbol: "+"},
+
+		{In: "America", NotIn: "OWL2", Symbol: "+"},
+		{In: "America", NotIn: "CSW19", Symbol: "$"},
+		{In: "NWL18", NotIn: "America", Symbol: "+"},
+		{In: "NWL18", NotIn: "CSW19", Symbol: "$"},
 	}
 	// set LEXICON_PATH to something.
 	// For example "/Users/cesar/coding/webolith/words/" on my computer.
@@ -125,6 +134,34 @@ func LexiconMappings(cfg *mcconfig.Config) ([]LexiconSymbolDefinition, LexiconMa
 			LexiconIndex:       17,
 			DescriptiveName:    "Scrabble®-Turnierliste - based on Duden 28th edition",
 			LetterDistribution: germanLD,
+		},
+		// Legacy lexica used by some helper scripts:
+		"OWL2": LexiconInfo{
+			LexiconName:        "OWL2",
+			LexiconFilename:    filepath.Join(lexiconPath, "OWL2.txt"),
+			Dawg:               LoadOrMakeDawg(lexiconPath, "OWL2", false),
+			RDawg:              LoadOrMakeDawg(lexiconPath, "OWL2", true),
+			LexiconIndex:       4,
+			DescriptiveName:    "OWL2",
+			LetterDistribution: englishLD,
+		},
+		"America": LexiconInfo{
+			LexiconName:        "America",
+			LexiconFilename:    filepath.Join(lexiconPath, "America.txt"),
+			Dawg:               LoadOrMakeDawg(lexiconPath, "America", false),
+			RDawg:              LoadOrMakeDawg(lexiconPath, "America", true),
+			LexiconIndex:       7,
+			DescriptiveName:    "America",
+			LetterDistribution: englishLD,
+		},
+		"CSW12": LexiconInfo{
+			LexiconName:        "CSW12",
+			LexiconFilename:    filepath.Join(lexiconPath, "CSW12.txt"),
+			Dawg:               LoadOrMakeDawg(lexiconPath, "CSW12", false),
+			RDawg:              LoadOrMakeDawg(lexiconPath, "CSW12", true),
+			LexiconIndex:       6,
+			DescriptiveName:    "CSW12",
+			LetterDistribution: englishLD,
 		},
 	}
 	return symbols, lexiconMap
