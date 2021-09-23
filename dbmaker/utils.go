@@ -69,6 +69,7 @@ func LexiconMappings(cfg *mcconfig.Config) ([]LexiconSymbolDefinition, LexiconMa
 			LexiconIndex:       12,
 			DescriptiveName:    "Collins 2019",
 			LetterDistribution: englishLD,
+			Difficulties:       createDifficultyMap(lexiconPath, "CSW19"),
 		},
 		"FISE09": LexiconInfo{
 			LexiconName:        "FISE09",
