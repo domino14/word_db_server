@@ -261,13 +261,13 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo *LexiconInfo, lexMap 
 
 		wordStmt, err := tx.Prepare(deletedWordInsertQuery)
 		exitIfError(err)
-		defer wordStmt.Close()
 
 		for _, word := range deletedWords {
 			_, err = wordStmt.Exec(word, len(word))
 			exitIfError(err)
 		}
 		tx.Commit()
+		wordStmt.Close()
 	}
 
 	_, err = db.Exec("INSERT INTO db_version(version) VALUES(?)", CurrentVersion)
