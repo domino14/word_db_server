@@ -14,22 +14,9 @@ import (
 	"github.com/domino14/macondo/gaddagmaker"
 )
 
-func LexiconMappings(cfg *mcconfig.Config) ([]LexiconSymbolDefinition, LexiconMap) {
-	symbols := []LexiconSymbolDefinition{
-		{In: "NWL20", NotIn: "CSW19", Symbol: "$"},
-		{In: "CSW19", NotIn: "NWL20", Symbol: "#"},
-		{In: "CSW15", NotIn: "NWL20", Symbol: "#"},
-		{In: "CSW12", NotIn: "NWL20", Symbol: "#"},
-		{In: "CSW15", NotIn: "CSW12", Symbol: "+"},
-		{In: "CSW19", NotIn: "CSW15", Symbol: "+"},
-		{In: "FISE2", NotIn: "FISE09", Symbol: "+"},
-		{In: "OSPS44", NotIn: "OSPS42", Symbol: "+"},
+const DeletionToken = "X"
 
-		{In: "America", NotIn: "OWL2", Symbol: "+"},
-		{In: "America", NotIn: "CSW19", Symbol: "$"},
-		{In: "NWL18", NotIn: "America", Symbol: "+"},
-		{In: "NWL18", NotIn: "CSW19", Symbol: "$"},
-	}
+func LexiconMappings(cfg *mcconfig.Config) LexiconMap {
 	// set LEXICON_PATH to something.
 	// For example "/Users/cesar/coding/webolith/words/" on my computer.
 
@@ -49,10 +36,23 @@ func LexiconMappings(cfg *mcconfig.Config) ([]LexiconSymbolDefinition, LexiconMa
 	if err != nil {
 		panic(err)
 	}
+	frenchLD, err := alphabet.FrenchLetterDistribution(cfg)
+	if err != nil {
+		panic(err)
+	}
 	lexiconPath := cfg.LexiconPath
 
-	lexiconMap := LexiconMap{
-		"CSW15": LexiconInfo{
+	cswFamily := []*LexiconInfo{
+		{
+			LexiconName:        "CSW12",
+			LexiconFilename:    filepath.Join(lexiconPath, "CSW12.txt"),
+			Dawg:               LoadOrMakeDawg(lexiconPath, "CSW12", false),
+			RDawg:              LoadOrMakeDawg(lexiconPath, "CSW12", true),
+			LexiconIndex:       6,
+			DescriptiveName:    "CSW12",
+			LetterDistribution: englishLD,
+		},
+		{
 			LexiconName:        "CSW15",
 			LexiconFilename:    filepath.Join(lexiconPath, "CSW15.txt"),
 			Dawg:               LoadOrMakeDawg(lexiconPath, "CSW15", false),
@@ -61,7 +61,7 @@ func LexiconMappings(cfg *mcconfig.Config) ([]LexiconSymbolDefinition, LexiconMa
 			DescriptiveName:    "Collins 15",
 			LetterDistribution: englishLD,
 		},
-		"CSW19": LexiconInfo{
+		{
 			LexiconName:        "CSW19",
 			LexiconFilename:    filepath.Join(lexiconPath, "CSW19.txt"),
 			Dawg:               LoadOrMakeDawg(lexiconPath, "CSW19", false),
@@ -71,7 +71,20 @@ func LexiconMappings(cfg *mcconfig.Config) ([]LexiconSymbolDefinition, LexiconMa
 			LetterDistribution: englishLD,
 			Difficulties:       createDifficultyMap(lexiconPath, "CSW19"),
 		},
-		"FISE09": LexiconInfo{
+		{
+			LexiconName:        "CSW21",
+			LexiconFilename:    filepath.Join(lexiconPath, "CSW21.txt"),
+			Dawg:               LoadOrMakeDawg(lexiconPath, "CSW21", false),
+			RDawg:              LoadOrMakeDawg(lexiconPath, "CSW21", true),
+			LexiconIndex:       18,
+			DescriptiveName:    "Collins 2021",
+			LetterDistribution: englishLD,
+			Difficulties:       createDifficultyMap(lexiconPath, "CSW21"),
+		},
+	}
+
+	fiseFamily := []*LexiconInfo{
+		{
 			LexiconName:        "FISE09",
 			LexiconFilename:    filepath.Join(lexiconPath, "FISE09.txt"),
 			Dawg:               LoadOrMakeDawg(lexiconPath, "FISE09", false),
@@ -80,7 +93,7 @@ func LexiconMappings(cfg *mcconfig.Config) ([]LexiconSymbolDefinition, LexiconMa
 			DescriptiveName:    "Federación Internacional de Scrabble en Español",
 			LetterDistribution: spanishLD,
 		},
-		"FISE2": LexiconInfo{
+		{
 			LexiconName:        "FISE2",
 			LexiconFilename:    filepath.Join(lexiconPath, "FISE2.txt"),
 			Dawg:               LoadOrMakeDawg(lexiconPath, "FISE2", false),
@@ -89,7 +102,28 @@ func LexiconMappings(cfg *mcconfig.Config) ([]LexiconSymbolDefinition, LexiconMa
 			DescriptiveName:    "Federación Internacional de Scrabble en Español, 2017 Edition",
 			LetterDistribution: spanishLD,
 		},
-		"NWL18": LexiconInfo{
+	}
+
+	twlFamily := []*LexiconInfo{
+		{
+			LexiconName:        "OWL2",
+			LexiconFilename:    filepath.Join(lexiconPath, "OWL2.txt"),
+			Dawg:               LoadOrMakeDawg(lexiconPath, "OWL2", false),
+			RDawg:              LoadOrMakeDawg(lexiconPath, "OWL2", true),
+			LexiconIndex:       4,
+			DescriptiveName:    "OWL2",
+			LetterDistribution: englishLD,
+		},
+		{
+			LexiconName:        "America",
+			LexiconFilename:    filepath.Join(lexiconPath, "America.txt"),
+			Dawg:               LoadOrMakeDawg(lexiconPath, "America", false),
+			RDawg:              LoadOrMakeDawg(lexiconPath, "America", true),
+			LexiconIndex:       7,
+			DescriptiveName:    "America",
+			LetterDistribution: englishLD,
+		},
+		{
 			LexiconName:        "NWL18",
 			LexiconFilename:    filepath.Join(lexiconPath, "NWL18.txt"),
 			Dawg:               LoadOrMakeDawg(lexiconPath, "NWL18", false),
@@ -99,7 +133,7 @@ func LexiconMappings(cfg *mcconfig.Config) ([]LexiconSymbolDefinition, LexiconMa
 			LetterDistribution: englishLD,
 			Difficulties:       createDifficultyMap(lexiconPath, "NWL18"),
 		},
-		"NWL20": LexiconInfo{
+		{
 			LexiconName:        "NWL20",
 			LexiconFilename:    filepath.Join(lexiconPath, "NWL20.txt"),
 			Dawg:               LoadOrMakeDawg(lexiconPath, "NWL20", false),
@@ -109,7 +143,10 @@ func LexiconMappings(cfg *mcconfig.Config) ([]LexiconSymbolDefinition, LexiconMa
 			LetterDistribution: englishLD,
 			Difficulties:       createDifficultyMap(lexiconPath, "NWL20"),
 		},
-		"OSPS42": LexiconInfo{
+	}
+
+	ospsFamily := []*LexiconInfo{
+		{
 			LexiconName:        "OSPS42",
 			LexiconFilename:    filepath.Join(lexiconPath, "OSPS42.txt"),
 			Dawg:               LoadOrMakeDawg(lexiconPath, "OSPS42", false),
@@ -118,7 +155,7 @@ func LexiconMappings(cfg *mcconfig.Config) ([]LexiconSymbolDefinition, LexiconMa
 			DescriptiveName:    "Polska Federacja Scrabble - Update 42",
 			LetterDistribution: polishLD,
 		},
-		"OSPS44": LexiconInfo{
+		{
 			LexiconName:        "OSPS44",
 			LexiconFilename:    filepath.Join(lexiconPath, "OSPS44.txt"),
 			Dawg:               LoadOrMakeDawg(lexiconPath, "OSPS44", false),
@@ -127,7 +164,10 @@ func LexiconMappings(cfg *mcconfig.Config) ([]LexiconSymbolDefinition, LexiconMa
 			DescriptiveName:    "Polska Federacja Scrabble - Update 44",
 			LetterDistribution: polishLD,
 		},
-		"Deutsch": LexiconInfo{
+	}
+
+	deutschFamily := []*LexiconInfo{
+		{
 			LexiconName:        "Deutsch",
 			LexiconFilename:    filepath.Join(lexiconPath, "Deutsch.txt"),
 			Dawg:               LoadOrMakeDawg(lexiconPath, "Deutsch", false),
@@ -136,36 +176,29 @@ func LexiconMappings(cfg *mcconfig.Config) ([]LexiconSymbolDefinition, LexiconMa
 			DescriptiveName:    "Scrabble®-Turnierliste - based on Duden 28th edition",
 			LetterDistribution: germanLD,
 		},
-		// Legacy lexica used by some helper scripts:
-		"OWL2": LexiconInfo{
-			LexiconName:        "OWL2",
-			LexiconFilename:    filepath.Join(lexiconPath, "OWL2.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "OWL2", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "OWL2", true),
-			LexiconIndex:       4,
-			DescriptiveName:    "OWL2",
-			LetterDistribution: englishLD,
-		},
-		"America": LexiconInfo{
-			LexiconName:        "America",
-			LexiconFilename:    filepath.Join(lexiconPath, "America.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "America", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "America", true),
-			LexiconIndex:       7,
-			DescriptiveName:    "America",
-			LetterDistribution: englishLD,
-		},
-		"CSW12": LexiconInfo{
-			LexiconName:        "CSW12",
-			LexiconFilename:    filepath.Join(lexiconPath, "CSW12.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "CSW12", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "CSW12", true),
-			LexiconIndex:       6,
-			DescriptiveName:    "CSW12",
-			LetterDistribution: englishLD,
+	}
+
+	frenchFamily := []*LexiconInfo{
+		{
+			LexiconName:        "FRA20",
+			LexiconFilename:    filepath.Join(lexiconPath, "FRA20.txt"),
+			Dawg:               LoadOrMakeDawg(lexiconPath, "FRA20", false),
+			RDawg:              LoadOrMakeDawg(lexiconPath, "FRA20", true),
+			DescriptiveName:    "French 2020 lexicon",
+			LetterDistribution: frenchLD,
 		},
 	}
-	return symbols, lexiconMap
+
+	lexiconMap := LexiconMap{
+		FamilyCSW:     cswFamily,
+		FamilyFISE:    fiseFamily,
+		FamilyTWL:     twlFamily,
+		FamilyOSPS:    ospsFamily,
+		FamilyDeutsch: deutschFamily,
+		FamilyFrench:  frenchFamily,
+	}
+
+	return lexiconMap
 }
 
 /*

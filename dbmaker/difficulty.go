@@ -25,9 +25,7 @@ func createDifficultyMap(lexiconPath string, lexiconName string) map[string]int 
 		defer f.Close()
 		log.Info().Msgf("using difficulty file: %v", filename)
 		lines, err := csv.NewReader(f).ReadAll()
-		if err != nil {
-			panic(err)
-		}
+		exitIfError(err)
 		header := lines[0]
 		qidx := -1
 		aidx := -1
@@ -46,9 +44,7 @@ func createDifficultyMap(lexiconPath string, lexiconName string) map[string]int 
 			// Each quantile starts with `q` so remove that from the string
 			// before conversion.
 			rating, err := strconv.Atoi(line[qidx][1:])
-			if err != nil {
-				panic(err)
-			}
+			exitIfError(err)
 			// quantiles are 0-based; it's nicer to have a range from 1 to 100 inclusive:
 			dm[line[aidx]] = rating + 1
 		}
@@ -73,20 +69,16 @@ func alphagramDifficulty(alphagram string, difficulties map[string]int) int {
 	return diff
 }
 
-func loadDifficulty(db *sql.DB, lexInfo LexiconInfo) {
+func loadDifficulty(db *sql.DB, lexInfo *LexiconInfo) {
 
 	rows, err := db.Query(`
 		SELECT alphagram FROM alphagrams WHERE length BETWEEN 7 AND 8
 	`)
-	if err != nil {
-		log.Fatal().Err(err).Msg("")
-	}
+	exitIfError(err)
 	defer rows.Close()
 
 	tx, err := db.Begin()
-	if err != nil {
-		log.Fatal().Err(err).Msg("")
-	}
+	exitIfError(err)
 
 	updateQuery := `
 		UPDATE alphagrams SET difficulty = ? WHERE alphagram = ?
@@ -103,12 +95,11 @@ func loadDifficulty(db *sql.DB, lexInfo LexiconInfo) {
 	}
 	i := 0
 	updateStmt, err := tx.Prepare(updateQuery)
+	exitIfError(err)
 	for _, alph := range alphagrams {
 		d := alphagramDifficulty(alph.alphagram, lexInfo.Difficulties)
 		_, err := updateStmt.Exec(d, alph.alphagram)
-		if err != nil {
-			log.Fatal().Err(err).Msg("")
-		}
+		exitIfError(err)
 		i++
 		if i%10000 == 0 {
 			log.Debug().Msgf("%d...", i)

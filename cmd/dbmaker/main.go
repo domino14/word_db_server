@@ -73,21 +73,21 @@ func main() {
 	// MkdirAll will make any intermediate dirs but fail gracefully if they exist.
 	os.MkdirAll(filepath.Join(cfg.MacondoConfig.LexiconPath, "dawg"), os.ModePerm)
 	os.MkdirAll(cfg.outputDir, os.ModePerm)
-	symbols, lexiconMap := dbmaker.LexiconMappings(&cfg.MacondoConfig)
+	lexiconMap := dbmaker.LexiconMappings(&cfg.MacondoConfig)
 
 	if cfg.migrateDB != "" {
-		info, ok := lexiconMap[cfg.migrateDB]
-		if !ok {
-			log.Error().Msg("That lexicon is not supported")
+		info, err := lexiconMap.GetLexiconInfo(cfg.migrateDB)
+		if err != nil {
+			log.Err(err).Msg("That lexicon is not supported")
 			return
 		}
 		dbmaker.MigrateLexiconDatabase(cfg.migrateDB, info)
 	} else if cfg.fixDefsOn != "" {
 		fixDefinitions(cfg.fixDefsOn, lexiconMap)
 	} else if cfg.fixSymbolsOn != "" {
-		fixSymbols(cfg.fixSymbolsOn, lexiconMap, symbols)
+		fixSymbols(cfg.fixSymbolsOn, lexiconMap)
 	} else {
-		makeDbs(cfg.dbs, lexiconMap, symbols, cfg.outputDir, cfg.forceCreate)
+		makeDbs(cfg.dbs, lexiconMap, cfg.outputDir, cfg.forceCreate)
 	}
 }
 
@@ -97,37 +97,36 @@ func fixDefinitions(dbToFixDefs string, lexiconMap dbmaker.LexiconMap) {
 	dbmaker.FixDefinitions(dbToFixDefs, lexiconMap)
 }
 
-func fixSymbols(dbToFixSymbols string, lexiconMap dbmaker.LexiconMap,
-	symbols []dbmaker.LexiconSymbolDefinition) {
+func fixSymbols(dbToFixSymbols string, lexiconMap dbmaker.LexiconMap) {
 
 	// open existing databases but new dictionary files/dawgs etc
 	// and apply lex symbols.
-	dbmaker.FixLexiconSymbols(dbToFixSymbols, lexiconMap, symbols)
+	dbmaker.FixLexiconSymbols(dbToFixSymbols, lexiconMap)
 }
 
 func makeDbs(dbsToMake string, lexiconMap dbmaker.LexiconMap,
-	symbols []dbmaker.LexiconSymbolDefinition, outputDir string,
-	forceCreation bool) {
+	outputDir string, forceCreation bool) {
 
 	dbs := []string{}
 	if dbsToMake != "" {
 		dbs = strings.Split(dbsToMake, ",")
 	} else {
-		for name := range lexiconMap {
-			dbs = append(dbs, name)
-		}
+		panic("must provide a list of dbs to make")
 	}
-	for name, info := range lexiconMap {
-		if !stringInSlice(name, dbs) {
-			log.Info().Msgf("%v was not in list of dbs, skipping...", name)
+
+	for _, db := range dbs {
+		info, err := lexiconMap.GetLexiconInfo(db)
+		if err != nil {
+			log.Err(err).Msgf("%v was not in list of dbs, skipping...", db)
 			continue
 		}
 		if info.Dawg == nil || info.Dawg.GetAlphabet() == nil {
-			log.Info().Msgf("%v was not supplied, skipping...", name)
+			log.Info().Msgf("%v was not supplied, skipping...", db)
 			continue
 		}
 		info.Initialize()
-		dbmaker.CreateLexiconDatabase(name, info, symbols, lexiconMap,
+		dbmaker.CreateLexiconDatabase(db, info, lexiconMap,
 			outputDir, !forceCreation)
 	}
+
 }

@@ -1,6 +1,8 @@
 package dbmaker
 
 import (
+	"errors"
+
 	"github.com/domino14/macondo/alphabet"
 	"github.com/domino14/macondo/gaddag"
 )
@@ -16,6 +18,68 @@ type LexiconInfo struct {
 	Difficulties       map[string]int
 	Playabilities      map[string]int
 	subChooseCombos    [][]uint64
+}
+
+type LexiconFamily []*LexiconInfo
+
+type FamilyName string
+
+const (
+	FamilyCSW     FamilyName = "CSW"
+	FamilyFISE               = "FISE"
+	FamilyTWL                = "TWL"
+	FamilyOSPS               = "OSPS"
+	FamilyDeutsch            = "Deutsch"
+	FamilyFrench             = "FRA"
+)
+
+type LexiconMap map[FamilyName]LexiconFamily
+
+const (
+	CSWOnlySymbol       = "#"
+	TWLOnlySymbol       = "$"
+	LexiconUpdateSymbol = "+"
+)
+
+func (m LexiconMap) GetLexiconInfo(lexiconName string) (*LexiconInfo, error) {
+	// Just do a naive linear search.
+
+	for _, f := range m {
+		for _, i := range f {
+			if i.LexiconName == lexiconName {
+				return i, nil
+			}
+		}
+	}
+	return nil, errors.New("not found")
+}
+
+func (m LexiconMap) familyName(lexiconName string) (FamilyName, error) {
+	for fn, f := range m {
+		for _, i := range f {
+			if i.LexiconName == lexiconName {
+				return fn, nil
+			}
+		}
+	}
+	return "", errors.New("not found")
+}
+
+func (m LexiconMap) newestInFamily(family FamilyName) *LexiconInfo {
+	return m[family][len(m[family])-1]
+}
+
+func (m LexiconMap) priorLexicon(family FamilyName, lexiconName string) (*LexiconInfo, error) {
+	for idx, i := range m[family] {
+		if i.LexiconName == lexiconName {
+			if idx > 0 {
+				return m[family][idx-1], nil
+			} else {
+				return nil, errors.New("no prior lexicon")
+			}
+		}
+	}
+	return nil, errors.New("lexicon not found")
 }
 
 // Initialize the LexiconInfo data structure for a new lexicon,
