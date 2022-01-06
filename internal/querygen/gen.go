@@ -58,7 +58,7 @@ ORDER BY word
 `
 
 const DeletedWordQuery = `
-SELECT word, length
+SELECT word
 FROM deletedwords WHERE %s
 %s
 ORDER BY word
@@ -80,6 +80,7 @@ type Query struct {
 	template     string
 	rendered     string
 	expandedForm bool
+	qtype        QueryType
 }
 
 func (q *Query) String() string {
@@ -110,6 +111,7 @@ func NewQuery(bp []interface{}, qt QueryType) *Query {
 		bindParams:   bp,
 		template:     template,
 		expandedForm: expandedForm,
+		qtype:        qt,
 	}
 }
 
@@ -449,4 +451,8 @@ func (qg *QueryGen) Generate() ([]*Query, error) {
 
 func (qg *QueryGen) LexiconName() string {
 	return qg.lexiconName
+}
+
+func (qg *QueryGen) Type() QueryType {
+	return qg.queryType
 }

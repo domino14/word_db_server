@@ -248,7 +248,6 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo *LexiconInfo, lexMap 
 				deletedWords = append(deletedWords, word)
 			}
 		}
-		tx.Commit()
 	}
 
 	deletedWordInsertQuery := `
@@ -257,7 +256,7 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo *LexiconInfo, lexMap 
 
 	if len(deletedWords) > 0 {
 		sort.Strings(deletedWords)
-		tx, err = db.Begin()
+		tx, err := db.Begin()
 		exitIfError(err)
 
 		wordStmt, err := tx.Prepare(deletedWordInsertQuery)
@@ -320,15 +319,13 @@ func FixDefinitions(lexiconName string, lexMap LexiconMap) {
 
 	for word, def := range definitions {
 		_, err := defStmt.Exec(def, word)
-		if err != nil {
-			log.Fatal().Err(err).Msg("")
-		}
+		exitIfError(err)
 	}
 
 	tx.Commit()
 
-	defer defStmt.Close()
-	defer db.Close()
+	defStmt.Close()
+	db.Close()
 
 }
 

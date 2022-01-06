@@ -15,8 +15,6 @@ github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ3
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/domino14/macondo v0.4.5-0.20210407024756-886889e5aa0f h1:iIJ04LpADrbqjHOO5AePk74Tw5pUMYr6noUtbPyOAbc=
-github.com/domino14/macondo v0.4.5-0.20210407024756-886889e5aa0f/go.mod h1:PrS4/yiDGFM65QpBVqa6tJm5UJ7m5QU8BeGPqeRsv2Q=
 github.com/domino14/macondo v0.4.5-0.20211229210705-78c256ddfc8d h1:BxJKRXDqEJ7Y5TBLxlNCaA2g/To9RiHdB2xcPRLKNwE=
 github.com/domino14/macondo v0.4.5-0.20211229210705-78c256ddfc8d/go.mod h1:PrS4/yiDGFM65QpBVqa6tJm5UJ7m5QU8BeGPqeRsv2Q=
 github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
