@@ -1,8 +1,4 @@
-This folder contains the .proto file(s) and auto-generated files. The auto-generated files were created as follows:
-
-```
-protoc --twirp_out=. --go_out=. ./rpc/wordsearcher/searcher.proto
-```
+This folder contains the .proto file(s) and auto-generated files. Run `go generate` in this directory to generate the auto-generated go/twirp files.
 
 Python client/definition files can be created like this:
 

@@ -74,6 +74,7 @@ message SearchRequest {
         // More alphagram searches
         DIFFICULTY_RANGE = 17;
         PLAYABILITY_RANGE = 18;
+        DELETED_WORD = 19;
     }
 
     enum NotInLexCondition {
