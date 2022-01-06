@@ -59,6 +59,13 @@ func createQueryGen(req *pb.SearchRequest, cfg *mcconfig.Config, maxChunkSize in
 	} else {
 		queryType = querygen.AlphagramsAndWords
 	}
+
+	for _, p := range req.Searchparams {
+		if p.Condition == pb.SearchRequest_DELETED_WORD {
+			queryType = querygen.DeletedWords
+		}
+	}
+
 	qgen := querygen.NewQueryGen(lexName, queryType, req.Searchparams[1:], maxChunkSize, cfg)
 	log.Debug().Msgf("Creating new querygen with lexicon name %v, search params %v, expand %v",
 		lexName, req.Searchparams[1:], req.Expand)
