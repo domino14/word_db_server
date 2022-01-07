@@ -32,7 +32,7 @@ func (s *Server) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchR
 	}
 	log.Debug().Msgf("Generated queries %v", queries)
 
-	alphagrams, err := combineQueryResults(queries, db, req.Expand)
+	alphagrams, err := combineQueryResults(queries, db, req.Expand, qgen.Type())
 	if err != nil {
 		return nil, err
 	}
@@ -59,6 +59,14 @@ func createQueryGen(req *pb.SearchRequest, cfg *mcconfig.Config, maxChunkSize in
 	} else {
 		queryType = querygen.AlphagramsAndWords
 	}
+	// overwrite the queryType (essentially ignore the expand parameter)
+	// if we are searching the deleted word table.
+	for _, p := range req.Searchparams {
+		if p.Condition == pb.SearchRequest_DELETED_WORD {
+			queryType = querygen.DeletedWords
+		}
+	}
+
 	qgen := querygen.NewQueryGen(lexName, queryType, req.Searchparams[1:], maxChunkSize, cfg)
 	log.Debug().Msgf("Creating new querygen with lexicon name %v, search params %v, expand %v",
 		lexName, req.Searchparams[1:], req.Expand)
@@ -70,7 +78,7 @@ func createQueryGen(req *pb.SearchRequest, cfg *mcconfig.Config, maxChunkSize in
 	return qgen, nil
 }
 
-func combineQueryResults(queries []*querygen.Query, db *sql.DB, expand bool) (
+func combineQueryResults(queries []*querygen.Query, db *sql.DB, expand bool, qtype querygen.QueryType) (
 	[]*pb.Alphagram, error) {
 
 	alphagrams := []*pb.Alphagram{}
@@ -80,14 +88,14 @@ func combineQueryResults(queries []*querygen.Query, db *sql.DB, expand bool) (
 		if err != nil {
 			return nil, err
 		}
-		alphagrams = append(alphagrams, processQuestionRows(rows, expand)...)
+		alphagrams = append(alphagrams, processQuestionRows(rows, expand, qtype)...)
 		rows.Close()
 	}
 
 	return alphagrams, nil
 }
 
-func processQuestionRows(rows *sql.Rows, expanded bool) []*pb.Alphagram {
+func processQuestionRows(rows *sql.Rows, expanded bool, qtype querygen.QueryType) []*pb.Alphagram {
 	alphagrams := []*pb.Alphagram{}
 	start := time.Now()
 
@@ -99,6 +107,11 @@ func processQuestionRows(rows *sql.Rows, expanded bool) []*pb.Alphagram {
 		numColumns = 11
 	} else {
 		numColumns = 2
+	}
+	// Ignore expand if we're dealing with DeletedWords.
+	// DeletedWords come from a special table, have no alphagrams, definitions, etc.
+	if qtype == querygen.DeletedWords {
+		numColumns = 1
 	}
 	// We are using raw bytes here because scanning is slow otherwise.
 	rawBuffer = make([]sql.RawBytes, numColumns)

@@ -57,6 +57,13 @@ FROM words WHERE %s
 ORDER BY word
 `
 
+const DeletedWordQuery = `
+SELECT word
+FROM deletedwords WHERE %s
+%s
+ORDER BY word
+`
+
 type QueryType uint8
 
 const (
@@ -64,6 +71,7 @@ const (
 	AlphagramsOnly
 	WordsOnly
 	AlphagramsAndWords
+	DeletedWords
 )
 
 // Query is a struct that encapsulates a set of bind parameters and a template.
@@ -72,6 +80,7 @@ type Query struct {
 	template     string
 	rendered     string
 	expandedForm bool
+	qtype        QueryType
 }
 
 func (q *Query) String() string {
@@ -94,12 +103,15 @@ func NewQuery(bp []interface{}, qt QueryType) *Query {
 		template = UnexpandedQuery
 	case WordsOnly:
 		template = WordInfoQuery
+	case DeletedWords:
+		template = DeletedWordQuery
 	}
 
 	return &Query{
 		bindParams:   bp,
 		template:     template,
 		expandedForm: expandedForm,
+		qtype:        qt,
 	}
 }
 
@@ -140,6 +152,10 @@ func alphasFromWordList(words []string, dist *alphabet.LetterDistribution) []str
 // query template.
 func (q *Query) Render(whereClauses []string, limitOffsetClause string) {
 	where := strings.Join(whereClauses, " AND ")
+	if where == "" && q.template == DeletedWordQuery {
+		// This should only happen for deleted words.
+		where = "1=1"
+	}
 	q.rendered = fmt.Sprintf(q.template, where, limitOffsetClause)
 }
 
@@ -168,7 +184,10 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 		if minmax == nil {
 			return nil, errors.New("minmax not provided for length request")
 		}
-		return NewWhereBetweenClause("alphagrams", "length", minmax), nil
+		if qg.queryType != DeletedWords {
+			return NewWhereBetweenClause("alphagrams", "length", minmax), nil
+		}
+		return NewWhereBetweenClause("deletedwords", "length", minmax), nil
 
 	case wordsearcher.SearchRequest_NUMBER_OF_ANAGRAMS:
 		minmax := sp.GetMinmax()
@@ -256,19 +275,23 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 		// the list of alphagrams and use ALPHAGRAM_LIST.
 	case wordsearcher.SearchRequest_WORD_LIST:
 		return NewWhereInClause("words", "word", sp), nil
+
+	case wordsearcher.SearchRequest_DELETED_WORD:
+		// handled elsewhere
+		return nil, nil
+
 	default:
 		return nil, fmt.Errorf("unhandled search request condition: %v", condition)
 
 	}
-	return nil, nil
 }
 
 func isMutexCondition(condition wordsearcher.SearchRequest_Condition) bool {
-	// a "list condition" is a condition that requires the query generator
+	// a "mutex condition" is a condition that requires the query generator
 	// to generate a "where ... in (?, .., ?)" query. We can't have more than
 	// one of these per query otherwise it gets really complicated.
-	// Note that probability_limit is not a list condition, but we return
-	// true anyway because we can't combine this condition with any list conditions.
+	// Note that probability_limit is not a mutex condition, but we return
+	// true anyway because we can't combine this condition with any mutex conditions.
 	switch condition {
 	case wordsearcher.SearchRequest_PROBABILITY_LIST,
 		wordsearcher.SearchRequest_ALPHAGRAM_LIST,
@@ -285,6 +308,8 @@ func isMutexCondition(condition wordsearcher.SearchRequest_Condition) bool {
 func (qg *QueryGen) Validate() error {
 	numMutexDescriptions := 0
 	conditionOrderProblem := false
+	deletedWordCondition := false
+	lengthCondition := false
 	for idx, param := range qg.searchParams {
 		if isMutexCondition(param.Condition) {
 			if idx != len(qg.searchParams)-1 {
@@ -292,7 +317,25 @@ func (qg *QueryGen) Validate() error {
 			}
 			numMutexDescriptions++
 		}
+		if param.Condition == wordsearcher.SearchRequest_DELETED_WORD {
+			deletedWordCondition = true
+		}
+		if param.Condition == wordsearcher.SearchRequest_LENGTH {
+			lengthCondition = true
+		}
 	}
+
+	if deletedWordCondition {
+		// lexicon, deleted_word, and at most one other condition, and it must be length
+		if len(qg.searchParams) > 3 {
+			return errors.New("deleted word condition cannot be combined with anything other than length")
+		} else if len(qg.searchParams) == 3 {
+			if !lengthCondition {
+				return errors.New("you can only use deleted word conditions with length conditions")
+			}
+		}
+	}
+
 	if numMutexDescriptions > 1 {
 		return errors.New("mutually exclusive search conditions not allowed")
 	}
@@ -395,6 +438,8 @@ func (qg *QueryGen) Generate() ([]*Query, error) {
 		} else {
 			renderedLOClause = ""
 		}
+		log.Debug().Interface("bindParams", bindParams).Interface("rwc", rwc).Interface("renderedLOClause", renderedLOClause).
+			Msg("bd")
 		query := NewQuery(bindParams, qg.queryType)
 		query.Render(rwc, renderedLOClause)
 		queries = append(queries, query)
@@ -406,4 +451,8 @@ func (qg *QueryGen) Generate() ([]*Query, error) {
 
 func (qg *QueryGen) LexiconName() string {
 	return qg.lexiconName
+}
+
+func (qg *QueryGen) Type() QueryType {
+	return qg.queryType
 }

@@ -100,6 +100,9 @@ func mergeInputWordInfo(req *pb.SearchResponse, cfg *mcconfig.Config,
 	}
 	log.Debug().Msgf("Generated word queries %v", queries)
 	words, err := combineWordQueryResults(queries, db)
+	if err != nil {
+		return nil, err
+	}
 	// Take all the words and match them with the input alphagrams.
 	for _, word := range words {
 		q := wordToAlphagramDict[word.Word]
