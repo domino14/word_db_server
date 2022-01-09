@@ -160,6 +160,9 @@ func processQuestionRows(rows *sql.Rows, expanded bool, qtype querygen.QueryType
 				difficulty = toint32(col)
 			}
 		}
+		if qtype == querygen.DeletedWords {
+			alphagram = word
+		}
 
 		alpha := &pb.Alphagram{
 			Alphagram:    alphagram,
