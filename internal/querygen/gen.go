@@ -324,12 +324,11 @@ func (qg *QueryGen) Validate() error {
 			lengthCondition = true
 		}
 	}
-
 	if deletedWordCondition {
-		// lexicon, deleted_word, and at most one other condition, and it must be length
-		if len(qg.searchParams) > 3 {
+		// deleted_word, and at most one other condition, and it must be length
+		if len(qg.searchParams) > 2 {
 			return errors.New("deleted word condition cannot be combined with anything other than length")
-		} else if len(qg.searchParams) == 3 {
+		} else if len(qg.searchParams) == 2 {
 			if !lengthCondition {
 				return errors.New("you can only use deleted word conditions with length conditions")
 			}

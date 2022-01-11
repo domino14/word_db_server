@@ -148,8 +148,7 @@ func combineWordQueryResults(queries []*querygen.Query, db *sql.DB) ([]*pb.Word,
 
 func processAlphagramRows(rows *sql.Rows) []*pb.Alphagram {
 	alphagrams := []*pb.Alphagram{}
-	var rawBuffer []sql.RawBytes
-	rawBuffer = make([]sql.RawBytes, 4)
+	rawBuffer := make([]sql.RawBytes, 4)
 	scanCallArgs := make([]interface{}, len(rawBuffer))
 	for i := range rawBuffer {
 		scanCallArgs[i] = &rawBuffer[i]
@@ -188,8 +187,7 @@ func processAlphagramRows(rows *sql.Rows) []*pb.Alphagram {
 
 func processWordRows(rows *sql.Rows) []*pb.Word {
 	words := []*pb.Word{}
-	var rawBuffer []sql.RawBytes
-	rawBuffer = make([]sql.RawBytes, 8)
+	rawBuffer := make([]sql.RawBytes, 8)
 	scanCallArgs := make([]interface{}, len(rawBuffer))
 	for i := range rawBuffer {
 		scanCallArgs[i] = &rawBuffer[i]
