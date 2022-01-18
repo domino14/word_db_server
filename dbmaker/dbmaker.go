@@ -200,8 +200,10 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo *LexiconInfo, lexMap 
 			log.Debug().Msgf("%d...", idx)
 		}
 		wl := len([]rune(alph.alphagram))
-		if wl <= 15 {
+		if wl <= 15 && wl >= 2 {
 			probs[wl]++
+		} else {
+			continue
 		}
 		lexSymbolsList := []string{}
 		for _, word := range alph.words {
