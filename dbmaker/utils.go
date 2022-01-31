@@ -164,6 +164,15 @@ func LexiconMappings(cfg *mcconfig.Config) LexiconMap {
 			DescriptiveName:    "Polska Federacja Scrabble - Update 44",
 			LetterDistribution: polishLD,
 		},
+		{
+			LexiconName:        "OSPS46",
+			LexiconFilename:    filepath.Join(lexiconPath, "OSPS46.txt"),
+			Dawg:               LoadOrMakeDawg(lexiconPath, "OSPS46", false),
+			RDawg:              LoadOrMakeDawg(lexiconPath, "OSPS46", true),
+			LexiconIndex:       20,
+			DescriptiveName:    "Polska Federacja Scrabble - Update 46",
+			LetterDistribution: polishLD,
+		},
 	}
 
 	deutschFamily := []*LexiconInfo{
