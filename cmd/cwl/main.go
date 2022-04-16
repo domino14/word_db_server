@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	BritishDict  = "CSW19"
+	BritishDict  = "CSW21"
 	AmericanDict = "NWL20"
 )
 
@@ -110,6 +110,9 @@ func main() {
 		Mode:    anagramMode,
 		Expand:  true,
 	})
+	if err != nil {
+		log.Fatal().Err(err).Msg("")
+	}
 
 	outputWords, amOnly, britOnly := merge(amResp, britResp)
 	sort.Sort(ByLonger{outputWords})
