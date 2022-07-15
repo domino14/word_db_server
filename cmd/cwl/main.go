@@ -118,7 +118,7 @@ func main() {
 	sort.Sort(ByLonger{outputWords})
 	printWords(outputWords)
 	if cfg.showStats {
-		fmt.Printf("\u001b[32mTotal: %v -- In %v: %v -- In %v: %v -- British-only: %v -- American-only: %v\033[0m",
+		fmt.Printf("\u001b[32mTotal: %v -- In %v: %v -- In %v: %v -- British-only: %v -- American-only: %v\033[0m\n",
 			len(outputWords), AmericanDict, len(outputWords)-britOnly, BritishDict,
 			len(outputWords)-amOnly, britOnly, amOnly)
 	}
@@ -167,7 +167,7 @@ func printWords(words []*pb.Word) {
 	var Red = "\u001b[31m"
 	var Blue = "\u001b[34m"
 
-	for idx, word := range words {
+	for _, word := range words {
 		color := ""
 		reset := ""
 		if strings.Contains(word.LexiconSymbols, "#") {
@@ -178,10 +178,7 @@ func printWords(words []*pb.Word) {
 			reset = Reset
 		}
 		def := strings.Replace(word.Definition, "\n", " / ", -1)
-		fmt.Printf("%v%v%v: %v%v", color, word.Word, word.LexiconSymbols,
+		fmt.Printf("%v%v%v: %v%v\n", color, word.Word, word.LexiconSymbols,
 			def, reset)
-		if idx != len(words)-1 {
-			fmt.Printf("\n")
-		}
 	}
 }

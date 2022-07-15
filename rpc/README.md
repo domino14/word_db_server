@@ -41,24 +41,6 @@ A more complicated JSON body:
          }
       },
       {
-         "condition":13,
-         "alphamap":{
-            "values":{
-               "ABC":{
-                  "words":[
-                     "CAB"
-                  ]
-               },
-               "AIMN":{
-                  "words":[
-                     "MAIN",
-                     "MINA"
-                  ]
-               }
-            }
-         }
-      },
-      {
          "condition":7,
          "stringarray":{
             "values":[

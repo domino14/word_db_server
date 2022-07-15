@@ -274,6 +274,8 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 		// HAS_TAGS can be implemented in the caller, basically, just generate
 		// the list of alphagrams and use ALPHAGRAM_LIST.
 	case wordsearcher.SearchRequest_WORD_LIST:
+		// NOTE: this is not meant to be used for a SearchServer Search request.
+		// It will break. It is only used by the "expand" query.
 		return NewWhereInClause("words", "word", sp), nil
 
 	case wordsearcher.SearchRequest_DELETED_WORD:

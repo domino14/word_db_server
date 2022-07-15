@@ -20,7 +20,7 @@ func (s *Server) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchR
 	if err != nil {
 		return nil, err
 	}
-	db, err := s.getDbConnection(qgen.LexiconName())
+	db, err := getDbConnection(s.Config.LexiconPath, qgen.LexiconName())
 	if err != nil {
 		return nil, err
 	}

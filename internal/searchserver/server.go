@@ -27,12 +27,12 @@ type Server struct {
 	Config *mcconfig.Config
 }
 
-func (s *Server) getDbConnection(lexName string) (*sql.DB, error) {
+func getDbConnection(lexPath, lexName string) (*sql.DB, error) {
 	// Try to connect to the db.
 	if lexName == "" {
 		return nil, errors.New("lexicon not specified")
 	}
-	fileName := filepath.Join(s.Config.LexiconPath, "db", lexName+".db")
+	fileName := filepath.Join(lexPath, "db", lexName+".db")
 	_, err := os.Stat(fileName)
 	if os.IsNotExist(err) {
 		return nil, fmt.Errorf("the lexicon %v is not supported", lexName)

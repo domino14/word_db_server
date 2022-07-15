@@ -243,7 +243,7 @@ func TestProbabilityListMultipleQueries(t *testing.T) {
 	s := &Server{
 		Config: &DefaultConfig,
 	}
-	db, err := s.getDbConnection(qgen.LexiconName())
+	db, err := getDbConnection(s.Config.LexiconPath, qgen.LexiconName())
 	assert.Nil(t, err)
 	defer db.Close()
 	queries, err := qgen.Generate()
@@ -274,7 +274,7 @@ func TestProbabilityListMultipleQueriesOther(t *testing.T) {
 	s := &Server{
 		Config: &DefaultConfig,
 	}
-	db, _ := s.getDbConnection(qgen.LexiconName())
+	db, _ := getDbConnection(s.Config.LexiconPath, qgen.LexiconName())
 	defer db.Close()
 	queries, _ := qgen.Generate()
 	// There should be 3 queries (max chunk size is 2 and we have 9 elements in list)

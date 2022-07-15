@@ -40,13 +40,18 @@ func main() {
 	anagramServer := &anagramserver.Server{
 		MacondoConfig: &cfg.MacondoConfig,
 	}
+	wordSearchServer := &searchserver.WordSearchServer{
+		Config: &cfg.MacondoConfig,
+	}
 
 	searchHandler := wordsearcher.NewQuestionSearcherServer(searchServer, nil)
 	anagramHandler := wordsearcher.NewAnagrammerServer(anagramServer, nil)
-
+	wordSearchHandler := wordsearcher.NewWordSearcherServer(wordSearchServer, nil)
 	mux := http.NewServeMux()
 	mux.Handle(searchHandler.PathPrefix(), searchHandler)
 	mux.Handle(anagramHandler.PathPrefix(), anagramHandler)
+	mux.Handle(wordSearchHandler.PathPrefix(), wordSearchHandler)
+	mux.Handle("/plainsearch", plainTextHandler(wordSearchServer, anagramServer))
 
 	srv := &http.Server{
 		Addr:    ":8180",

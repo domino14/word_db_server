@@ -2,7 +2,6 @@ module github.com/domino14/word_db_server
 
 require (
 	github.com/domino14/macondo v0.4.5-0.20211229210705-78c256ddfc8d
-	github.com/golang/protobuf v1.5.2
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/namsral/flag v1.7.4-pre
 	github.com/rs/zerolog v1.26.1
@@ -21,4 +20,4 @@ require (
 	lukechampine.com/frand v1.4.2 // indirect
 )
 
-go 1.17
+go 1.18

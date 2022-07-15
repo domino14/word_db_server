@@ -19,7 +19,7 @@ func (s *Server) Expand(ctx context.Context, req *pb.SearchResponse) (*pb.Search
 	defer timeTrack(time.Now(), "expand")
 	lexName := req.Lexicon
 	// Get all the alphagrams from the search request.
-	db, err := s.getDbConnection(lexName)
+	db, err := getDbConnection(s.Config.LexiconPath, lexName)
 	if err != nil {
 		return nil, err
 	}
