@@ -14,7 +14,7 @@ import (
 // Useful for moo.bot
 
 const (
-	txtLimit = 480
+	txtLimit = 375
 )
 
 func writeError(w http.ResponseWriter, err string) {
