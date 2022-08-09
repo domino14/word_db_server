@@ -34,6 +34,9 @@ jobs:
       - run:
           name: Install ssl
           command: apk add --update ca-certificates openssl && update-ca-certificates
+      - run:
+          name: Install curl
+          command: apk --no-cache add curl
       - run: if [ ! -n "$(grep "^github.com " ~/.ssh/known_hosts)" ]; then ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null; fi
       - run:
           name: Clone lexicon repo
