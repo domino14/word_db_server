@@ -13,7 +13,6 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/domino14/macondo/alphabet"
-	"github.com/domino14/macondo/anagrammer"
 	mcconfig "github.com/domino14/macondo/config"
 	"github.com/domino14/macondo/gaddag"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
@@ -25,12 +24,25 @@ var randSource = rand.New(rand.NewSource(time.Now().UnixNano()))
 // to generate a challenge with too many or too few answers, or if
 // an answer has already been generated.
 func try(nBlanks int32, dist *alphabet.LetterDistribution, wordLength int32,
-	dawg *gaddag.SimpleDawg, maxSolutions int32, answerMap map[string]bool) (
+	thedawg *gaddag.SimpleDawg, maxSolutions int32, answerMap map[string]bool) (
 	*pb.Alphagram, error) {
 
-	alph := dawg.GetAlphabet()
+	alph := thedawg.GetAlphabet()
 	rack := alphabet.MachineWord(genRack(dist, wordLength, nBlanks, alph))
-	answers := anagrammer.Anagram(rack.UserVisible(alph), dawg, anagrammer.ModeExact)
+
+	da := dawg.DaPool.Get().(*gaddag.DawgAnagrammer)
+	defer dawg.DaPool.Put(da)
+
+	err := da.InitForMachineWord(thedawg, rack)
+	if err != nil {
+		return nil, err
+	}
+	var answers []string
+	da.Anagram(thedawg, func(word alphabet.MachineWord) error {
+		answers = append(answers, word.UserVisible(alph))
+		return nil
+	})
+
 	if len(answers) == 0 || int32(len(answers)) > maxSolutions {
 		// Try again!
 		return nil, fmt.Errorf("too many or few answers: %v %v",

@@ -24,23 +24,27 @@ var DefaultConfig = mcconfig.Config{
 }
 
 func TestMain(m *testing.M) {
-	os.MkdirAll("/tmp/dawg", os.ModePerm)
-	if _, err := os.Stat("/tmp/dawg/America.dawg"); os.IsNotExist(err) {
-		gaddagmaker.GenerateDawg(filepath.Join(DefaultConfig.LexiconPath, "America.txt"), true, true, false)
-		os.Rename("out.dawg", "/tmp/dawg/America.dawg")
+	for _, lex := range []string{"America", "FISE2"} {
+		gdgPath := filepath.Join(DefaultConfig.LexiconPath, "dawg", lex+".dawg")
+		if _, err := os.Stat(gdgPath); os.IsNotExist(err) {
+			gaddagmaker.GenerateDawg(filepath.Join(DefaultConfig.LexiconPath, lex+".txt"), true, true, false)
+			err = os.Rename("out.dawg", gdgPath)
+			if err != nil {
+				panic(err)
+			}
+		}
 	}
-	if _, err := os.Stat("/tmp/dawg/FISE2.dawg"); os.IsNotExist(err) {
-		gaddagmaker.GenerateDawg(filepath.Join(DefaultConfig.LexiconPath, "FISE2.txt"), true, true, false)
-		os.Rename("out.dawg", "/tmp/dawg/FISE2.dawg")
-	}
-
 	os.Exit(m.Run())
 }
 
+func loadDawg(lexName string) (*gaddag.SimpleDawg, error) {
+	return gaddag.LoadDawg(filepath.Join(DefaultConfig.LexiconPath, "dawg", lexName+".dawg"))
+}
+
 func TestRacks(t *testing.T) {
-	eng, err := gaddag.LoadDawg("/tmp/dawg/America.dawg")
+	eng, err := loadDawg("America")
 	assert.Nil(t, err)
-	span, err := gaddag.LoadDawg("/tmp/dawg/FISE2.dawg")
+	span, err := loadDawg("FISE2")
 	assert.Nil(t, err)
 	engAlph := eng.GetAlphabet()
 	spanAlph := span.GetAlphabet()
@@ -99,11 +103,7 @@ func TestGenBlanks(t *testing.T) {
 		NumWith_2Blanks: 6,
 	}
 
-	cfgCopy := DefaultConfig
-	// Read dawgs created in this lexicon path
-	cfgCopy.LexiconPath = "/tmp"
-
-	qs, err := GenerateBlanks(ctx, &cfgCopy, req)
+	qs, err := GenerateBlanks(ctx, &DefaultConfig, req)
 	if err != nil {
 		t.Errorf("GenBlanks returned an error: %v", err)
 	}

@@ -2,11 +2,18 @@ package dawg
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/domino14/macondo/alphabet"
 	mcconfig "github.com/domino14/macondo/config"
 	"github.com/domino14/macondo/gaddag"
 )
+
+var DaPool = sync.Pool{
+	New: func() interface{} {
+		return &gaddag.DawgAnagrammer{}
+	},
+}
 
 type dawgInfo struct {
 	dawg *gaddag.SimpleDawg

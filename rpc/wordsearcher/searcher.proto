@@ -127,6 +127,7 @@ message AnagramRequest {
   enum Mode {
     EXACT = 0;
     BUILD = 1;
+    SUPER = 2; // *
   }
   string lexicon = 1;
   string letters = 2;

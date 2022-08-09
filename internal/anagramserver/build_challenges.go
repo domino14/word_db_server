@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/domino14/macondo/alphabet"
-	"github.com/domino14/macondo/anagrammer"
 	mcconfig "github.com/domino14/macondo/config"
+	"github.com/domino14/macondo/gaddag"
 	"github.com/domino14/word_db_server/internal/dawg"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 	"github.com/rs/zerolog/log"
@@ -26,14 +26,34 @@ func GenerateBuildChallenge(ctx context.Context, cfg *mcconfig.Config, req *pb.B
 	tries := 0
 	alph := dinfo.GetDawg().GetAlphabet()
 
+	da := dawg.DaPool.Get().(*gaddag.DawgAnagrammer)
+	defer dawg.DaPool.Put(da)
+
+	thisdawg := dinfo.GetDawg()
+
 	doIteration := func() (*pb.Alphagram, error) {
 		rack := alphabet.MachineWord(genRack(dinfo.GetDist(), req.MaxLength, 0, alph))
 		tries++
-		answers := anagrammer.Anagram(rack.UserVisible(alph), dinfo.GetDawg(), anagrammer.ModeExact)
-		if len(answers) == 0 && req.RequireLengthSolution {
+		err := da.InitForMachineWord(thisdawg, rack)
+		if err != nil {
+			return nil, err
+		}
+		nanag := 0
+		da.Anagram(thisdawg, func(word alphabet.MachineWord) error {
+			nanag += 1
+			return nil
+		})
+
+		if nanag == 0 && req.RequireLengthSolution {
 			return nil, fmt.Errorf("exact required and not found: %v", rack.UserVisible(alph))
 		}
-		answers = anagrammer.Anagram(rack.UserVisible(alph), dinfo.GetDawg(), anagrammer.ModeBuild)
+
+		var answers []string
+		da.Subanagram(thisdawg, func(word alphabet.MachineWord) error {
+			answers = append(answers, word.UserVisible(alph))
+			return nil
+		})
+
 		if int32(len(answers)) < req.MinSolutions {
 			return nil, fmt.Errorf("total answers fewer than min solutions: %v < %v",
 				len(answers), req.MinSolutions)

@@ -1,7 +1,9 @@
 # Golang CircleCI 2.0 configuration file
 #
 # Check https://circleci.com/docs/2.0/language-go/ for more details
-version: 2
+version: 2.1
+orbs:
+  discord: antonioned/discord@0.1.0
 jobs:
   build:
     environment:
@@ -28,10 +30,13 @@ jobs:
             - "bf:37:1b:e1:b2:b0:ec:20:92:43:20:86:40:7c:c4:e0"
       - run:
           name: Install git, ssh, and build-base (for tests)
-          command: apk update && apk upgrade && apk add git openssh build-base
+          command: apk update && apk upgrade && apk add git openssh build-base bash
       - run:
           name: Install ssl
           command: apk add --update ca-certificates openssl && update-ca-certificates
+      - run:
+          name: Install curl
+          command: apk --no-cache add curl
       - run: if [ ! -n "$(grep "^github.com " ~/.ssh/known_hosts)" ]; then ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null; fi
       - run:
           name: Clone lexicon repo
@@ -49,6 +54,10 @@ jobs:
 
       # specify any bash command here prefixed with `run: `
       - run: go test -v ./...
+      - discord/status: &discord-webhook-setting
+          webhook: "${DISCORD_WEBHOOK}"
+          success_message: ":tada: A $CIRCLE_JOB job has succeeded! (Branch: $CIRCLE_BRANCH)"
+          failure_message: ":red_circle: A $CIRCLE_JOB job has failed! (Branch: $CIRCLE_BRANCH)"
 
   build_docker:
     working_directory: /go/src/github.com/domino14/word_db_server
@@ -61,7 +70,7 @@ jobs:
       - setup_remote_docker
       - run:
           name: Install curl
-          command: apk --no-cache add curl
+          command: apk --no-cache add curl bash
       - run:
           name: Install Docker client
           command: |
@@ -80,6 +89,7 @@ jobs:
             docker login --username domino14 --password $DOCKER_PASSWORD
             docker push domino14/word_db_server:$CIRCLE_SHA1
             docker push domino14/word_db_server:latest
+      - discord/status: *discord-webhook-setting
 
   deploy:
     working_directory: /opt/
@@ -97,6 +107,7 @@ jobs:
       - run: git clone git@github.com:domino14/aerolith-k8s
       - run: doctl kubernetes cluster kubeconfig save k8s-clusterf
       - run: cd aerolith-k8s && inv deploy-wdb-server
+      - discord/status: *discord-webhook-setting
 
 workflows:
   version: 2
