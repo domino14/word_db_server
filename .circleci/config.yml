@@ -30,7 +30,7 @@ jobs:
             - "bf:37:1b:e1:b2:b0:ec:20:92:43:20:86:40:7c:c4:e0"
       - run:
           name: Install git, ssh, and build-base (for tests)
-          command: apk update && apk upgrade && apk add git openssh build-base
+          command: apk update && apk upgrade && apk add git openssh build-base bash
       - run:
           name: Install ssl
           command: apk add --update ca-certificates openssl && update-ca-certificates
@@ -70,7 +70,7 @@ jobs:
       - setup_remote_docker
       - run:
           name: Install curl
-          command: apk --no-cache add curl
+          command: apk --no-cache add curl bash
       - run:
           name: Install Docker client
           command: |
