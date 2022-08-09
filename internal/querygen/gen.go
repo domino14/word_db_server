@@ -8,8 +8,8 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/domino14/macondo/alphabet"
-	"github.com/domino14/macondo/anagrammer"
 	mcconfig "github.com/domino14/macondo/config"
+	"github.com/domino14/macondo/gaddag"
 
 	"github.com/domino14/word_db_server/internal/dawg"
 	"github.com/domino14/word_db_server/rpc/wordsearcher"
@@ -247,8 +247,20 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 		if err != nil {
 			return nil, err
 		}
+		thisdawg := dawgInfo.GetDawg()
+		alph := thisdawg.GetAlphabet()
 
-		words := anagrammer.Anagram(letters, dawgInfo.GetDawg(), anagrammer.ModeExact)
+		da := dawg.DaPool.Get().(*gaddag.DawgAnagrammer)
+		defer dawg.DaPool.Put(da)
+		err = da.InitForString(thisdawg, letters)
+		if err != nil {
+			return nil, err
+		}
+		var words []string
+		da.Anagram(thisdawg, func(word alphabet.MachineWord) error {
+			words = append(words, word.UserVisible(alph))
+			return nil
+		})
 		if len(words) == 0 {
 			return nil, errors.New("no words matched this anagram search")
 		}

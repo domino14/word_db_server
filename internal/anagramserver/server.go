@@ -6,8 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/domino14/macondo/anagrammer"
+	"github.com/domino14/macondo/alphabet"
 	mcconfig "github.com/domino14/macondo/config"
+	"github.com/domino14/macondo/gaddag"
 
 	"github.com/domino14/word_db_server/internal/dawg"
 	"github.com/domino14/word_db_server/internal/searchserver"
@@ -66,18 +67,35 @@ func (s *Server) Anagram(ctx context.Context, req *pb.AnagramRequest) (
 		return nil, err
 	}
 
-	var mode anagrammer.AnagramMode
+	da := dawg.DaPool.Get().(*gaddag.DawgAnagrammer)
+	defer dawg.DaPool.Put(da)
+
+	var anagFunc func(dawg gaddag.GenericDawg, f func(alphabet.MachineWord) error) error
 	switch req.Mode {
 	case pb.AnagramRequest_EXACT:
-		mode = anagrammer.ModeExact
+		anagFunc = da.Anagram
 	case pb.AnagramRequest_BUILD:
-		mode = anagrammer.ModeBuild
+		anagFunc = da.Subanagram
+	case pb.AnagramRequest_SUPER:
+		anagFunc = da.Superanagram
 	}
 	if strings.Count(req.Letters, "?") > 8 {
 		// XXX: Add auth key?
-		return nil, errors.New("query too complex")
+		return nil, errors.New("query too complex; try using Super-anagram mode instead")
 	}
-	sols := anagrammer.Anagram(req.Letters, dawgInfo.GetDawg(), mode)
+	theDawg := dawgInfo.GetDawg()
+	alph := theDawg.GetAlphabet()
+	err = da.InitForString(theDawg, strings.ToUpper(req.Letters))
+	if err != nil {
+		return nil, err
+	}
+	var sols []string
+
+	anagFunc(theDawg, func(word alphabet.MachineWord) error {
+		sols = append(sols, word.UserVisible(alph))
+		return nil
+	})
+
 	var words []*pb.Word
 	if req.Expand && len(sols) > 0 {
 		// Build an expand request.

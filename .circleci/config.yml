@@ -1,7 +1,9 @@
 # Golang CircleCI 2.0 configuration file
 #
 # Check https://circleci.com/docs/2.0/language-go/ for more details
-version: 2
+version: 2.1
+orbs:
+  discord: antonioned/discord@0.1.0
 jobs:
   build:
     environment:
@@ -49,6 +51,10 @@ jobs:
 
       # specify any bash command here prefixed with `run: `
       - run: go test -v ./...
+      - discord/status: &discord-webhook-setting
+          webhook: "${DISCORD_WEBHOOK}"
+          success_message: ":tada: A $CIRCLE_JOB job has succeeded! (Branch: $CIRCLE_BRANCH)"
+          failure_message: ":red_circle: A $CIRCLE_JOB job has failed! (Branch: $CIRCLE_BRANCH)"
 
   build_docker:
     working_directory: /go/src/github.com/domino14/word_db_server
@@ -80,6 +86,7 @@ jobs:
             docker login --username domino14 --password $DOCKER_PASSWORD
             docker push domino14/word_db_server:$CIRCLE_SHA1
             docker push domino14/word_db_server:latest
+      - discord/status: *discord-webhook-setting
 
   deploy:
     working_directory: /opt/
@@ -97,6 +104,7 @@ jobs:
       - run: git clone git@github.com:domino14/aerolith-k8s
       - run: doctl kubernetes cluster kubeconfig save k8s-clusterf
       - run: cd aerolith-k8s && inv deploy-wdb-server
+      - discord/status: *discord-webhook-setting
 
 workflows:
   version: 2
