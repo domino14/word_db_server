@@ -1,7 +1,8 @@
 module github.com/domino14/word_db_server
 
 require (
-	github.com/domino14/macondo v0.4.9-0.20220807185614-e0aa11494491
+	github.com/domino14/macondo v0.4.13
+	github.com/matryer/is v1.4.0
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/namsral/flag v1.7.4-pre
 	github.com/rs/zerolog v1.26.1

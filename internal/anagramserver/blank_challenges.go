@@ -133,13 +133,13 @@ func genRack(dist *alphabet.LetterDistribution, wordLength, blanks int32,
 	rack := make([]alphabet.MachineLetter, wordLength)
 	idx := int32(0)
 	draw := func(avoidBlanks bool) alphabet.MachineLetter {
-		var tiles []alphabet.MachineLetter
+		tiles := make([]alphabet.MachineLetter, 1)
 		if avoidBlanks {
-			for tiles, _ = bag.Draw(1); tiles[0] == alphabet.BlankMachineLetter; {
-				tiles, _ = bag.Draw(1)
+			for _ = bag.Draw(1, tiles); tiles[0] == alphabet.BlankMachineLetter; {
+				_ = bag.Draw(1, tiles)
 			}
 		} else {
-			tiles, _ = bag.Draw(1)
+			_ = bag.Draw(1, tiles)
 		}
 		return tiles[0]
 	}

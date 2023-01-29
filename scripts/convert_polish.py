@@ -1,4 +1,3 @@
-# XXX: This is a Python 2 script! That is bad!
 """
 Convert the raw osps(x)utf.txt file into something that can be read
 by the definition maker.
@@ -40,7 +39,7 @@ def convert(filepath):
 
     with open(filepath + '-out', 'w') as f:
         items = actual_dict.items()
-        items.sort(key=lambda item: item[0])
+        items = sorted(items, key=lambda item: item[0])
         for item in items:
             f.write(item[0] + expand_definition(item[1]))
             f.write('\n')
