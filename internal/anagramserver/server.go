@@ -10,6 +10,7 @@ import (
 	mcconfig "github.com/domino14/macondo/config"
 	"github.com/domino14/macondo/gaddag"
 
+	anagrammer "github.com/domino14/word_db_server/internal/anagramserver/legacyanagrammer"
 	"github.com/domino14/word_db_server/internal/dawg"
 	"github.com/domino14/word_db_server/internal/searchserver"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
@@ -66,35 +67,43 @@ func (s *Server) Anagram(ctx context.Context, req *pb.AnagramRequest) (
 	if err != nil {
 		return nil, err
 	}
-
-	da := dawg.DaPool.Get().(*gaddag.DawgAnagrammer)
-	defer dawg.DaPool.Put(da)
-
-	var anagFunc func(dawg gaddag.GenericDawg, f func(alphabet.MachineWord) error) error
-	switch req.Mode {
-	case pb.AnagramRequest_EXACT:
-		anagFunc = da.Anagram
-	case pb.AnagramRequest_BUILD:
-		anagFunc = da.Subanagram
-	case pb.AnagramRequest_SUPER:
-		anagFunc = da.Superanagram
-	}
-	if strings.Count(req.Letters, "?") > 8 {
-		// XXX: Add auth key?
-		return nil, errors.New("query too complex; try using Super-anagram mode instead")
-	}
-	theDawg := dawgInfo.GetDawg()
-	alph := theDawg.GetAlphabet()
-	err = da.InitForString(theDawg, strings.ToUpper(req.Letters))
-	if err != nil {
-		return nil, err
-	}
 	var sols []string
+	if strings.Contains(req.Letters, "[") {
+		// defer to the legacy anagrammer. This is a "range" query.
+		if req.Mode == pb.AnagramRequest_SUPER {
+			return nil, errors.New("cannot use super-anagram mode with range queries")
+		}
+		sols = anagrammer.Anagram(req.Letters, dawgInfo.GetDawg(), anagrammer.AnagramMode(req.Mode))
+	} else {
 
-	anagFunc(theDawg, func(word alphabet.MachineWord) error {
-		sols = append(sols, word.UserVisible(alph))
-		return nil
-	})
+		da := dawg.DaPool.Get().(*gaddag.DawgAnagrammer)
+		defer dawg.DaPool.Put(da)
+
+		var anagFunc func(dawg gaddag.GenericDawg, f func(alphabet.MachineWord) error) error
+		switch req.Mode {
+		case pb.AnagramRequest_EXACT:
+			anagFunc = da.Anagram
+		case pb.AnagramRequest_BUILD:
+			anagFunc = da.Subanagram
+		case pb.AnagramRequest_SUPER:
+			anagFunc = da.Superanagram
+		}
+		if strings.Count(req.Letters, "?") > 8 {
+			// XXX: Add auth key?
+			return nil, errors.New("query too complex; try using Super-anagram mode instead")
+		}
+		theDawg := dawgInfo.GetDawg()
+		alph := theDawg.GetAlphabet()
+		err = da.InitForString(theDawg, strings.ToUpper(req.Letters))
+		if err != nil {
+			return nil, err
+		}
+
+		anagFunc(theDawg, func(word alphabet.MachineWord) error {
+			sols = append(sols, word.UserVisible(alph))
+			return nil
+		})
+	}
 
 	var words []*pb.Word
 	if req.Expand && len(sols) > 0 {
