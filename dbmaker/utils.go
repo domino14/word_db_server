@@ -173,6 +173,15 @@ func LexiconMappings(cfg *mcconfig.Config) LexiconMap {
 			DescriptiveName:    "Polska Federacja Scrabble - Update 46",
 			LetterDistribution: polishLD,
 		},
+		{
+			LexiconName:        "OSPS48",
+			LexiconFilename:    filepath.Join(lexiconPath, "OSPS48.txt"),
+			Dawg:               LoadOrMakeDawg(lexiconPath, "OSPS48", false),
+			RDawg:              LoadOrMakeDawg(lexiconPath, "OSPS48", true),
+			LexiconIndex:       21,
+			DescriptiveName:    "Polska Federacja Scrabble - Update 48",
+			LetterDistribution: polishLD,
+		},
 	}
 
 	deutschFamily := []*LexiconInfo{
@@ -211,10 +220,10 @@ func LexiconMappings(cfg *mcconfig.Config) LexiconMap {
 }
 
 /*
-   GoLang: os.Rename() give error "invalid cross-device link" for Docker
-   container with Volumes.
-   MoveFile(source, destination) will work moving file between folders
-   https://gist.github.com/var23rav/23ae5d0d4d830aff886c3c970b8f6c6b
+GoLang: os.Rename() give error "invalid cross-device link" for Docker
+container with Volumes.
+MoveFile(source, destination) will work moving file between folders
+https://gist.github.com/var23rav/23ae5d0d4d830aff886c3c970b8f6c6b
 */
 func MoveFile(sourcePath, destPath string) error {
 	inputFile, err := os.Open(sourcePath)
