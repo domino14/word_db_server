@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/domino14/macondo/alphabet"
 	mcconfig "github.com/domino14/macondo/config"
 	"github.com/domino14/macondo/gaddag"
+	"github.com/domino14/macondo/tilemapping"
 
 	anagrammer "github.com/domino14/word_db_server/internal/anagramserver/legacyanagrammer"
 	"github.com/domino14/word_db_server/internal/dawg"
@@ -79,7 +79,7 @@ func (s *Server) Anagram(ctx context.Context, req *pb.AnagramRequest) (
 		da := dawg.DaPool.Get().(*gaddag.DawgAnagrammer)
 		defer dawg.DaPool.Put(da)
 
-		var anagFunc func(dawg gaddag.GenericDawg, f func(alphabet.MachineWord) error) error
+		var anagFunc func(dawg gaddag.GenericDawg, f func(tilemapping.MachineWord) error) error
 		switch req.Mode {
 		case pb.AnagramRequest_EXACT:
 			anagFunc = da.Anagram
@@ -99,7 +99,7 @@ func (s *Server) Anagram(ctx context.Context, req *pb.AnagramRequest) (
 			return nil, err
 		}
 
-		anagFunc(theDawg, func(word alphabet.MachineWord) error {
+		anagFunc(theDawg, func(word tilemapping.MachineWord) error {
 			sols = append(sols, word.UserVisible(alph))
 			return nil
 		})

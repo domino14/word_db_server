@@ -14,8 +14,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/domino14/macondo/alphabet"
-	"github.com/domino14/macondo/gaddag"
+	"github.com/domino14/macondo/tilemapping"
 
 	// sqlite3 db driver is needed for the word db maker
 	_ "github.com/mattn/go-sqlite3"
@@ -34,23 +33,33 @@ func (a *Alphagram) String() string {
 	return fmt.Sprintf("Alphagram: %s (%d)", a.alphagram, a.combinations)
 }
 
-func (a *Alphagram) pointValue(dist *alphabet.LetterDistribution) uint8 {
-	pts := uint8(0)
-	for _, rn := range a.alphagram {
-		pts += dist.PointValues[rn]
+func (a *Alphagram) pointValue(dist *tilemapping.LetterDistribution) int {
+	pts := 0
+
+	mls, err := tilemapping.ToMachineLetters(a.alphagram, dist.TileMapping())
+	if err != nil {
+		panic(err)
+	}
+	for _, ml := range mls {
+		pts += dist.Score(ml)
 	}
 	return pts
 }
 
-func (a *Alphagram) numVowels(dist *alphabet.LetterDistribution) uint8 {
+func (a *Alphagram) numVowels(dist *tilemapping.LetterDistribution) uint8 {
 	vowels := uint8(0)
-	vowelMap := map[rune]bool{}
+	vowelMap := map[tilemapping.MachineLetter]bool{}
 	for _, v := range dist.Vowels {
 		vowelMap[v] = true
 	}
 
-	for _, rn := range a.alphagram {
-		if vowelMap[rn] {
+	mls, err := tilemapping.ToMachineLetters(a.alphagram, dist.TileMapping())
+	if err != nil {
+		panic(err)
+	}
+
+	for _, ml := range mls {
+		if vowelMap[ml] {
 			vowels++
 		}
 	}
@@ -178,8 +187,7 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo *LexiconInfo, lexMap 
 	exitIfError(err)
 	defer alphStmt.Close()
 	defer wordStmt.Close()
-	dawg := lexiconInfo.Dawg
-	rDawg := lexiconInfo.RDawg
+	kwg := lexiconInfo.KWG
 
 	lexFamily, err := lexMap.familyName(lexiconName)
 	exitIfError(err)
@@ -403,12 +411,14 @@ func FixLexiconSymbols(lexiconName string, lexMap LexiconMap) {
 // a previous version of this program. At the minimum, the schema looks like:
 // sqlStmt := `
 // CREATE TABLE alphagrams (probability int, alphagram varchar(20),
-//     length int, combinations int, num_anagrams int);
+//
+//	length int, combinations int, num_anagrams int);
 //
 // CREATE TABLE words (word varchar(20), alphagram varchar(20),
-//     lexicon_symbols varchar(5), definition varchar(512),
-//     front_hooks varchar(26), back_hooks varchar(26),
-//     inner_front_hook int, inner_back_hook int);
+//
+//	lexicon_symbols varchar(5), definition varchar(512),
+//	front_hooks varchar(26), back_hooks varchar(26),
+//	inner_front_hook int, inner_back_hook int);
 //
 // CREATE INDEX alpha_index on alphagrams(alphagram);
 // CREATE INDEX prob_index on alphagrams(probability, length);
@@ -476,7 +486,7 @@ func MigrateLexiconDatabase(lexiconName string, lexiconInfo *LexiconInfo) {
 
 }
 
-func migrateToV2(db *sql.DB, dist *alphabet.LetterDistribution) {
+func migrateToV2(db *sql.DB, dist *tilemapping.LetterDistribution) {
 	// Version 2 has the following improvements:
 	// An index on point value, and point value
 	// An index on num anagrams, and num anagrams
@@ -663,8 +673,8 @@ func migrateToV6(db *sql.DB) {
 	exitIfError(err)
 }
 
-func sortedHooks(hooks []rune, dist *alphabet.LetterDistribution) string {
-	w := alphabet.Word{Word: string(hooks), Dist: dist}
+func sortedHooks(hooks []rune, dist *tilemapping.LetterDistribution) string {
+	w := tilemapping.Word{Word: string(hooks), Dist: dist}
 	return w.MakeAlphagram()
 }
 
@@ -731,7 +741,7 @@ func alphaMapValues(theMap map[string]Alphagram) []Alphagram {
 }
 
 func populateAlphsDefs(filename string, combinations func(string, bool) uint64,
-	dist *alphabet.LetterDistribution) (map[string]string, map[string]Alphagram) {
+	dist *tilemapping.LetterDistribution) (map[string]string, map[string]Alphagram) {
 
 	definitions := make(map[string]*FullDefinition)
 	alphagrams := make(map[string]Alphagram)
@@ -741,7 +751,7 @@ func populateAlphsDefs(filename string, combinations func(string, bool) uint64,
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
 		if len(fields) > 0 {
-			word := alphabet.Word{Word: strings.ToUpper(fields[0]), Dist: dist}
+			word := tilemapping.Word{Word: strings.ToUpper(fields[0]), Dist: dist}
 			definition := ""
 			if len(fields) > 1 {
 				definition = strings.Join(fields[1:], " ")

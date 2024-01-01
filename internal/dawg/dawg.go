@@ -4,9 +4,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/domino14/macondo/alphabet"
 	mcconfig "github.com/domino14/macondo/config"
 	"github.com/domino14/macondo/gaddag"
+	"github.com/domino14/macondo/tilemapping"
 )
 
 var DaPool = sync.Pool{
@@ -17,14 +17,14 @@ var DaPool = sync.Pool{
 
 type dawgInfo struct {
 	dawg *gaddag.SimpleDawg
-	dist *alphabet.LetterDistribution
+	dist *tilemapping.LetterDistribution
 }
 
 func (di *dawgInfo) GetDawg() *gaddag.SimpleDawg {
 	return di.dawg
 }
 
-func (di *dawgInfo) GetDist() *alphabet.LetterDistribution {
+func (di *dawgInfo) GetDist() *tilemapping.LetterDistribution {
 	return di.dist
 }
 
@@ -44,7 +44,7 @@ func GetDawgInfo(cfg *mcconfig.Config, lexicon string) (*dawgInfo, error) {
 		distName = "english"
 	}
 
-	dist, err := alphabet.Get(cfg, distName)
+	dist, err := tilemapping.GetDistribution(cfg, distName)
 	if err != nil {
 		return nil, err
 	}

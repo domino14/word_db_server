@@ -7,9 +7,8 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/domino14/macondo/alphabet"
 	mcconfig "github.com/domino14/macondo/config"
-	"github.com/domino14/macondo/gaddag"
+	"github.com/domino14/macondo/tilemapping"
 
 	anagrammer "github.com/domino14/word_db_server/internal/anagramserver/legacyanagrammer"
 	"github.com/domino14/word_db_server/internal/dawg"
@@ -133,10 +132,10 @@ func (q *Query) Expanded() bool {
 	return q.expandedForm
 }
 
-func alphasFromWordList(words []string, dist *alphabet.LetterDistribution) []string {
+func alphasFromWordList(words []string, dist *tilemapping.LetterDistribution) []string {
 	alphaSet := map[string]bool{}
 	for _, word := range words {
-		w := alphabet.Word{
+		w := tilemapping.Word{
 			Word: word,
 			Dist: dist,
 		}
@@ -263,7 +262,7 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 			if err != nil {
 				return nil, err
 			}
-			da.Anagram(thisdawg, func(word alphabet.MachineWord) error {
+			da.Anagram(thisdawg, func(word tilemapping.MachineWord) error {
 				words = append(words, word.UserVisible(alph))
 				return nil
 			})

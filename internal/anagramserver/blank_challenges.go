@@ -12,9 +12,8 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/domino14/macondo/alphabet"
 	mcconfig "github.com/domino14/macondo/config"
-	"github.com/domino14/macondo/gaddag"
+	"github.com/domino14/macondo/tilemapping"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 )
 
@@ -23,12 +22,12 @@ var randSource = rand.New(rand.NewSource(time.Now().UnixNano()))
 // try tries to generate challenges. It returns an error if it fails
 // to generate a challenge with too many or too few answers, or if
 // an answer has already been generated.
-func try(nBlanks int32, dist *alphabet.LetterDistribution, wordLength int32,
+func try(nBlanks int32, dist *tilemapping.LetterDistribution, wordLength int32,
 	thedawg *gaddag.SimpleDawg, maxSolutions int32, answerMap map[string]bool) (
 	*pb.Alphagram, error) {
 
 	alph := thedawg.GetAlphabet()
-	rack := alphabet.MachineWord(genRack(dist, wordLength, nBlanks, alph))
+	rack := tilemapping.MachineWord(genRack(dist, wordLength, nBlanks, alph))
 
 	da := dawg.DaPool.Get().(*gaddag.DawgAnagrammer)
 	defer dawg.DaPool.Put(da)
@@ -38,7 +37,7 @@ func try(nBlanks int32, dist *alphabet.LetterDistribution, wordLength int32,
 		return nil, err
 	}
 	var answers []string
-	da.Anagram(thedawg, func(word alphabet.MachineWord) error {
+	da.Anagram(thedawg, func(word tilemapping.MachineWord) error {
 		answers = append(answers, word.UserVisible(alph))
 		return nil
 	})
@@ -56,7 +55,7 @@ func try(nBlanks int32, dist *alphabet.LetterDistribution, wordLength int32,
 	for _, answer := range answers {
 		answerMap[answer] = true
 	}
-	w := alphabet.Word{Word: rack.UserVisible(alph), Dist: dist}
+	w := tilemapping.Word{Word: rack.UserVisible(alph), Dist: dist}
 
 	return &pb.Alphagram{
 		Alphagram: w.MakeAlphagram(),
@@ -125,17 +124,17 @@ func GenerateBlanks(ctx context.Context, cfg *mcconfig.Config, req *pb.BlankChal
 }
 
 // genRack - Generate a random rack using `dist` and with `blanks` blanks.
-func genRack(dist *alphabet.LetterDistribution, wordLength, blanks int32,
-	alph *alphabet.Alphabet) []alphabet.MachineLetter {
+func genRack(dist *tilemapping.LetterDistribution, wordLength, blanks int32,
+	alph *tilemapping.TileMapping) []tilemapping.MachineLetter {
 
 	bag := dist.MakeBag()
 	// it's a bag of machine letters.
-	rack := make([]alphabet.MachineLetter, wordLength)
+	rack := make([]tilemapping.MachineLetter, wordLength)
 	idx := int32(0)
-	draw := func(avoidBlanks bool) alphabet.MachineLetter {
-		tiles := make([]alphabet.MachineLetter, 1)
+	draw := func(avoidBlanks bool) tilemapping.MachineLetter {
+		tiles := make([]tilemapping.MachineLetter, 1)
 		if avoidBlanks {
-			for _ = bag.Draw(1, tiles); tiles[0] == alphabet.BlankMachineLetter; {
+			for _ = bag.Draw(1, tiles); tiles[0] == 0; {
 				_ = bag.Draw(1, tiles)
 			}
 		} else {
@@ -149,7 +148,7 @@ func genRack(dist *alphabet.LetterDistribution, wordLength, blanks int32,
 		idx++
 	}
 	for ; idx < wordLength; idx++ {
-		rack[idx] = alphabet.BlankMachineLetter
+		rack[idx] = 0
 	}
 	return rack
 }

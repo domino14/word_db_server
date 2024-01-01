@@ -1,7 +1,3 @@
-// Package anagrammer uses a DAWG instead of a GADDAG to simplify the
-// algorithm and make it potentially faster - we don't need a GADDAG
-// to generate anagrams/subanagrams.
-//
 // This package generates anagrams and subanagrams and has an RPC
 // interface.
 // NOTE: This is a slower version of the dawg_anagrammer in the macondo dependency.
@@ -14,12 +10,11 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/domino14/macondo/alphabet"
-	"github.com/domino14/macondo/gaddag"
+	"github.com/domino14/macondo/tilemapping"
 	"github.com/rs/zerolog/log"
 )
 
-const BlankPos = alphabet.MaxAlphabetSize
+const BlankPos = tilemapping.MaxAlphabetSize
 
 type AnagramMode int
 
@@ -36,29 +31,29 @@ type AnagramStruct struct {
 
 type rangeBlank struct {
 	count       int
-	letterRange []alphabet.MachineLetter
+	letterRange []tilemapping.MachineLetter
 }
 
-// RackWrapper wraps an alphabet.Rack and adds helper data structures
+// RackWrapper wraps an tilemapping.Rack and adds helper data structures
 // to make it usable for anagramming.
 type RackWrapper struct {
-	rack        *alphabet.Rack
+	rack        *tilemapping.Rack
 	rangeBlanks []rangeBlank
 	numLetters  int
 }
 
-func makeRack(letters string, alph *alphabet.Alphabet) (*RackWrapper, error) {
-	bracketedLetters := []alphabet.MachineLetter{}
+func makeRack(letters string, alph *tilemapping.TileMapping) (*RackWrapper, error) {
+	bracketedLetters := []tilemapping.MachineLetter{}
 	parsingBracket := false
 
-	rack := alphabet.NewRack(alph)
+	rack := tilemapping.NewRack(alph)
 
-	convertedLetters := []alphabet.MachineLetter{}
+	convertedLetters := []tilemapping.MachineLetter{}
 	rb := []rangeBlank{}
 	numLetters := 0
 	for _, s := range letters {
-		if s == alphabet.BlankToken {
-			convertedLetters = append(convertedLetters, alphabet.BlankMachineLetter)
+		if s == tilemapping.BlankToken {
+			convertedLetters = append(convertedLetters, 0)
 			numLetters++
 			continue
 		}
@@ -70,7 +65,7 @@ func makeRack(letters string, alph *alphabet.Alphabet) (*RackWrapper, error) {
 				return nil, errors.New("badly formed search string")
 			}
 			parsingBracket = true
-			bracketedLetters = []alphabet.MachineLetter{}
+			bracketedLetters = []tilemapping.MachineLetter{}
 			continue
 		}
 		if s == ']' {
@@ -138,14 +133,14 @@ func Anagram(letters string, d *gaddag.SimpleDawg, mode AnagramMode) []string {
 	//return ahs.answerList
 }
 
-func dedupeAndTransformAnswers(answerList []string, alph *alphabet.Alphabet) []string {
+func dedupeAndTransformAnswers(answerList []string, alph *tilemapping.TileMapping) []string {
 	// Use a map to throw away duplicate answers (can happen with blanks)
 	// This seems to be significantly faster than allowing the anagramming
 	// goroutine to write directly to a map.
 	empty := struct{}{}
 	answers := make(map[string]struct{})
 	for _, answer := range answerList {
-		answers[alphabet.MachineWord(answer).UserVisible(alph)] = empty
+		answers[tilemapping.MachineWord(answer).UserVisible(alph)] = empty
 	}
 
 	// Turn the answers map into a string array.
@@ -159,12 +154,12 @@ func dedupeAndTransformAnswers(answerList []string, alph *alphabet.Alphabet) []s
 }
 
 // XXX: utf8.RuneCountInString is slow, but necessary to support unicode tiles.
-func anagramHelper(letter alphabet.MachineLetter, d *gaddag.SimpleDawg,
+func anagramHelper(letter tilemapping.MachineLetter, d *gaddag.SimpleDawg,
 	ahs *AnagramStruct, nodeIdx uint32, answerSoFar string, rw *RackWrapper) {
 
 	// log.Debug().Msgf("Anagram helper called with %v %v", letter, answerSoFar)
 	var nextNodeIdx uint32
-	var nextLetter alphabet.MachineLetter
+	var nextLetter tilemapping.MachineLetter
 
 	if d.InLetterSet(letter, nodeIdx) {
 		toCheck := answerSoFar + string(letter)
@@ -196,13 +191,13 @@ func anagram(ahs *AnagramStruct, d *gaddag.SimpleDawg, nodeIdx uint32,
 		if idx == BlankPos {
 			// log.Debug().Msgf("Blank is NOT range")
 
-			nlet := alphabet.MachineLetter(d.GetAlphabet().NumLetters())
-			for i := alphabet.MachineLetter(0); i < nlet; i++ {
+			nlet := tilemapping.MachineLetter(d.GetAlphabet().NumLetters())
+			for i := tilemapping.MachineLetter(0); i < nlet; i++ {
 				anagramHelper(i, d, ahs, nodeIdx, answerSoFar, rw)
 			}
 
 		} else {
-			letter := alphabet.MachineLetter(idx)
+			letter := tilemapping.MachineLetter(idx)
 			// log.Debug().Msgf("Found regular letter %v", letter)
 			anagramHelper(letter, d, ahs, nodeIdx, answerSoFar, rw)
 		}

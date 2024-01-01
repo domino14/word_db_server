@@ -6,12 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/rs/zerolog/log"
-
-	"github.com/domino14/macondo/alphabet"
 	mcconfig "github.com/domino14/macondo/config"
-	"github.com/domino14/macondo/gaddag"
-	"github.com/domino14/macondo/gaddagmaker"
+	"github.com/domino14/macondo/tilemapping"
 )
 
 const DeletionToken = "X"
@@ -20,23 +16,23 @@ func LexiconMappings(cfg *mcconfig.Config) LexiconMap {
 	// set LEXICON_PATH to something.
 	// For example "/Users/cesar/coding/webolith/words/" on my computer.
 
-	englishLD, err := alphabet.EnglishLetterDistribution(cfg)
+	englishLD, err := tilemapping.EnglishLetterDistribution(cfg)
 	if err != nil {
 		panic(err)
 	}
-	spanishLD, err := alphabet.SpanishLetterDistribution(cfg)
+	spanishLD, err := tilemapping.SpanishLetterDistribution(cfg)
 	if err != nil {
 		panic(err)
 	}
-	polishLD, err := alphabet.PolishLetterDistribution(cfg)
+	polishLD, err := tilemapping.PolishLetterDistribution(cfg)
 	if err != nil {
 		panic(err)
 	}
-	germanLD, err := alphabet.GermanLetterDistribution(cfg)
+	germanLD, err := tilemapping.GermanLetterDistribution(cfg)
 	if err != nil {
 		panic(err)
 	}
-	frenchLD, err := alphabet.FrenchLetterDistribution(cfg)
+	frenchLD, err := tilemapping.FrenchLetterDistribution(cfg)
 	if err != nil {
 		panic(err)
 	}
@@ -247,37 +243,4 @@ func MoveFile(sourcePath, destPath string) error {
 		return fmt.Errorf("Failed removing original file: %s", err)
 	}
 	return nil
-}
-
-func LoadOrMakeDawg(prefix, lexiconName string, reverse bool) *gaddag.SimpleDawg {
-	dawgfilename := lexiconName + ".dawg"
-	if reverse {
-		dawgfilename = lexiconName + "-r.dawg"
-	}
-
-	possibleDawg := filepath.Join(prefix, "dawg", dawgfilename)
-
-	d, err := gaddag.LoadDawg(possibleDawg)
-	if err == nil {
-		return d
-	}
-	// Otherwise, build it.
-	lexiconFilename := filepath.Join(prefix, lexiconName+".txt")
-	gd := gaddagmaker.GenerateDawg(lexiconFilename, true, true, reverse)
-	if gd.Root == nil {
-		// Gaddag could not be generated at all, maybe lexicon is missing.
-		log.Error().Err(err).Msg("")
-		return nil
-	}
-	// Otherwise, rename file
-	err = MoveFile("out.dawg", possibleDawg)
-	if err != nil {
-		panic(err)
-	}
-	// It should exist now.
-	d, err = gaddag.LoadDawg(possibleDawg)
-	if err != nil {
-		panic(err)
-	}
-	return d
 }

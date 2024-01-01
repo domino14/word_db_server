@@ -6,7 +6,7 @@ import (
 
 	mcconfig "github.com/domino14/macondo/config"
 
-	"github.com/domino14/macondo/alphabet"
+	"github.com/domino14/macondo/tilemapping"
 )
 
 var DefaultConfig = mcconfig.Config{
@@ -18,7 +18,7 @@ var DefaultConfig = mcconfig.Config{
 }
 
 func TestPopulate(t *testing.T) {
-	ld, err := alphabet.Get(&DefaultConfig, "english")
+	ld, err := tilemapping.GetDistribution(&DefaultConfig, "english")
 	if err != nil {
 		t.Error(err)
 	}
@@ -43,7 +43,7 @@ func TestPopulate(t *testing.T) {
 }
 
 func TestSortedHooks(t *testing.T) {
-	ld, err := alphabet.Get(&DefaultConfig, "spanish")
+	ld, err := tilemapping.GetDistribution(&DefaultConfig, "spanish")
 	if err != nil {
 		t.Error(err)
 	}
@@ -64,7 +64,7 @@ type alphaTestCase struct {
 }
 
 func TestPointValue(t *testing.T) {
-	ld, err := alphabet.Get(&DefaultConfig, "english")
+	ld, err := tilemapping.GetDistribution(&DefaultConfig, "english")
 	if err != nil {
 		t.Error(err)
 	}
@@ -93,7 +93,7 @@ func TestPointValue(t *testing.T) {
 }
 
 func TestNumVowels(t *testing.T) {
-	ld, err := alphabet.Get(&DefaultConfig, "english")
+	ld, err := tilemapping.GetDistribution(&DefaultConfig, "english")
 	if err != nil {
 		t.Error(err)
 	}

@@ -1,19 +1,14 @@
 package anagrammer
 
 import (
-	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/domino14/macondo/alphabet"
 	"github.com/domino14/macondo/config"
+	"github.com/domino14/macondo/tilemapping"
 	"github.com/matryer/is"
-
-	"github.com/domino14/macondo/gaddag"
-	"github.com/domino14/macondo/gaddagmaker"
 )
 
 var DefaultConfig = config.DefaultConfig()
@@ -99,34 +94,6 @@ func wordlistToSet(wl []string) map[string]struct{} {
 	return m
 }
 
-func TestMain(m *testing.M) {
-	for _, lex := range []string{"America", "FISE2", "CSW15", "CSW19"} {
-		gdgPath := filepath.Join(DefaultConfig.LexiconPath, "dawg", lex+".dawg")
-		if _, err := os.Stat(gdgPath); os.IsNotExist(err) {
-			gaddagmaker.GenerateDawg(filepath.Join(DefaultConfig.LexiconPath, lex+".txt"), true, true, false)
-			err = os.Rename("out.dawg", gdgPath)
-			if err != nil {
-				panic(err)
-			}
-		}
-	}
-	os.Exit(m.Run())
-}
-
-func TestSimpleAnagram(t *testing.T) {
-	gaddagmaker.GenerateDawg("test_files/small.txt", true, true, false)
-	d, err := gaddag.LoadDawg("out.dawg")
-	if err != nil {
-		panic(err)
-	}
-	for _, pair := range simpleAnagramTests {
-		answers := Anagram(pair.rack, d, ModeExact)
-		if !reflect.DeepEqual(wordlistToSet(answers), pair.answers) {
-			t.Error("For", pair.rack, "expected", pair.answers, "got", answers)
-		}
-	}
-}
-
 func TestAnagram(t *testing.T) {
 	path := filepath.Join(DefaultConfig.LexiconPath, "dawg", "America.dawg")
 	d, _ := gaddag.LoadDawg(path)
@@ -204,15 +171,15 @@ func TestAnagramFourBlanks(t *testing.T) {
 
 func TestMakeRack(t *testing.T) {
 	rack := "AE[JQXZ]NR?[KY]?"
-	alph := alphabet.EnglishAlphabet()
+	alph := tilemapping.EnglishAlphabet()
 	rw, err := makeRack(rack, alph)
 	is := is.New(t)
 	is.NoErr(err)
-	is.Equal(rw.rack, alphabet.RackFromString("AENR??", alph))
+	is.Equal(rw.rack, tilemapping.RackFromString("AENR??", alph))
 	is.Equal(rw.numLetters, 8)
 	is.Equal(rw.rangeBlanks, []rangeBlank{
-		{1, []alphabet.MachineLetter{9, 16, 23, 25}},
-		{1, []alphabet.MachineLetter{10, 24}},
+		{1, []tilemapping.MachineLetter{9, 16, 23, 25}},
+		{1, []tilemapping.MachineLetter{10, 24}},
 	})
 }
 

@@ -3,8 +3,8 @@ package dbmaker
 import (
 	"errors"
 
-	"github.com/domino14/macondo/alphabet"
-	"github.com/domino14/macondo/gaddag"
+	"github.com/domino14/macondo/kwg"
+	"github.com/domino14/macondo/tilemapping"
 )
 
 type LexiconInfo struct {
@@ -12,9 +12,8 @@ type LexiconInfo struct {
 	LexiconFilename    string
 	LexiconIndex       uint8
 	DescriptiveName    string
-	Dawg               *gaddag.SimpleDawg
-	RDawg              *gaddag.SimpleDawg
-	LetterDistribution *alphabet.LetterDistribution
+	KWG                *kwg.KWG
+	LetterDistribution *tilemapping.LetterDistribution
 	Difficulties       map[string]int
 	Playabilities      map[string]int
 	subChooseCombos    [][]uint64
@@ -89,7 +88,7 @@ func (l *LexiconInfo) Initialize() {
 	maxFrequency := uint8(0)
 	totalLetters := uint8(0)
 	r := uint8(1)
-	for _, value := range l.LetterDistribution.Distribution {
+	for _, value := range l.LetterDistribution.Distribution() {
 		freq := value
 		totalLetters += freq
 		if freq > maxFrequency {
@@ -133,7 +132,7 @@ func (l *LexiconInfo) Combinations(alphagram string, withBlanks bool) uint64 {
 			letters = append(letters, letter)
 			counts = append(counts, 1)
 			combos = append(combos,
-				l.subChooseCombos[l.LetterDistribution.Distribution[letter]])
+				l.subChooseCombos[l.LetterDistribution.Distribution()[letter]])
 
 		}
 	}
@@ -151,7 +150,7 @@ func (l *LexiconInfo) Combinations(alphagram string, withBlanks bool) uint64 {
 	// Calculate combinations with one blank
 	for i := 0; i < numLetters; i++ {
 		counts[i]--
-		thisCombo = l.subChooseCombos[l.LetterDistribution.Distribution['?']][1]
+		thisCombo = l.subChooseCombos[l.LetterDistribution.Distribution()['?']][1]
 		for j := 0; j < numLetters; j++ {
 			thisCombo *= combos[j][counts[j]]
 		}
@@ -166,7 +165,7 @@ func (l *LexiconInfo) Combinations(alphagram string, withBlanks bool) uint64 {
 				continue
 			}
 			counts[j]--
-			thisCombo = l.subChooseCombos[l.LetterDistribution.Distribution['?']][2]
+			thisCombo = l.subChooseCombos[l.LetterDistribution.Distribution()['?']][2]
 
 			for k := 0; k < numLetters; k++ {
 				thisCombo *= combos[k][counts[k]]
