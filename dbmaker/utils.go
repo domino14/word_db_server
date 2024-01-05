@@ -6,53 +6,60 @@ import (
 	"os"
 	"path/filepath"
 
-	mcconfig "github.com/domino14/macondo/config"
-	"github.com/domino14/macondo/tilemapping"
+	"github.com/domino14/word-golib/kwg"
+	"github.com/domino14/word-golib/tilemapping"
+	"github.com/rs/zerolog/log"
 )
 
 const DeletionToken = "X"
 
-func LexiconMappings(cfg *mcconfig.Config) LexiconMap {
-	// set LEXICON_PATH to something.
-	// For example "/Users/cesar/coding/webolith/words/" on my computer.
+func loadKWG(dataPath, lexName string) *kwg.KWG {
+	k, err := kwg.Get(map[string]any{"data-path": dataPath}, lexName)
+	if err != nil {
+		log.Err(err).Str("lexName", lexName).Msg("unable to load kwg")
+	}
+	return k
+}
+
+func LexiconMappings(dataPath string) LexiconMap {
+	cfg := map[string]any{"data-path": dataPath}
 
 	englishLD, err := tilemapping.EnglishLetterDistribution(cfg)
 	if err != nil {
 		panic(err)
 	}
-	spanishLD, err := tilemapping.SpanishLetterDistribution(cfg)
+	spanishLD, err := tilemapping.NamedLetterDistribution(cfg, "spanish")
 	if err != nil {
 		panic(err)
 	}
-	polishLD, err := tilemapping.PolishLetterDistribution(cfg)
+	polishLD, err := tilemapping.NamedLetterDistribution(cfg, "polish")
 	if err != nil {
 		panic(err)
 	}
-	germanLD, err := tilemapping.GermanLetterDistribution(cfg)
+	germanLD, err := tilemapping.NamedLetterDistribution(cfg, "german")
 	if err != nil {
 		panic(err)
 	}
-	frenchLD, err := tilemapping.FrenchLetterDistribution(cfg)
+	frenchLD, err := tilemapping.NamedLetterDistribution(cfg, "french")
 	if err != nil {
 		panic(err)
 	}
-	lexiconPath := cfg.LexiconPath
+
+	lexiconPath := filepath.Join(dataPath, "lexica")
 
 	cswFamily := []*LexiconInfo{
 		{
 			LexiconName:        "CSW12",
 			LexiconFilename:    filepath.Join(lexiconPath, "CSW12.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "CSW12", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "CSW12", true),
 			LexiconIndex:       6,
+			KWG:                loadKWG(dataPath, "CSW12"),
 			DescriptiveName:    "CSW12",
 			LetterDistribution: englishLD,
 		},
 		{
 			LexiconName:        "CSW15",
 			LexiconFilename:    filepath.Join(lexiconPath, "CSW15.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "CSW15", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "CSW15", true),
+			KWG:                loadKWG(dataPath, "CSW15"),
 			LexiconIndex:       1,
 			DescriptiveName:    "Collins 15",
 			LetterDistribution: englishLD,
@@ -60,8 +67,7 @@ func LexiconMappings(cfg *mcconfig.Config) LexiconMap {
 		{
 			LexiconName:        "CSW19",
 			LexiconFilename:    filepath.Join(lexiconPath, "CSW19.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "CSW19", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "CSW19", true),
+			KWG:                loadKWG(dataPath, "CSW19"),
 			LexiconIndex:       12,
 			DescriptiveName:    "Collins 2019",
 			LetterDistribution: englishLD,
@@ -70,8 +76,7 @@ func LexiconMappings(cfg *mcconfig.Config) LexiconMap {
 		{
 			LexiconName:        "CSW21",
 			LexiconFilename:    filepath.Join(lexiconPath, "CSW21.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "CSW21", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "CSW21", true),
+			KWG:                loadKWG(dataPath, "CSW21"),
 			LexiconIndex:       18,
 			DescriptiveName:    "Collins 2021",
 			LetterDistribution: englishLD,
@@ -83,8 +88,7 @@ func LexiconMappings(cfg *mcconfig.Config) LexiconMap {
 		{
 			LexiconName:        "FISE09",
 			LexiconFilename:    filepath.Join(lexiconPath, "FISE09.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "FISE09", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "FISE09", true),
+			KWG:                loadKWG(dataPath, "FISE09"),
 			LexiconIndex:       8,
 			DescriptiveName:    "Federación Internacional de Scrabble en Español",
 			LetterDistribution: spanishLD,
@@ -92,8 +96,7 @@ func LexiconMappings(cfg *mcconfig.Config) LexiconMap {
 		{
 			LexiconName:        "FISE2",
 			LexiconFilename:    filepath.Join(lexiconPath, "FISE2.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "FISE2", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "FISE2", true),
+			KWG:                loadKWG(dataPath, "FISE2"),
 			LexiconIndex:       10,
 			DescriptiveName:    "Federación Internacional de Scrabble en Español, 2017 Edition",
 			LetterDistribution: spanishLD,
@@ -104,8 +107,7 @@ func LexiconMappings(cfg *mcconfig.Config) LexiconMap {
 		{
 			LexiconName:        "OWL2",
 			LexiconFilename:    filepath.Join(lexiconPath, "OWL2.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "OWL2", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "OWL2", true),
+			KWG:                loadKWG(dataPath, "OWL2"),
 			LexiconIndex:       4,
 			DescriptiveName:    "OWL2",
 			LetterDistribution: englishLD,
@@ -113,8 +115,7 @@ func LexiconMappings(cfg *mcconfig.Config) LexiconMap {
 		{
 			LexiconName:        "America",
 			LexiconFilename:    filepath.Join(lexiconPath, "America.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "America", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "America", true),
+			KWG:                loadKWG(dataPath, "America"),
 			LexiconIndex:       7,
 			DescriptiveName:    "America",
 			LetterDistribution: englishLD,
@@ -122,8 +123,7 @@ func LexiconMappings(cfg *mcconfig.Config) LexiconMap {
 		{
 			LexiconName:        "NWL18",
 			LexiconFilename:    filepath.Join(lexiconPath, "NWL18.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "NWL18", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "NWL18", true),
+			KWG:                loadKWG(dataPath, "NWL18"),
 			LexiconIndex:       9,
 			DescriptiveName:    "NASPA Word List, 2020 Edition",
 			LetterDistribution: englishLD,
@@ -132,8 +132,7 @@ func LexiconMappings(cfg *mcconfig.Config) LexiconMap {
 		{
 			LexiconName:        "NWL20",
 			LexiconFilename:    filepath.Join(lexiconPath, "NWL20.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "NWL20", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "NWL20", true),
+			KWG:                loadKWG(dataPath, "NWL20"),
 			LexiconIndex:       15,
 			DescriptiveName:    "NASPA Word List, 2020 Edition",
 			LetterDistribution: englishLD,
@@ -145,8 +144,7 @@ func LexiconMappings(cfg *mcconfig.Config) LexiconMap {
 		{
 			LexiconName:        "OSPS42",
 			LexiconFilename:    filepath.Join(lexiconPath, "OSPS42.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "OSPS42", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "OSPS42", true),
+			KWG:                loadKWG(dataPath, "OSPS42"),
 			LexiconIndex:       14,
 			DescriptiveName:    "Polska Federacja Scrabble - Update 42",
 			LetterDistribution: polishLD,
@@ -154,8 +152,7 @@ func LexiconMappings(cfg *mcconfig.Config) LexiconMap {
 		{
 			LexiconName:        "OSPS44",
 			LexiconFilename:    filepath.Join(lexiconPath, "OSPS44.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "OSPS44", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "OSPS44", true),
+			KWG:                loadKWG(dataPath, "OSPS44"),
 			LexiconIndex:       16,
 			DescriptiveName:    "Polska Federacja Scrabble - Update 44",
 			LetterDistribution: polishLD,
@@ -163,8 +160,7 @@ func LexiconMappings(cfg *mcconfig.Config) LexiconMap {
 		{
 			LexiconName:        "OSPS46",
 			LexiconFilename:    filepath.Join(lexiconPath, "OSPS46.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "OSPS46", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "OSPS46", true),
+			KWG:                loadKWG(dataPath, "OSPS46"),
 			LexiconIndex:       20,
 			DescriptiveName:    "Polska Federacja Scrabble - Update 46",
 			LetterDistribution: polishLD,
@@ -172,8 +168,7 @@ func LexiconMappings(cfg *mcconfig.Config) LexiconMap {
 		{
 			LexiconName:        "OSPS48",
 			LexiconFilename:    filepath.Join(lexiconPath, "OSPS48.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "OSPS48", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "OSPS48", true),
+			KWG:                loadKWG(dataPath, "OSPS48"),
 			LexiconIndex:       21,
 			DescriptiveName:    "Polska Federacja Scrabble - Update 48",
 			LetterDistribution: polishLD,
@@ -184,8 +179,7 @@ func LexiconMappings(cfg *mcconfig.Config) LexiconMap {
 		{
 			LexiconName:        "Deutsch",
 			LexiconFilename:    filepath.Join(lexiconPath, "Deutsch.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "Deutsch", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "Deutsch", true),
+			KWG:                loadKWG(dataPath, "RD28"),
 			LexiconIndex:       17,
 			DescriptiveName:    "Scrabble®-Turnierliste - based on Duden 28th edition",
 			LetterDistribution: germanLD,
@@ -196,8 +190,7 @@ func LexiconMappings(cfg *mcconfig.Config) LexiconMap {
 		{
 			LexiconName:        "FRA20",
 			LexiconFilename:    filepath.Join(lexiconPath, "FRA20.txt"),
-			Dawg:               LoadOrMakeDawg(lexiconPath, "FRA20", false),
-			RDawg:              LoadOrMakeDawg(lexiconPath, "FRA20", true),
+			KWG:                loadKWG(dataPath, "FRA20"),
 			DescriptiveName:    "French 2020 lexicon",
 			LetterDistribution: frenchLD,
 		},

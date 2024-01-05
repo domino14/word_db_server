@@ -7,7 +7,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/domino14/macondo/config"
-	"github.com/domino14/macondo/tilemapping"
+	"github.com/domino14/word-golib/tilemapping"
 	"github.com/matryer/is"
 )
 

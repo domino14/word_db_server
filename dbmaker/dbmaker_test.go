@@ -4,21 +4,17 @@ import (
 	"os"
 	"testing"
 
-	mcconfig "github.com/domino14/macondo/config"
-
-	"github.com/domino14/macondo/tilemapping"
+	"github.com/domino14/word-golib/tilemapping"
 )
 
-var DefaultConfig = mcconfig.Config{
-	StrategyParamsPath:        os.Getenv("STRATEGY_PARAMS_PATH"),
-	LexiconPath:               os.Getenv("LEXICON_PATH"),
-	LetterDistributionPath:    os.Getenv("LETTER_DISTRIBUTION_PATH"),
-	DefaultLexicon:            "NWL18",
-	DefaultLetterDistribution: "English",
+var DefaultConfig = map[string]any{
+	"data-path":                   os.Getenv("WDB_DATA_PATH"),
+	"default-lexicon":             "NWL18",
+	"default-letter-distribution": "English",
 }
 
 func TestPopulate(t *testing.T) {
-	ld, err := tilemapping.GetDistribution(&DefaultConfig, "english")
+	ld, err := tilemapping.GetDistribution(DefaultConfig, "english")
 	if err != nil {
 		t.Error(err)
 	}
@@ -42,45 +38,29 @@ func TestPopulate(t *testing.T) {
 	}
 }
 
-func TestSortedHooks(t *testing.T) {
-	ld, err := tilemapping.GetDistribution(&DefaultConfig, "spanish")
-	if err != nil {
-		t.Error(err)
-	}
-	lexInfo := LexiconInfo{
-		LexiconName:        "FISE09",
-		LetterDistribution: ld,
-	}
-	lexInfo.Initialize()
-	hooks := []rune("2ANRSXZ")
-	if sortedHooks(hooks, lexInfo.LetterDistribution) != "A2NRSXZ" {
-		t.Error("Sorted hooks wrong")
-	}
-}
-
 type alphaTestCase struct {
 	alphagram string
-	expected  uint8
+	expected  int
 }
 
 func TestPointValue(t *testing.T) {
-	ld, err := tilemapping.GetDistribution(&DefaultConfig, "english")
+	ld, err := tilemapping.GetDistribution(DefaultConfig, "english")
 	if err != nil {
 		t.Error(err)
 	}
 	ptTestCases := []alphaTestCase{
-		alphaTestCase{"AEKLOVZ", 23},
-		alphaTestCase{"AVYYZZZ", 43},
-		alphaTestCase{"AEILNOR", 7},
-		alphaTestCase{"DEUTERANOMALIES", 18},
-		alphaTestCase{"THE", 6},
-		alphaTestCase{"QUICK", 20},
-		alphaTestCase{"BROWN", 10},
-		alphaTestCase{"FOX", 13},
-		alphaTestCase{"JUMPED", 18},
-		alphaTestCase{"OVER", 7},
-		alphaTestCase{"LAZY", 16},
-		alphaTestCase{"DOG", 5},
+		{"AEKLOVZ", 23},
+		{"AVYYZZZ", 43},
+		{"AEILNOR", 7},
+		{"DEUTERANOMALIES", 18},
+		{"THE", 6},
+		{"QUICK", 20},
+		{"BROWN", 10},
+		{"FOX", 13},
+		{"JUMPED", 18},
+		{"OVER", 7},
+		{"LAZY", 16},
+		{"DOG", 5},
 	}
 	for _, tc := range ptTestCases {
 		a := &Alphagram{nil, 0, tc.alphagram, 0, 0, 0}
@@ -93,17 +73,17 @@ func TestPointValue(t *testing.T) {
 }
 
 func TestNumVowels(t *testing.T) {
-	ld, err := tilemapping.GetDistribution(&DefaultConfig, "english")
+	ld, err := tilemapping.GetDistribution(DefaultConfig, "english")
 	if err != nil {
 		t.Error(err)
 	}
 	vowelTestCases := []alphaTestCase{
-		alphaTestCase{"AEKLOVZ", 3},
-		alphaTestCase{"AVYYZZZ", 1},
-		alphaTestCase{"AEILNOR", 4},
-		alphaTestCase{"DEUTERANOMALIES", 8},
-		alphaTestCase{"GLYCYLS", 0},
-		alphaTestCase{"EUOUAE", 6},
+		{"AEKLOVZ", 3},
+		{"AVYYZZZ", 1},
+		{"AEILNOR", 4},
+		{"DEUTERANOMALIES", 8},
+		{"GLYCYLS", 0},
+		{"EUOUAE", 6},
 	}
 	for _, tc := range vowelTestCases {
 		a := &Alphagram{nil, 0, tc.alphagram, 0, 0, 0}

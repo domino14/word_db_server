@@ -7,8 +7,7 @@ import (
 	"time"
 
 	mcconfig "github.com/domino14/macondo/config"
-	"github.com/domino14/macondo/gaddag"
-	"github.com/domino14/macondo/tilemapping"
+	"github.com/domino14/word-golib/tilemapping"
 
 	anagrammer "github.com/domino14/word_db_server/internal/anagramserver/legacyanagrammer"
 	"github.com/domino14/word_db_server/internal/dawg"

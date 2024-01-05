@@ -13,7 +13,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	mcconfig "github.com/domino14/macondo/config"
-	"github.com/domino14/macondo/tilemapping"
+	"github.com/domino14/word-golib/tilemapping"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 )
 

@@ -3,8 +3,8 @@ package dbmaker
 import (
 	"errors"
 
-	"github.com/domino14/macondo/kwg"
-	"github.com/domino14/macondo/tilemapping"
+	"github.com/domino14/word-golib/kwg"
+	"github.com/domino14/word-golib/tilemapping"
 )
 
 type LexiconInfo struct {
@@ -116,13 +116,19 @@ func (l *LexiconInfo) Initialize() {
 // Calculate the number of combinations for an alphagram.
 func (l *LexiconInfo) Combinations(alphagram string, withBlanks bool) uint64 {
 	// Adapted from GPL Zyzzyva's calculation code.
-	letters := make([]rune, 0)
+	letters := make([]tilemapping.MachineLetter, 0)
 	counts := make([]uint8, 0)
 	combos := make([][]uint64, 0)
-	for _, letter := range alphagram {
+
+	alphML, err := tilemapping.ToMachineLetters(alphagram, l.LetterDistribution.TileMapping())
+	if err != nil {
+		panic(err)
+	}
+
+	for _, letter := range alphML {
 		foundLetter := false
-		for j, char := range letters {
-			if char == letter {
+		for j, ml := range letters {
+			if ml == letter {
 				counts[j]++
 				foundLetter = true
 				break
@@ -150,7 +156,7 @@ func (l *LexiconInfo) Combinations(alphagram string, withBlanks bool) uint64 {
 	// Calculate combinations with one blank
 	for i := 0; i < numLetters; i++ {
 		counts[i]--
-		thisCombo = l.subChooseCombos[l.LetterDistribution.Distribution()['?']][1]
+		thisCombo = l.subChooseCombos[l.LetterDistribution.Distribution()[0]][1]
 		for j := 0; j < numLetters; j++ {
 			thisCombo *= combos[j][counts[j]]
 		}
@@ -165,7 +171,7 @@ func (l *LexiconInfo) Combinations(alphagram string, withBlanks bool) uint64 {
 				continue
 			}
 			counts[j]--
-			thisCombo = l.subChooseCombos[l.LetterDistribution.Distribution()['?']][2]
+			thisCombo = l.subChooseCombos[l.LetterDistribution.Distribution()[0]][2]
 
 			for k := 0; k < numLetters; k++ {
 				thisCombo *= combos[k][counts[k]]

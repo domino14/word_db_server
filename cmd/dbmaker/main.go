@@ -3,10 +3,8 @@ package main
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 
-	mcconfig "github.com/domino14/macondo/config"
 	"github.com/namsral/flag"
 	"github.com/rs/zerolog/log"
 
@@ -23,28 +21,18 @@ func stringInSlice(a string, list []string) bool {
 }
 
 type Config struct {
-	MacondoConfig mcconfig.Config
-
 	migrateDB    string
 	dbs          string
 	forceCreate  bool
 	fixDefsOn    string
 	fixSymbolsOn string
 	outputDir    string
+	dataPath     string
 }
 
 // Load loads the configs from the given arguments
 func (c *Config) Load(args []string) error {
 	fs := flag.NewFlagSet("dbmaker", flag.ContinueOnError)
-
-	fs.BoolVar(&c.MacondoConfig.Debug, "debug", false, "debug logging on")
-
-	fs.StringVar(&c.MacondoConfig.LetterDistributionPath, "letter-distribution-path", "../macondo/data/letterdistributions", "directory holding letter distribution files")
-	fs.StringVar(&c.MacondoConfig.StrategyParamsPath, "strategy-params-path", "../macondo/data/strategy", "directory holding strategy files")
-	fs.StringVar(&c.MacondoConfig.LexiconPath, "lexicon-path", "../macondo/data/lexica", "directory holding lexicon files")
-	fs.StringVar(&c.MacondoConfig.DefaultLexicon, "default-lexicon", "NWL18", "the default lexicon to use")
-	fs.StringVar(&c.MacondoConfig.DefaultLetterDistribution, "default-letter-distribution", "English", "the default letter distribution to use. English, EnglishSuper, Spanish, Polish, etc.")
-
 	// We are going to have a flag to migrate a database. This is due to a
 	// legacy issue where alphagram sort order was not deterministic for
 	// alphagrams with equal probability, so we need to keep the old
@@ -59,7 +47,7 @@ func (c *Config) Load(args []string) error {
 	fs.StringVar(&c.fixSymbolsOn, "fixsymbols", "",
 		"Pass in lexicon name to fix lexicon symbols on. DB <lexiconname>.db must exist in this dir.")
 	fs.StringVar(&c.outputDir, "outputdir", ".", "The output directory")
-
+	fs.StringVar(&c.dataPath, "datapath", os.Getenv("WDB_DATA_PATH"), "The data path")
 	return fs.Parse(args)
 
 }
@@ -71,9 +59,8 @@ func main() {
 	log.Info().Interface("config", cfg).Msg("dbmaker-started")
 
 	// MkdirAll will make any intermediate dirs but fail gracefully if they exist.
-	os.MkdirAll(filepath.Join(cfg.MacondoConfig.LexiconPath, "dawg"), os.ModePerm)
 	os.MkdirAll(cfg.outputDir, os.ModePerm)
-	lexiconMap := dbmaker.LexiconMappings(&cfg.MacondoConfig)
+	lexiconMap := dbmaker.LexiconMappings(cfg.dataPath)
 
 	if cfg.migrateDB != "" {
 		info, err := lexiconMap.GetLexiconInfo(cfg.migrateDB)
@@ -120,7 +107,7 @@ func makeDbs(dbsToMake string, lexiconMap dbmaker.LexiconMap,
 			log.Err(err).Msgf("%v was not in list of dbs, skipping...", db)
 			continue
 		}
-		if info.Dawg == nil || info.Dawg.GetAlphabet() == nil {
+		if info.KWG == nil || info.KWG.GetAlphabet() == nil {
 			log.Info().Msgf("%v was not supplied, skipping...", db)
 			continue
 		}

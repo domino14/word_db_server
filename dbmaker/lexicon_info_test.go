@@ -3,7 +3,7 @@ package dbmaker
 import (
 	"testing"
 
-	"github.com/domino14/macondo/tilemapping"
+	"github.com/domino14/word-golib/tilemapping"
 )
 
 type combinationstestpair struct {
@@ -28,7 +28,7 @@ var spanishCombinationsTests = []combinationstestpair{
 }
 
 func TestCalcCombinations(t *testing.T) {
-	ld, err := tilemapping.GetDistribution(&DefaultConfig, "english")
+	ld, err := tilemapping.GetDistribution(DefaultConfig, "english")
 	if err != nil {
 		t.Error(err)
 	}
@@ -52,7 +52,7 @@ func TestCalcCombinations(t *testing.T) {
 }
 
 func BenchmarkCombinations(b *testing.B) {
-	ld, err := tilemapping.GetDistribution(&DefaultConfig, "english")
+	ld, err := tilemapping.GetDistribution(DefaultConfig, "english")
 	if err != nil {
 		b.Error(err)
 	}
@@ -69,7 +69,7 @@ func BenchmarkCombinations(b *testing.B) {
 }
 
 func TestSpanishCombos(t *testing.T) {
-	ld, err := tilemapping.GetDistribution(&DefaultConfig, "spanish")
+	ld, err := tilemapping.GetDistribution(DefaultConfig, "spanish")
 	if err != nil {
 		t.Error(err)
 	}
