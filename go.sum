@@ -9,6 +9,8 @@ github.com/domino14/word-golib v0.1.3 h1:0gzCDUogBUG7GTWhQz2H5qcOXllvQIa3IWmM9T6
 github.com/domino14/word-golib v0.1.3/go.mod h1:3OMAtX5K/YA/9PQe02h2S7hPfDn6/ZKmrv8vMI2vQss=
 github.com/domino14/word-golib v0.1.4 h1:61bNLUjeg+HZdOYno5qMPghPTaEvmsEIncooL8NtANw=
 github.com/domino14/word-golib v0.1.4/go.mod h1:3OMAtX5K/YA/9PQe02h2S7hPfDn6/ZKmrv8vMI2vQss=
+github.com/domino14/word-golib v0.1.5 h1:y5jMw0SIO4Qah5jlVDeHsDbqXCztmdKJ3VLt/AmT+Jg=
+github.com/domino14/word-golib v0.1.5/go.mod h1:3OMAtX5K/YA/9PQe02h2S7hPfDn6/ZKmrv8vMI2vQss=
 github.com/godbus/dbus/v5 v5.0.4/go.mod h1:xhWf0FNVPg57R7Z0UbKHbJfkEywrmjJnf7w5xrFpKfA=
 github.com/google/go-cmp v0.5.5 h1:Khx7svrCpmxxtHBq5j2mp/xVjsi8hQMfNLvJFAlrGgU=
 github.com/google/go-cmp v0.5.5/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=

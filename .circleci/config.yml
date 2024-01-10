@@ -7,8 +7,7 @@ orbs:
 jobs:
   build:
     environment:
-      LEXICON_PATH: /opt/lexica/
-      LETTER_DISTRIBUTION_PATH: /opt/lexica/letterdistributions
+      WDB_DATA_PATH: /opt/data
     docker:
       # specify the version
       - image: golang:alpine
@@ -41,16 +40,16 @@ jobs:
       - run:
           name: Clone lexicon repo
           command: git clone git@github.com:domino14/word-game-lexica /opt/word-game-lexica
-      - run: mkdir $LEXICON_PATH
-      - run: mv /opt/word-game-lexica/*.txt $LEXICON_PATH
-      - run: mv /opt/word-game-lexica/letterdistributions $LETTER_DISTRIBUTION_PATH
+      - run: mkdir -p $WDB_DATA_PATH/lexica
+      - run: mv /opt/word-game-lexica/*.txt $WDB_DATA_PATH/lexica
+      - run: mv /opt/word-game-lexica/letterdistributions $WDB_DATA_PATH/letterdistributions
       - run: cd cmd/searchserver && go build
       # Generate the db for NWL18.txt. If we add other dbs for testing, we
       # will need to generate those as well.
-      - run: mkdir $LEXICON_PATH/db
-      - run: mkdir $LEXICON_PATH/gaddag
+      - run: mkdir $WDB_DATA_PATH/lexica/db
+      - run: mkdir $WDB_DATA_PATH/lexica/gaddag
       - run: cd cmd/dbmaker && go build
-      - run: ./cmd/dbmaker/dbmaker -outputdir $LEXICON_PATH/db -dbs NWL18
+      - run: ./cmd/dbmaker/dbmaker -outputdir $WDB_DATA_PATH/lexica/db -dbs NWL18
 
       # specify any bash command here prefixed with `run: `
       - run: go test -v ./...

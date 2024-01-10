@@ -11,7 +11,6 @@ import (
 	"github.com/domino14/word-golib/tilemapping"
 
 	anagrammer "github.com/domino14/word_db_server/internal/anagramserver/legacyanagrammer"
-	"github.com/domino14/word_db_server/internal/dawg"
 	"github.com/domino14/word_db_server/rpc/wordsearcher"
 )
 

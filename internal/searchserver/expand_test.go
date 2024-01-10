@@ -2,21 +2,11 @@ package searchserver
 
 import (
 	"context"
-	"os"
 	"testing"
 
-	mcconfig "github.com/domino14/macondo/config"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 	"github.com/stretchr/testify/assert"
 )
-
-var DefaultConfig = mcconfig.Config{
-	StrategyParamsPath:        os.Getenv("STRATEGY_PARAMS_PATH"),
-	LexiconPath:               os.Getenv("LEXICON_PATH"),
-	LetterDistributionPath:    os.Getenv("LETTER_DISTRIBUTION_PATH"),
-	DefaultLexicon:            "NWL18",
-	DefaultLetterDistribution: "English",
-}
 
 func TestExpand(t *testing.T) {
 

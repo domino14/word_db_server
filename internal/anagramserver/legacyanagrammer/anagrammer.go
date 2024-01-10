@@ -1,6 +1,6 @@
 // This package generates anagrams and subanagrams and has an RPC
 // interface.
-// NOTE: This is a slower version of the dawg_anagrammer in the macondo dependency.
+// NOTE: This is a slower version of the dawg_anagrammer in the word-golib dependency.
 // However, dawg_anagrammer is deterministic and cannot natively handle range queries
 // (i.e. such as [AEIOU]Z) without some work.
 package anagrammer
@@ -10,11 +10,11 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/domino14/word-golib/tilemapping"
 	"github.com/rs/zerolog/log"
-)
 
-const BlankPos = tilemapping.MaxAlphabetSize
+	"github.com/domino14/word-golib/kwg"
+	"github.com/domino14/word-golib/tilemapping"
+)
 
 type AnagramMode int
 
@@ -51,6 +51,7 @@ func makeRack(letters string, alph *tilemapping.TileMapping) (*RackWrapper, erro
 	convertedLetters := []tilemapping.MachineLetter{}
 	rb := []rangeBlank{}
 	numLetters := 0
+	// XXX: Note; this doesn't work with multi-char alphabets!
 	for _, s := range letters {
 		if s == tilemapping.BlankToken {
 			convertedLetters = append(convertedLetters, 0)
@@ -79,7 +80,7 @@ func makeRack(letters string, alph *tilemapping.TileMapping) (*RackWrapper, erro
 
 		}
 		// Otherwise it's just a letter.
-		ml, err := alph.Val(s)
+		ml, err := alph.Val(string(s))
 		if err != nil {
 			// Ignore this error, but log it.
 			log.Error().Msgf("Ignored error: %v", err)
@@ -104,7 +105,7 @@ func makeRack(letters string, alph *tilemapping.TileMapping) (*RackWrapper, erro
 	}, nil
 }
 
-func Anagram(letters string, d *gaddag.SimpleDawg, mode AnagramMode) []string {
+func Anagram(letters string, d *kwg.KWG, mode AnagramMode) []string {
 
 	letters = strings.ToUpper(letters)
 	answerList := []string{}
@@ -124,7 +125,8 @@ func Anagram(letters string, d *gaddag.SimpleDawg, mode AnagramMode) []string {
 	stopChan := make(chan struct{})
 
 	go func() {
-		anagram(ahs, d, d.GetRootNodeIndex(), "", rw)
+		// Use the dawg encoded in the KWG - it's at arc index 0.
+		anagram(ahs, d, d.ArcIndex(0), "", rw)
 		close(stopChan)
 	}()
 	<-stopChan
@@ -154,12 +156,11 @@ func dedupeAndTransformAnswers(answerList []string, alph *tilemapping.TileMappin
 }
 
 // XXX: utf8.RuneCountInString is slow, but necessary to support unicode tiles.
-func anagramHelper(letter tilemapping.MachineLetter, d *gaddag.SimpleDawg,
+func anagramHelper(letter tilemapping.MachineLetter, d *kwg.KWG,
 	ahs *AnagramStruct, nodeIdx uint32, answerSoFar string, rw *RackWrapper) {
 
 	// log.Debug().Msgf("Anagram helper called with %v %v", letter, answerSoFar)
 	var nextNodeIdx uint32
-	var nextLetter tilemapping.MachineLetter
 
 	if d.InLetterSet(letter, nodeIdx) {
 		toCheck := answerSoFar + string(letter)
@@ -171,16 +172,20 @@ func anagramHelper(letter tilemapping.MachineLetter, d *gaddag.SimpleDawg,
 		}
 	}
 
-	numArcs := d.NumArcs(nodeIdx)
-	for i := byte(1); i <= numArcs; i++ {
-		nextNodeIdx, nextLetter = d.ArcToIdxLetter(nodeIdx + uint32(i))
-		if letter == nextLetter {
+	for i := nodeIdx; ; i++ {
+		nextNodeIdx = d.ArcIndex(i)
+		if d.Tile(i) == uint8(letter) {
 			anagram(ahs, d, nextNodeIdx, answerSoFar+string(letter), rw)
 		}
+
+		if d.IsEnd(i) {
+			break
+		}
 	}
+
 }
 
-func anagram(ahs *AnagramStruct, d *gaddag.SimpleDawg, nodeIdx uint32,
+func anagram(ahs *AnagramStruct, d *kwg.KWG, nodeIdx uint32,
 	answerSoFar string, rw *RackWrapper) {
 
 	for idx, val := range rw.rack.LetArr {
@@ -188,11 +193,11 @@ func anagram(ahs *AnagramStruct, d *gaddag.SimpleDawg, nodeIdx uint32,
 			continue
 		}
 		rw.rack.LetArr[idx]--
-		if idx == BlankPos {
+		if idx == 0 {
 			// log.Debug().Msgf("Blank is NOT range")
 
 			nlet := tilemapping.MachineLetter(d.GetAlphabet().NumLetters())
-			for i := tilemapping.MachineLetter(0); i < nlet; i++ {
+			for i := tilemapping.MachineLetter(1); i <= nlet; i++ {
 				anagramHelper(i, d, ahs, nodeIdx, answerSoFar, rw)
 			}
 
