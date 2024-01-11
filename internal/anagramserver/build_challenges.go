@@ -4,41 +4,45 @@ import (
 	"context"
 	"fmt"
 
-	mcconfig "github.com/domino14/macondo/config"
+	"github.com/domino14/word-golib/kwg"
 	"github.com/domino14/word-golib/tilemapping"
-	"github.com/domino14/word_db_server/internal/dawg"
-	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 	"github.com/rs/zerolog/log"
+
+	"github.com/domino14/word_db_server/internal/common"
+	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 )
 
 // GenerateBuildChallenge generates a build challenge with given args.
 // As an additional condition, letters must anagram exactly to at least
 // one word, if that argument is passed in.
-func GenerateBuildChallenge(ctx context.Context, cfg *mcconfig.Config, req *pb.BuildChallengeCreateRequest) (
+func GenerateBuildChallenge(ctx context.Context, cfg map[string]any, req *pb.BuildChallengeCreateRequest) (
 	*pb.Alphagram, error) {
 
-	dinfo, err := dawg.GetDawgInfo(cfg, req.Lexicon)
+	dawg, err := kwg.Get(cfg, req.Lexicon)
+	if err != nil {
+		return nil, err
+	}
+	dist, err := tilemapping.ProbableLetterDistribution(cfg, req.Lexicon)
 	if err != nil {
 		return nil, err
 	}
 
 	tries := 0
-	alph := dinfo.GetDawg().GetAlphabet()
+	alph := dawg.GetAlphabet()
 
-	da := dawg.DaPool.Get().(*kwg.DawgAnagrammer)
-	defer dawg.DaPool.Put(da)
-
-	thisdawg := dinfo.GetDawg()
+	da := kwg.DaPool.Get().(*kwg.KWGAnagrammer)
+	defer kwg.DaPool.Put(da)
 
 	doIteration := func() (*pb.Alphagram, error) {
-		rack := tilemapping.MachineWord(genRack(dinfo.GetDist(), req.MaxLength, 0, alph))
+		rack := tilemapping.MachineWord(genRack(dist, req.MaxLength, 0, alph))
 		tries++
-		err := da.InitForMachineWord(thisdawg, rack)
+
+		err := da.InitForMachineWord(dawg, rack)
 		if err != nil {
 			return nil, err
 		}
 		nanag := 0
-		da.Anagram(thisdawg, func(word tilemapping.MachineWord) error {
+		da.Anagram(dawg, func(word tilemapping.MachineWord) error {
 			nanag += 1
 			return nil
 		})
@@ -48,7 +52,7 @@ func GenerateBuildChallenge(ctx context.Context, cfg *mcconfig.Config, req *pb.B
 		}
 
 		var answers []string
-		da.Subanagram(thisdawg, func(word tilemapping.MachineWord) error {
+		da.Subanagram(dawg, func(word tilemapping.MachineWord) error {
 			answers = append(answers, word.UserVisible(alph))
 			return nil
 		})
@@ -71,7 +75,7 @@ func GenerateBuildChallenge(ctx context.Context, cfg *mcconfig.Config, req *pb.B
 			return nil, fmt.Errorf("answers (%v) not match criteria: %v - %v",
 				len(meetingCriteria), req.MinSolutions, req.MaxSolutions)
 		}
-		w := tilemapping.Word{Word: rack.UserVisible(alph), Dist: dinfo.GetDist()}
+		w := common.InitializeWord(rack.UserVisible(alph), dist)
 		return &pb.Alphagram{
 			Alphagram: w.MakeAlphagram(),
 			Words:     wordsToPBWords(meetingCriteria),

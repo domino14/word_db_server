@@ -4,26 +4,27 @@ import (
 	"context"
 	"testing"
 
-	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 	"github.com/stretchr/testify/assert"
+
+	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 )
 
 func TestExpand(t *testing.T) {
 
 	req := &pb.SearchResponse{
 		Alphagrams: []*pb.Alphagram{
-			&pb.Alphagram{Alphagram: "EILNORS", Words: []*pb.Word{
-				&pb.Word{Word: "NEROLIS"},
+			{Alphagram: "EILNORS", Words: []*pb.Word{
+				{Word: "NEROLIS"},
 			}},
-			&pb.Alphagram{Alphagram: "AINORU?", Words: []*pb.Word{
-				&pb.Word{Word: "RAINOUT"},
+			{Alphagram: "AINORU?", Words: []*pb.Word{
+				{Word: "RAINOUT"},
 			}},
 		},
 		Lexicon: "NWL18",
 	}
 
 	s := &Server{
-		Config: &DefaultConfig,
+		Config: DefaultConfig,
 	}
 	resp, err := s.Expand(context.Background(), req)
 	assert.Nil(t, err)
@@ -46,7 +47,7 @@ func TestExpandHuge(t *testing.T) {
 	resp, err := searchHelper(req)
 	assert.Nil(t, err)
 	s := &Server{
-		Config: &DefaultConfig,
+		Config: DefaultConfig,
 	}
 	expandedResp, err := s.Expand(context.Background(), resp)
 	assert.Nil(t, err)

@@ -16,26 +16,11 @@ import (
 
 	"github.com/domino14/word-golib/kwg"
 	"github.com/domino14/word-golib/tilemapping"
+	"github.com/domino14/word_db_server/internal/common"
 
 	// sqlite3 db driver is needed for the word db maker
 	_ "github.com/mattn/go-sqlite3"
 )
-
-type Word struct {
-	word string
-	dist *tilemapping.LetterDistribution
-}
-
-func (w Word) MakeAlphagram() string {
-	mls, err := tilemapping.ToMachineLetters(w.word, w.dist.TileMapping())
-	if err != nil {
-		panic(err)
-	}
-	sort.Slice(mls, func(i, j int) bool {
-		return mls[i] < mls[j]
-	})
-	return tilemapping.MachineWord(mls).UserVisible(w.dist.TileMapping())
-}
 
 type Alphagram struct {
 	words          []string
@@ -771,21 +756,21 @@ func populateAlphsDefs(filename string, combinations func(string, bool) uint64,
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
 		if len(fields) > 0 {
-			word := Word{word: strings.ToUpper(fields[0]), dist: dist}
+			word := common.InitializeWord(strings.ToUpper(fields[0]), dist)
 			definition := ""
 			if len(fields) > 1 {
 				definition = strings.Join(fields[1:], " ")
 			}
-			addToDefinitions(word.word, definition, definitions)
+			addToDefinitions(word.Word(), definition, definitions)
 			alphagram := word.MakeAlphagram()
 			alph, ok := alphagrams[alphagram]
 			if !ok {
 				alphagrams[alphagram] = Alphagram{
-					[]string{word.word},
+					[]string{word.Word()},
 					combinations(alphagram, true),
 					alphagram, 0, 0, 0}
 			} else {
-				alph.words = append(alph.words, word.word)
+				alph.words = append(alph.words, word.Word())
 				alphagrams[alphagram] = alph
 			}
 		}

@@ -8,12 +8,11 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/domino14/word_db_server/internal/dawg"
-
+	"github.com/domino14/word-golib/kwg"
+	"github.com/domino14/word-golib/tilemapping"
 	"github.com/rs/zerolog/log"
 
-	mcconfig "github.com/domino14/macondo/config"
-	"github.com/domino14/word-golib/tilemapping"
+	"github.com/domino14/word_db_server/internal/common"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 )
 
@@ -23,14 +22,14 @@ var randSource = rand.New(rand.NewSource(time.Now().UnixNano()))
 // to generate a challenge with too many or too few answers, or if
 // an answer has already been generated.
 func try(nBlanks int32, dist *tilemapping.LetterDistribution, wordLength int32,
-	thedawg *gaddag.SimpleDawg, maxSolutions int32, answerMap map[string]bool) (
+	thedawg *kwg.KWG, maxSolutions int32, answerMap map[string]bool) (
 	*pb.Alphagram, error) {
 
 	alph := thedawg.GetAlphabet()
 	rack := tilemapping.MachineWord(genRack(dist, wordLength, nBlanks, alph))
 
-	da := dawg.DaPool.Get().(*gaddag.DawgAnagrammer)
-	defer dawg.DaPool.Put(da)
+	da := kwg.DaPool.Get().(*kwg.KWGAnagrammer)
+	defer kwg.DaPool.Put(da)
 
 	err := da.InitForMachineWord(thedawg, rack)
 	if err != nil {
@@ -55,7 +54,7 @@ func try(nBlanks int32, dist *tilemapping.LetterDistribution, wordLength int32,
 	for _, answer := range answers {
 		answerMap[answer] = true
 	}
-	w := tilemapping.Word{Word: rack.UserVisible(alph), Dist: dist}
+	w := common.InitializeWord(rack.UserVisible(alph), dist)
 
 	return &pb.Alphagram{
 		Alphagram: w.MakeAlphagram(),
@@ -66,14 +65,17 @@ func try(nBlanks int32, dist *tilemapping.LetterDistribution, wordLength int32,
 
 // GenerateBlanks - Generate a list of blank word challenges given the
 // parameters in args.
-func GenerateBlanks(ctx context.Context, cfg *mcconfig.Config, req *pb.BlankChallengeCreateRequest) (
+func GenerateBlanks(ctx context.Context, cfg map[string]any, req *pb.BlankChallengeCreateRequest) (
 	[]*pb.Alphagram, error) {
 
-	di, err := dawg.GetDawgInfo(cfg, req.Lexicon)
+	dawg, err := kwg.Get(cfg, req.Lexicon)
 	if err != nil {
 		return nil, err
 	}
-	dist, dawg := di.GetDist(), di.GetDawg()
+	dist, err := tilemapping.ProbableLetterDistribution(cfg, req.Lexicon)
+	if err != nil {
+		return nil, err
+	}
 
 	tries := 0
 	// Handle 2-blank challenges at the end.

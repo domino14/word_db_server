@@ -3,42 +3,39 @@ package anagramserver
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
-	mcconfig "github.com/domino14/macondo/config"
+	"github.com/domino14/word-golib/kwg"
 	"github.com/domino14/word-golib/tilemapping"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 	"github.com/stretchr/testify/assert"
 )
 
-var DefaultConfig = mcconfig.Config{
-	StrategyParamsPath:        os.Getenv("STRATEGY_PARAMS_PATH"),
-	LexiconPath:               os.Getenv("LEXICON_PATH"),
-	LetterDistributionPath:    os.Getenv("LETTER_DISTRIBUTION_PATH"),
-	DefaultLexicon:            "NWL18",
-	DefaultLetterDistribution: "English",
+var DefaultConfig = map[string]any{
+	"data-path":                   os.Getenv("WDB_DATA_PATH"),
+	"default-lexicon":             "NWL20",
+	"default-letter-distribution": "English",
 }
 
-func loadDawg(lexName string) (*gaddag.SimpleDawg, error) {
-	return gaddag.LoadDawg(filepath.Join(DefaultConfig.LexiconPath, "dawg", lexName+".dawg"))
+func loadKWG(lexName string) (*kwg.KWG, error) {
+	return kwg.Get(DefaultConfig, "lexName")
 }
 
 func TestRacks(t *testing.T) {
-	eng, err := loadDawg("America")
+	eng, err := loadKWG("America")
 	assert.Nil(t, err)
-	span, err := loadDawg("FISE2")
+	span, err := loadKWG("FISE2")
 	assert.Nil(t, err)
 	engAlph := eng.GetAlphabet()
 	spanAlph := span.GetAlphabet()
 
-	eld, err := tilemapping.GetDistribution(&DefaultConfig, "english")
+	eld, err := tilemapping.GetDistribution(DefaultConfig, "english")
 	if err != nil {
 		t.Error(err)
 	}
 
-	sld, err := tilemapping.GetDistribution(&DefaultConfig, "spanish")
+	sld, err := tilemapping.GetDistribution(DefaultConfig, "spanish")
 	if err != nil {
 		t.Error(err)
 	}
@@ -87,7 +84,7 @@ func TestGenBlanks(t *testing.T) {
 		NumWith_2Blanks: 6,
 	}
 
-	qs, err := GenerateBlanks(ctx, &DefaultConfig, req)
+	qs, err := GenerateBlanks(ctx, DefaultConfig, req)
 	if err != nil {
 		t.Errorf("GenBlanks returned an error: %v", err)
 	}
