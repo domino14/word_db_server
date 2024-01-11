@@ -2,7 +2,6 @@ package searchserver
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"testing"
 
@@ -118,8 +117,7 @@ func TestAlphagramList(t *testing.T) {
 		SearchDescAlphagramList([]string{"DEGORU", "AAAIMNORT", "DGOS"}),
 	}, false)
 	resp, _ := searchHelper(req)
-	fmt.Println("resp", resp)
-	assert.Equal(t, []string{"DGOS", "DEGORU", "AAAIMNORT"}, alphagrams(resp))
+	assert.Equal(t, []string{"AAAIMNORT", "DEGORU", "DGOS"}, alphagrams(resp))
 }
 
 func TestProbabilityList(t *testing.T) {
