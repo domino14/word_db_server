@@ -35,13 +35,13 @@ func main() {
 	}
 
 	searchServer := &searchserver.Server{
-		Config: &cfg.MacondoConfig,
+		Config: cfg,
 	}
 	anagramServer := &anagramserver.Server{
-		MacondoConfig: &cfg.MacondoConfig,
+		Config: map[string]any{"data-path": cfg.DataPath},
 	}
 	wordSearchServer := &searchserver.WordSearchServer{
-		Config: &cfg.MacondoConfig,
+		Config: cfg,
 	}
 
 	searchHandler := wordsearcher.NewQuestionSearcherServer(searchServer, nil)

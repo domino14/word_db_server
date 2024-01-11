@@ -6,14 +6,13 @@ import (
 	"os"
 	"testing"
 
+	"github.com/domino14/word_db_server/config"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 	"github.com/stretchr/testify/assert"
 )
 
-var DefaultConfig = map[string]any{
-	"data-path":                   os.Getenv("WDB_DATA_PATH"),
-	"default-lexicon":             "NWL20",
-	"default-letter-distribution": "English",
+var DefaultConfig = &config.Config{
+	DataPath: os.Getenv("WDB_DATA_PATH"),
 }
 
 func alphagrams(sr *pb.SearchResponse) []string {

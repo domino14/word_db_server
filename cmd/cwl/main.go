@@ -77,7 +77,7 @@ func main() {
 	log.Debug().Interface("config", cfg).Str("rack", cfg.rack).Bool("build", cfg.buildMode).Msg("input")
 
 	s := &anagramserver.Server{
-		MacondoConfig: &cfg.MacondoConfig,
+		Config: map[string]any{"data-path": cfg.dataPath},
 	}
 
 	amResp, err := s.Anagram(context.Background(), &pb.AnagramRequest{

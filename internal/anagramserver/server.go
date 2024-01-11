@@ -9,6 +9,7 @@ import (
 	"github.com/domino14/word-golib/kwg"
 	"github.com/domino14/word-golib/tilemapping"
 
+	"github.com/domino14/word_db_server/config"
 	anagrammer "github.com/domino14/word_db_server/internal/anagramserver/legacyanagrammer"
 	"github.com/domino14/word_db_server/internal/searchserver"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
@@ -106,8 +107,16 @@ func (s *Server) Anagram(ctx context.Context, req *pb.AnagramRequest) (
 	var words []*pb.Word
 	if req.Expand && len(sols) > 0 {
 		// Build an expand request.
+
+		// searchServer needs a *config.Config
+		cfg := &config.Config{}
+		var ok bool
+		cfg.DataPath, ok = s.Config["data-path"].(string)
+		if !ok {
+			return nil, errors.New("could not find data-path in config")
+		}
 		expander := &searchserver.Server{
-			Config: s.Config,
+			Config: cfg,
 		}
 		alphagram := &pb.Alphagram{
 			Alphagram: req.Letters, // not technically an alphagram but doesn't matter rn

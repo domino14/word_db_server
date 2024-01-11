@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/domino14/word_db_server/config"
 	"github.com/domino14/word_db_server/internal/querygen"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 	"github.com/rs/zerolog/log"
 )
 
 type WordSearchServer struct {
-	Config map[string]any
+	Config *config.Config
 }
 
 func (s *WordSearchServer) WordSearch(ctx context.Context, req *pb.WordSearchRequest) (*pb.WordSearchResponse, error) {

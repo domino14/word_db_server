@@ -7,6 +7,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
+	"github.com/domino14/word_db_server/config"
 	"github.com/domino14/word_db_server/internal/querygen"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 )
@@ -39,7 +40,7 @@ func (s *Server) Expand(ctx context.Context, req *pb.SearchResponse) (*pb.Search
 	}, nil
 }
 
-func getInputAlphagramInfo(req *pb.SearchResponse, cfg map[string]any, db *sql.DB) (map[string]*pb.Alphagram, error) {
+func getInputAlphagramInfo(req *pb.SearchResponse, cfg *config.Config, db *sql.DB) (map[string]*pb.Alphagram, error) {
 	inputAlphas := alphasFromSearchResponse(req)
 	alphaQgen := querygen.NewQueryGen(req.Lexicon, querygen.AlphagramsOnly,
 		[]*pb.SearchRequest_SearchParam{SearchDescAlphagramList(inputAlphas)},
@@ -64,7 +65,7 @@ func getInputAlphagramInfo(req *pb.SearchResponse, cfg map[string]any, db *sql.D
 	return alphStrToObjs, nil
 }
 
-func mergeInputWordInfo(req *pb.SearchResponse, cfg map[string]any,
+func mergeInputWordInfo(req *pb.SearchResponse, cfg *config.Config,
 	alphStrToObjs map[string]*pb.Alphagram, db *sql.DB) ([]*pb.Alphagram, error) {
 	outputAlphas := []*pb.Alphagram{}
 

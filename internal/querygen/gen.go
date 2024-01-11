@@ -10,6 +10,7 @@ import (
 	"github.com/domino14/word-golib/kwg"
 	"github.com/domino14/word-golib/tilemapping"
 
+	"github.com/domino14/word_db_server/config"
 	anagrammer "github.com/domino14/word_db_server/internal/anagramserver/legacyanagrammer"
 	"github.com/domino14/word_db_server/internal/common"
 	"github.com/domino14/word_db_server/rpc/wordsearcher"
@@ -168,9 +169,12 @@ type QueryGen struct {
 // NewQueryGen generates a new query generator with the given parameters.
 func NewQueryGen(lexiconName string, queryType QueryType,
 	searchParams []*wordsearcher.SearchRequest_SearchParam,
-	maxChunkSize int, cfg map[string]any) *QueryGen {
+	maxChunkSize int, cfg *config.Config) *QueryGen {
 
-	return &QueryGen{lexiconName, queryType, searchParams, maxChunkSize, cfg}
+	qgenConfig := map[string]any{
+		"data-path": cfg.DataPath}
+
+	return &QueryGen{lexiconName, queryType, searchParams, maxChunkSize, qgenConfig}
 }
 
 func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchParam) (Clause, error) {
