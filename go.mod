@@ -1,7 +1,7 @@
 module github.com/domino14/word_db_server
 
 require (
-	github.com/domino14/word-golib v0.1.7
+	github.com/domino14/word-golib v0.1.8
 	github.com/matryer/is v1.4.1
 	github.com/mattn/go-sqlite3 v1.14.19
 	github.com/namsral/flag v1.7.4-pre

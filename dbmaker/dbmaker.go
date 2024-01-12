@@ -204,6 +204,7 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo *LexiconInfo, lexMap 
 		// ignore this
 		log.Err(err).Msg("no prior lexicon, ignoring...")
 	}
+	log.Info().Interface("priorLex", priorLex).Msg("finding prior lexicon")
 
 	for idx, alph := range alphs {
 		if idx%10000 == 0 {
@@ -686,7 +687,7 @@ func findLexSymbols(word string, latestCSW, latestTWL *LexiconInfo, lexFamily Fa
 
 	symbols := ""
 
-	if priorLex != nil {
+	if priorLex != nil && priorLex.KWG != nil {
 		if !kwg.FindWord(priorLex.KWG, word) && !strings.Contains(symbols, LexiconUpdateSymbol) {
 			symbols += LexiconUpdateSymbol
 		}
