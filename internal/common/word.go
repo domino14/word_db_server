@@ -16,8 +16,16 @@ func (w Word) MakeAlphagram() string {
 	if err != nil {
 		panic(err)
 	}
+	// Alphagrams should put blank at the end, due to convention.
 	sort.Slice(mls, func(i, j int) bool {
-		return mls[i] < mls[j]
+		if mls[i] > 0 && mls[j] > 0 {
+			return mls[i] < mls[j]
+		} else if mls[i] == 0 {
+			// blank is never less than j
+			return false
+		}
+		// blank is always greater than i
+		return true
 	})
 	return tilemapping.MachineWord(mls).UserVisible(w.dist.TileMapping())
 }
