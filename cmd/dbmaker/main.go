@@ -21,13 +21,13 @@ func stringInSlice(a string, list []string) bool {
 }
 
 type Config struct {
-	migrateDB    string
-	dbs          string
-	forceCreate  bool
-	fixDefsOn    string
-	fixSymbolsOn string
-	outputDir    string
-	dataPath     string
+	MigrateDB    string
+	DBs          string
+	ForceCreate  bool
+	FixDefsOn    string
+	FixSymbolsOn string
+	OutputDir    string
+	DataPath     string
 }
 
 // Load loads the configs from the given arguments
@@ -39,15 +39,15 @@ func (c *Config) Load(args []string) error {
 	// sort orders around in order to not mess up alphagrams-by-probability
 	// lists.
 
-	fs.StringVar(&c.migrateDB, "migratedb", "", "Migrate a DB instead of generating it")
-	fs.StringVar(&c.dbs, "dbs", "", "Pass in comma-separated list of dbs to make, instead of all")
-	fs.BoolVar(&c.forceCreate, "force", false, "Create DB even if it already exists (overwrite)")
-	fs.StringVar(&c.fixDefsOn, "fixdefs", "",
+	fs.StringVar(&c.MigrateDB, "migratedb", "", "Migrate a DB instead of generating it")
+	fs.StringVar(&c.DBs, "dbs", "", "Pass in comma-separated list of dbs to make, instead of all")
+	fs.BoolVar(&c.ForceCreate, "force", false, "Create DB even if it already exists (overwrite)")
+	fs.StringVar(&c.FixDefsOn, "fixdefs", "",
 		"Pass in lexicon name to fix definitions on. DB <lexiconname>.db must exist in this dir.")
-	fs.StringVar(&c.fixSymbolsOn, "fixsymbols", "",
+	fs.StringVar(&c.FixSymbolsOn, "fixsymbols", "",
 		"Pass in lexicon name to fix lexicon symbols on. DB <lexiconname>.db must exist in this dir.")
-	fs.StringVar(&c.outputDir, "outputdir", ".", "The output directory")
-	fs.StringVar(&c.dataPath, "datapath", os.Getenv("WDB_DATA_PATH"), "The data path")
+	fs.StringVar(&c.OutputDir, "outputdir", ".", "The output directory")
+	fs.StringVar(&c.DataPath, "datapath", os.Getenv("WDB_DATA_PATH"), "The data path")
 	return fs.Parse(args)
 
 }
@@ -59,22 +59,22 @@ func main() {
 	log.Info().Interface("config", cfg).Msg("dbmaker-started")
 
 	// MkdirAll will make any intermediate dirs but fail gracefully if they exist.
-	os.MkdirAll(cfg.outputDir, os.ModePerm)
-	lexiconMap := dbmaker.LexiconMappings(cfg.dataPath)
+	os.MkdirAll(cfg.OutputDir, os.ModePerm)
+	lexiconMap := dbmaker.LexiconMappings(cfg.DataPath)
 
-	if cfg.migrateDB != "" {
-		info, err := lexiconMap.GetLexiconInfo(cfg.migrateDB)
+	if cfg.MigrateDB != "" {
+		info, err := lexiconMap.GetLexiconInfo(cfg.MigrateDB)
 		if err != nil {
 			log.Err(err).Msg("That lexicon is not supported")
 			return
 		}
-		dbmaker.MigrateLexiconDatabase(cfg.migrateDB, info)
-	} else if cfg.fixDefsOn != "" {
-		fixDefinitions(cfg.fixDefsOn, lexiconMap)
-	} else if cfg.fixSymbolsOn != "" {
-		fixSymbols(cfg.fixSymbolsOn, lexiconMap)
+		dbmaker.MigrateLexiconDatabase(cfg.MigrateDB, info)
+	} else if cfg.FixDefsOn != "" {
+		fixDefinitions(cfg.FixDefsOn, lexiconMap)
+	} else if cfg.FixSymbolsOn != "" {
+		fixSymbols(cfg.FixSymbolsOn, lexiconMap)
 	} else {
-		makeDbs(cfg.dbs, lexiconMap, cfg.outputDir, cfg.forceCreate)
+		makeDbs(cfg.DBs, lexiconMap, cfg.OutputDir, cfg.ForceCreate)
 	}
 }
 
