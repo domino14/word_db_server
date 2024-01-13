@@ -1,5 +1,7 @@
 module github.com/domino14/word_db_server
 
+go 1.21.6
+
 require (
 	github.com/domino14/word-golib v0.1.8
 	github.com/matryer/is v1.4.1
@@ -21,5 +23,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/frand v1.4.2 // indirect
 )
-
-go 1.21.5
