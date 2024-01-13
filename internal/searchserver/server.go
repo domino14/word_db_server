@@ -8,9 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
-	mcconfig "github.com/domino14/macondo/config"
-
 	// sqlite3 driver is used by this server.
+	"github.com/domino14/word_db_server/config"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog/log"
 )
@@ -24,14 +23,17 @@ const (
 
 // Server implements the WordSearcher service
 type Server struct {
-	Config *mcconfig.Config
+	Config *config.Config
 }
 
-func getDbConnection(lexPath, lexName string) (*sql.DB, error) {
+func getDbConnection(cfg *config.Config, lexName string) (*sql.DB, error) {
 	// Try to connect to the db.
 	if lexName == "" {
 		return nil, errors.New("lexicon not specified")
 	}
+
+	lexPath := filepath.Join(cfg.DataPath, "lexica")
+
 	fileName := filepath.Join(lexPath, "db", lexName+".db")
 	_, err := os.Stat(fileName)
 	if os.IsNotExist(err) {

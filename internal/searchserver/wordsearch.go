@@ -6,20 +6,20 @@ import (
 	"fmt"
 	"strings"
 
-	mcconfig "github.com/domino14/macondo/config"
+	"github.com/domino14/word_db_server/config"
 	"github.com/domino14/word_db_server/internal/querygen"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 	"github.com/rs/zerolog/log"
 )
 
 type WordSearchServer struct {
-	Config *mcconfig.Config
+	Config *config.Config
 }
 
 func (s *WordSearchServer) WordSearch(ctx context.Context, req *pb.WordSearchRequest) (*pb.WordSearchResponse, error) {
 	// Uses a glob to search the database directly.
 
-	db, err := getDbConnection(s.Config.LexiconPath, req.Lexicon)
+	db, err := getDbConnection(s.Config, req.Lexicon)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func (s *WordSearchServer) WordSearch(ctx context.Context, req *pb.WordSearchReq
 }
 
 func (s *WordSearchServer) GetWordInformation(ctx context.Context, req *pb.DefineRequest) (*pb.WordSearchResponse, error) {
-	db, err := getDbConnection(s.Config.LexiconPath, req.Lexicon)
+	db, err := getDbConnection(s.Config, req.Lexicon)
 	if err != nil {
 		return nil, err
 	}

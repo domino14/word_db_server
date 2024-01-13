@@ -11,8 +11,6 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	mcconfig "github.com/domino14/macondo/config"
-
 	"github.com/domino14/word_db_server/internal/anagramserver"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 )
@@ -41,8 +39,7 @@ func (ws ByLonger) Less(i, j int) bool {
 }
 
 type Config struct {
-	MacondoConfig mcconfig.Config
-
+	dataPath  string
 	buildMode bool
 	showStats bool
 	rack      string
@@ -51,19 +48,7 @@ type Config struct {
 func (c *Config) Load(args []string) error {
 	fs := flag.NewFlagSet("cwl", flag.ContinueOnError)
 
-	fs.BoolVar(&c.MacondoConfig.Debug, "debug", false, "debug logging on")
-
-	fs.StringVar(&c.MacondoConfig.LetterDistributionPath, "letter-distribution-path", "../macondo/data/letterdistributions", "directory holding letter distribution files")
-	fs.StringVar(&c.MacondoConfig.StrategyParamsPath, "strategy-params-path", "../macondo/data/strategy", "directory holding strategy files")
-	fs.StringVar(&c.MacondoConfig.LexiconPath, "lexicon-path", "../macondo/data/lexica", "directory holding lexicon files")
-	fs.StringVar(&c.MacondoConfig.DefaultLexicon, "default-lexicon", "NWL18", "the default lexicon to use")
-	fs.StringVar(&c.MacondoConfig.DefaultLetterDistribution, "default-letter-distribution", "English", "the default letter distribution to use. English, EnglishSuper, Spanish, Polish, etc.")
-
-	// We are going to have a flag to migrate a database. This is due to a
-	// legacy issue where alphagram sort order was not deterministic for
-	// alphagrams with equal probability, so we need to keep the old
-	// sort orders around in order to not mess up alphagrams-by-probability
-	// lists.
+	fs.StringVar(&c.dataPath, "data-path", os.Getenv("CWL_DATA_PATH"), "Data path")
 
 	fs.BoolVar(&c.buildMode, "b", false, "Build mode")
 	fs.BoolVar(&c.showStats, "t", false, "Show stats")
@@ -92,7 +77,7 @@ func main() {
 	log.Debug().Interface("config", cfg).Str("rack", cfg.rack).Bool("build", cfg.buildMode).Msg("input")
 
 	s := &anagramserver.Server{
-		MacondoConfig: &cfg.MacondoConfig,
+		Config: map[string]any{"data-path": cfg.dataPath},
 	}
 
 	amResp, err := s.Anagram(context.Background(), &pb.AnagramRequest{

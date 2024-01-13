@@ -2,21 +2,20 @@ package anagrammer
 
 import (
 	"os"
-	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/domino14/macondo/alphabet"
-	"github.com/domino14/macondo/config"
+	"github.com/domino14/word-golib/kwg"
+	"github.com/domino14/word-golib/tilemapping"
 	"github.com/matryer/is"
-
-	"github.com/domino14/macondo/gaddag"
-	"github.com/domino14/macondo/gaddagmaker"
 )
 
-var DefaultConfig = config.DefaultConfig()
+var DefaultConfig = map[string]any{
+	"data-path":                   os.Getenv("WDB_DATA_PATH"),
+	"default-lexicon":             "NWL20",
+	"default-letter-distribution": "English",
+}
 
 type testpair struct {
 	rack string
@@ -99,37 +98,12 @@ func wordlistToSet(wl []string) map[string]struct{} {
 	return m
 }
 
-func TestMain(m *testing.M) {
-	for _, lex := range []string{"America", "FISE2", "CSW15", "CSW19"} {
-		gdgPath := filepath.Join(DefaultConfig.LexiconPath, "dawg", lex+".dawg")
-		if _, err := os.Stat(gdgPath); os.IsNotExist(err) {
-			gaddagmaker.GenerateDawg(filepath.Join(DefaultConfig.LexiconPath, lex+".txt"), true, true, false)
-			err = os.Rename("out.dawg", gdgPath)
-			if err != nil {
-				panic(err)
-			}
-		}
-	}
-	os.Exit(m.Run())
-}
-
-func TestSimpleAnagram(t *testing.T) {
-	gaddagmaker.GenerateDawg("test_files/small.txt", true, true, false)
-	d, err := gaddag.LoadDawg("out.dawg")
-	if err != nil {
-		panic(err)
-	}
-	for _, pair := range simpleAnagramTests {
-		answers := Anagram(pair.rack, d, ModeExact)
-		if !reflect.DeepEqual(wordlistToSet(answers), pair.answers) {
-			t.Error("For", pair.rack, "expected", pair.answers, "got", answers)
-		}
-	}
-}
-
 func TestAnagram(t *testing.T) {
-	path := filepath.Join(DefaultConfig.LexiconPath, "dawg", "America.dawg")
-	d, _ := gaddag.LoadDawg(path)
+	is := is.New(t)
+
+	d, err := kwg.Get(DefaultConfig, "America")
+	is.NoErr(err)
+
 	for _, pair := range buildTests {
 		answers := Anagram(pair.rack, d, ModeBuild)
 		if len(answers) != pair.num {
@@ -146,8 +120,9 @@ func TestAnagram(t *testing.T) {
 }
 
 func TestAnagramSpanish(t *testing.T) {
-	path := filepath.Join(DefaultConfig.LexiconPath, "dawg", "FISE2.dawg")
-	d, _ := gaddag.LoadDawg(path)
+	is := is.New(t)
+	d, err := kwg.Get(DefaultConfig, "FISE2")
+	is.NoErr(err)
 	for _, pair := range spanishBuildTests {
 		answers := Anagram(pair.rack, d, ModeBuild)
 		if len(answers) != pair.num {
@@ -164,8 +139,9 @@ func TestAnagramSpanish(t *testing.T) {
 
 func BenchmarkAnagramBlanks(b *testing.B) {
 	// ~ 21.33 ms per op on my macbook pro.
-	path := filepath.Join(DefaultConfig.LexiconPath, "dawg", "CSW15.dawg")
-	d, _ := gaddag.LoadDawg(path)
+	is := is.New(b)
+	d, err := kwg.Get(DefaultConfig, "CSW15")
+	is.NoErr(err)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		Anagram("RETINA??", d, ModeExact)
@@ -174,8 +150,10 @@ func BenchmarkAnagramBlanks(b *testing.B) {
 
 func BenchmarkAnagramFourBlanks(b *testing.B) {
 	// ~ 453.6ms
-	path := filepath.Join(DefaultConfig.LexiconPath, "dawg", "America.dawg")
-	d, _ := gaddag.LoadDawg(path)
+	is := is.New(b)
+	d, err := kwg.Get(DefaultConfig, "America")
+	is.NoErr(err)
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		Anagram("AEINST????", d, ModeExact)
@@ -183,8 +161,9 @@ func BenchmarkAnagramFourBlanks(b *testing.B) {
 }
 
 func TestBuildFourBlanks(t *testing.T) {
-	path := filepath.Join(DefaultConfig.LexiconPath, "dawg", "America.dawg")
-	d, _ := gaddag.LoadDawg(path)
+	is := is.New(t)
+	d, err := kwg.Get(DefaultConfig, "America")
+	is.NoErr(err)
 	answers := Anagram("AEINST????", d, ModeBuild)
 	expected := 61711
 	if len(answers) != expected {
@@ -193,8 +172,9 @@ func TestBuildFourBlanks(t *testing.T) {
 }
 
 func TestAnagramFourBlanks(t *testing.T) {
-	path := filepath.Join(DefaultConfig.LexiconPath, "dawg", "America.dawg")
-	d, _ := gaddag.LoadDawg(path)
+	is := is.New(t)
+	d, err := kwg.Get(DefaultConfig, "America")
+	is.NoErr(err)
 	answers := Anagram("AEINST????", d, ModeExact)
 	expected := 863
 	if len(answers) != expected {
@@ -204,22 +184,25 @@ func TestAnagramFourBlanks(t *testing.T) {
 
 func TestMakeRack(t *testing.T) {
 	rack := "AE[JQXZ]NR?[KY]?"
-	alph := alphabet.EnglishAlphabet()
-	rw, err := makeRack(rack, alph)
 	is := is.New(t)
+
+	ld, err := tilemapping.NamedLetterDistribution(DefaultConfig, "english")
 	is.NoErr(err)
-	is.Equal(rw.rack, alphabet.RackFromString("AENR??", alph))
+	rw, err := makeRack(rack, ld.TileMapping())
+	is.NoErr(err)
+
+	is.Equal(rw.rack, tilemapping.RackFromString("AENR??", ld.TileMapping()))
 	is.Equal(rw.numLetters, 8)
 	is.Equal(rw.rangeBlanks, []rangeBlank{
-		{1, []alphabet.MachineLetter{9, 16, 23, 25}},
-		{1, []alphabet.MachineLetter{10, 24}},
+		{1, []tilemapping.MachineLetter{10, 17, 24, 26}},
+		{1, []tilemapping.MachineLetter{11, 25}},
 	})
 }
 
 func TestAnagramRangeSmall(t *testing.T) {
 	is := is.New(t)
-	path := filepath.Join(DefaultConfig.LexiconPath, "dawg", "CSW19.dawg")
-	d, _ := gaddag.LoadDawg(path)
+	d, err := kwg.Get(DefaultConfig, "CSW19")
+	is.NoErr(err)
 	answers := Anagram("[JQXZ]A", d, ModeExact)
 	log.Info().Msgf("answers: %v", answers)
 
@@ -228,8 +211,8 @@ func TestAnagramRangeSmall(t *testing.T) {
 
 func TestAnagramRangeSmall2(t *testing.T) {
 	is := is.New(t)
-	path := filepath.Join(DefaultConfig.LexiconPath, "dawg", "CSW19.dawg")
-	d, _ := gaddag.LoadDawg(path)
+	d, err := kwg.Get(DefaultConfig, "CSW19")
+	is.NoErr(err)
 	answers := Anagram("[AEIOU][JQXZ]", d, ModeExact)
 	log.Info().Msgf("answers: %v", answers)
 
@@ -238,8 +221,8 @@ func TestAnagramRangeSmall2(t *testing.T) {
 
 func TestAnagramRangeSmallOrderDoesntMatter(t *testing.T) {
 	is := is.New(t)
-	path := filepath.Join(DefaultConfig.LexiconPath, "dawg", "CSW19.dawg")
-	d, _ := gaddag.LoadDawg(path)
+	d, err := kwg.Get(DefaultConfig, "CSW19")
+	is.NoErr(err)
 	answers := Anagram("[JQXZ][AEIOU]", d, ModeExact)
 	log.Info().Msgf("answers: %v", answers)
 
@@ -248,8 +231,8 @@ func TestAnagramRangeSmallOrderDoesntMatter(t *testing.T) {
 
 func TestAnagramRange(t *testing.T) {
 	is := is.New(t)
-	path := filepath.Join(DefaultConfig.LexiconPath, "dawg", "CSW19.dawg")
-	d, _ := gaddag.LoadDawg(path)
+	d, err := kwg.Get(DefaultConfig, "CSW19")
+	is.NoErr(err)
 	answers := Anagram("AE[JQXZ]NR?[KY]?", d, ModeExact)
 	log.Info().Msgf("answers: %v", answers)
 

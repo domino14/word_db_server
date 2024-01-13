@@ -8,7 +8,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	mcconfig "github.com/domino14/macondo/config"
+	"github.com/domino14/word_db_server/config"
 	"github.com/domino14/word_db_server/internal/querygen"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 )
@@ -20,7 +20,8 @@ func (s *Server) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchR
 	if err != nil {
 		return nil, err
 	}
-	db, err := getDbConnection(s.Config.LexiconPath, qgen.LexiconName())
+
+	db, err := getDbConnection(s.Config, qgen.LexiconName())
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +44,7 @@ func (s *Server) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchR
 	}, nil
 }
 
-func createQueryGen(req *pb.SearchRequest, cfg *mcconfig.Config, maxChunkSize int) (*querygen.QueryGen, error) {
+func createQueryGen(req *pb.SearchRequest, cfg *config.Config, maxChunkSize int) (*querygen.QueryGen, error) {
 	log.Info().Msgf("Creating query gen for request %v", req)
 	if req.Searchparams == nil || len(req.Searchparams) < 1 {
 		return nil, errors.New("no search params provided")

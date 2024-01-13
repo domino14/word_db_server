@@ -6,12 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/domino14/macondo/alphabet"
-	mcconfig "github.com/domino14/macondo/config"
-	"github.com/domino14/macondo/gaddag"
+	"github.com/domino14/word-golib/kwg"
+	"github.com/domino14/word-golib/tilemapping"
 
+	"github.com/domino14/word_db_server/config"
 	anagrammer "github.com/domino14/word_db_server/internal/anagramserver/legacyanagrammer"
-	"github.com/domino14/word_db_server/internal/dawg"
 	"github.com/domino14/word_db_server/internal/searchserver"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 	"github.com/rs/zerolog/log"
@@ -28,7 +27,7 @@ const (
 )
 
 type Server struct {
-	MacondoConfig *mcconfig.Config
+	Config map[string]any
 }
 
 func timeTrack(start time.Time, name string) {
@@ -63,23 +62,24 @@ func (s *Server) Anagram(ctx context.Context, req *pb.AnagramRequest) (
 	*pb.AnagramResponse, error) {
 	defer timeTrack(time.Now(), "anagram")
 
-	dawgInfo, err := dawg.GetDawgInfo(s.MacondoConfig, req.Lexicon)
+	dawg, err := kwg.Get(s.Config, req.Lexicon)
 	if err != nil {
 		return nil, err
 	}
+
 	var sols []string
 	if strings.Contains(req.Letters, "[") {
 		// defer to the legacy anagrammer. This is a "range" query.
 		if req.Mode == pb.AnagramRequest_SUPER {
 			return nil, errors.New("cannot use super-anagram mode with range queries")
 		}
-		sols = anagrammer.Anagram(req.Letters, dawgInfo.GetDawg(), anagrammer.AnagramMode(req.Mode))
+		sols = anagrammer.Anagram(req.Letters, dawg, anagrammer.AnagramMode(req.Mode))
 	} else {
 
-		da := dawg.DaPool.Get().(*gaddag.DawgAnagrammer)
-		defer dawg.DaPool.Put(da)
+		da := kwg.DaPool.Get().(*kwg.KWGAnagrammer)
+		defer kwg.DaPool.Put(da)
 
-		var anagFunc func(dawg gaddag.GenericDawg, f func(alphabet.MachineWord) error) error
+		var anagFunc func(dawg *kwg.KWG, f func(tilemapping.MachineWord) error) error
 		switch req.Mode {
 		case pb.AnagramRequest_EXACT:
 			anagFunc = da.Anagram
@@ -92,14 +92,13 @@ func (s *Server) Anagram(ctx context.Context, req *pb.AnagramRequest) (
 			// XXX: Add auth key?
 			return nil, errors.New("query too complex; try using Super-anagram mode instead")
 		}
-		theDawg := dawgInfo.GetDawg()
-		alph := theDawg.GetAlphabet()
-		err = da.InitForString(theDawg, strings.ToUpper(req.Letters))
+		alph := dawg.GetAlphabet()
+		err = da.InitForString(dawg, strings.ToUpper(req.Letters))
 		if err != nil {
 			return nil, err
 		}
 
-		anagFunc(theDawg, func(word alphabet.MachineWord) error {
+		anagFunc(dawg, func(word tilemapping.MachineWord) error {
 			sols = append(sols, word.UserVisible(alph))
 			return nil
 		})
@@ -108,8 +107,16 @@ func (s *Server) Anagram(ctx context.Context, req *pb.AnagramRequest) (
 	var words []*pb.Word
 	if req.Expand && len(sols) > 0 {
 		// Build an expand request.
+
+		// searchServer needs a *config.Config
+		cfg := &config.Config{}
+		var ok bool
+		cfg.DataPath, ok = s.Config["data-path"].(string)
+		if !ok {
+			return nil, errors.New("could not find data-path in config")
+		}
 		expander := &searchserver.Server{
-			Config: s.MacondoConfig,
+			Config: cfg,
 		}
 		alphagram := &pb.Alphagram{
 			Alphagram: req.Letters, // not technically an alphagram but doesn't matter rn
@@ -139,7 +146,7 @@ func (s *Server) BlankChallengeCreator(ctx context.Context, req *pb.BlankChallen
 	ctx, cancel := context.WithTimeout(ctx, BlankQuestionsTimeout)
 	defer cancel()
 
-	blanks, err := GenerateBlanks(ctx, s.MacondoConfig, req)
+	blanks, err := GenerateBlanks(ctx, s.Config, req)
 	if err == context.DeadlineExceeded {
 		// Sadly, using twirp.DeadlineExceeded results in a 408 status code,
 		// which causes web browsers to keep trying request again!
@@ -159,7 +166,7 @@ func (s *Server) BuildChallengeCreator(ctx context.Context, req *pb.BuildChallen
 	*pb.SearchResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, BuildQuestionsTimeout)
 	defer cancel()
-	question, err := GenerateBuildChallenge(ctx, s.MacondoConfig, req)
+	question, err := GenerateBuildChallenge(ctx, s.Config, req)
 	if err == context.DeadlineExceeded {
 		return nil, twirp.NewError(twirp.DeadlineExceeded, "build challenge timed out")
 	}

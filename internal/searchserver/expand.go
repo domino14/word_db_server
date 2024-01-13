@@ -7,7 +7,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	mcconfig "github.com/domino14/macondo/config"
+	"github.com/domino14/word_db_server/config"
 	"github.com/domino14/word_db_server/internal/querygen"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 )
@@ -19,7 +19,7 @@ func (s *Server) Expand(ctx context.Context, req *pb.SearchResponse) (*pb.Search
 	defer timeTrack(time.Now(), "expand")
 	lexName := req.Lexicon
 	// Get all the alphagrams from the search request.
-	db, err := getDbConnection(s.Config.LexiconPath, lexName)
+	db, err := getDbConnection(s.Config, lexName)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +40,7 @@ func (s *Server) Expand(ctx context.Context, req *pb.SearchResponse) (*pb.Search
 	}, nil
 }
 
-func getInputAlphagramInfo(req *pb.SearchResponse, cfg *mcconfig.Config, db *sql.DB) (map[string]*pb.Alphagram, error) {
+func getInputAlphagramInfo(req *pb.SearchResponse, cfg *config.Config, db *sql.DB) (map[string]*pb.Alphagram, error) {
 	inputAlphas := alphasFromSearchResponse(req)
 	alphaQgen := querygen.NewQueryGen(req.Lexicon, querygen.AlphagramsOnly,
 		[]*pb.SearchRequest_SearchParam{SearchDescAlphagramList(inputAlphas)},
@@ -65,7 +65,7 @@ func getInputAlphagramInfo(req *pb.SearchResponse, cfg *mcconfig.Config, db *sql
 	return alphStrToObjs, nil
 }
 
-func mergeInputWordInfo(req *pb.SearchResponse, cfg *mcconfig.Config,
+func mergeInputWordInfo(req *pb.SearchResponse, cfg *config.Config,
 	alphStrToObjs map[string]*pb.Alphagram, db *sql.DB) ([]*pb.Alphagram, error) {
 	outputAlphas := []*pb.Alphagram{}
 

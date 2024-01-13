@@ -2,11 +2,17 @@ package searchserver
 
 import (
 	"context"
+	"os"
 	"testing"
 
+	"github.com/domino14/word_db_server/config"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 	"github.com/stretchr/testify/assert"
 )
+
+var DefaultConfig = &config.Config{
+	DataPath: os.Getenv("WDB_DATA_PATH"),
+}
 
 func alphagrams(sr *pb.SearchResponse) []string {
 	return alphsFromPB(sr.Alphagrams)
@@ -22,7 +28,7 @@ func alphsFromPB(pba []*pb.Alphagram) []string {
 
 func searchHelper(req *pb.SearchRequest) (*pb.SearchResponse, error) {
 	s := &Server{
-		Config: &DefaultConfig,
+		Config: DefaultConfig,
 	}
 	sr, err := s.Search(context.Background(), req)
 
@@ -111,7 +117,7 @@ func TestAlphagramList(t *testing.T) {
 		SearchDescAlphagramList([]string{"DEGORU", "AAAIMNORT", "DGOS"}),
 	}, false)
 	resp, _ := searchHelper(req)
-	assert.Equal(t, []string{"DGOS", "DEGORU", "AAAIMNORT"}, alphagrams(resp))
+	assert.Equal(t, []string{"AAAIMNORT", "DEGORU", "DGOS"}, alphagrams(resp))
 }
 
 func TestProbabilityList(t *testing.T) {
@@ -238,12 +244,13 @@ func TestProbabilityListMultipleQueries(t *testing.T) {
 	}, expand)
 
 	maxChunkSize := 2
-	qgen, err := createQueryGen(req, &DefaultConfig, maxChunkSize)
+	qgen, err := createQueryGen(req, DefaultConfig, maxChunkSize)
 	assert.Nil(t, err)
 	s := &Server{
-		Config: &DefaultConfig,
+		Config: DefaultConfig,
 	}
-	db, err := getDbConnection(s.Config.LexiconPath, qgen.LexiconName())
+
+	db, err := getDbConnection(s.Config, qgen.LexiconName())
 	assert.Nil(t, err)
 	defer db.Close()
 	queries, err := qgen.Generate()
@@ -270,11 +277,11 @@ func TestProbabilityListMultipleQueriesOther(t *testing.T) {
 	}, expand)
 
 	maxChunkSize := 3
-	qgen, _ := createQueryGen(req, &DefaultConfig, maxChunkSize)
+	qgen, _ := createQueryGen(req, DefaultConfig, maxChunkSize)
 	s := &Server{
-		Config: &DefaultConfig,
+		Config: DefaultConfig,
 	}
-	db, _ := getDbConnection(s.Config.LexiconPath, qgen.LexiconName())
+	db, _ := getDbConnection(s.Config, qgen.LexiconName())
 	defer db.Close()
 	queries, _ := qgen.Generate()
 	// There should be 3 queries (max chunk size is 2 and we have 9 elements in list)

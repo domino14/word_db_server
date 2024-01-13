@@ -7,12 +7,12 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/domino14/macondo/alphabet"
-	mcconfig "github.com/domino14/macondo/config"
-	"github.com/domino14/macondo/gaddag"
+	"github.com/domino14/word-golib/kwg"
+	"github.com/domino14/word-golib/tilemapping"
 
+	"github.com/domino14/word_db_server/config"
 	anagrammer "github.com/domino14/word_db_server/internal/anagramserver/legacyanagrammer"
-	"github.com/domino14/word_db_server/internal/dawg"
+	"github.com/domino14/word_db_server/internal/common"
 	"github.com/domino14/word_db_server/rpc/wordsearcher"
 )
 
@@ -133,13 +133,10 @@ func (q *Query) Expanded() bool {
 	return q.expandedForm
 }
 
-func alphasFromWordList(words []string, dist *alphabet.LetterDistribution) []string {
+func alphasFromWordList(words []string, dist *tilemapping.LetterDistribution) []string {
 	alphaSet := map[string]bool{}
 	for _, word := range words {
-		w := alphabet.Word{
-			Word: word,
-			Dist: dist,
-		}
+		w := common.InitializeWord(word, dist)
 		alphaSet[w.MakeAlphagram()] = true
 	}
 	vals := []string{}
@@ -162,19 +159,22 @@ func (q *Query) Render(whereClauses []string, limitOffsetClause string) {
 
 // QueryGen is a query generator.
 type QueryGen struct {
-	lexiconName   string
-	queryType     QueryType
-	searchParams  []*wordsearcher.SearchRequest_SearchParam
-	maxChunkSize  int
-	macondoConfig *mcconfig.Config
+	lexiconName  string
+	queryType    QueryType
+	searchParams []*wordsearcher.SearchRequest_SearchParam
+	maxChunkSize int
+	config       map[string]any
 }
 
 // NewQueryGen generates a new query generator with the given parameters.
 func NewQueryGen(lexiconName string, queryType QueryType,
 	searchParams []*wordsearcher.SearchRequest_SearchParam,
-	maxChunkSize int, cfg *mcconfig.Config) *QueryGen {
+	maxChunkSize int, cfg *config.Config) *QueryGen {
 
-	return &QueryGen{lexiconName, queryType, searchParams, maxChunkSize, cfg}
+	qgenConfig := map[string]any{
+		"data-path": cfg.DataPath}
+
+	return &QueryGen{lexiconName, queryType, searchParams, maxChunkSize, qgenConfig}
 }
 
 func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchParam) (Clause, error) {
@@ -245,25 +245,28 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 		}
 		letters := desc.GetValue()
 
-		dawgInfo, err := dawg.GetDawgInfo(qg.macondoConfig, qg.lexiconName)
+		dawg, err := kwg.Get(qg.config, qg.lexiconName)
 		if err != nil {
 			return nil, err
 		}
-		thisdawg := dawgInfo.GetDawg()
-		alph := thisdawg.GetAlphabet()
+		dist, err := tilemapping.ProbableLetterDistribution(qg.config, qg.lexiconName)
+		if err != nil {
+			return nil, err
+		}
+		alph := dawg.GetAlphabet()
 
 		var words []string
 		if strings.Contains(letters, "[") {
 			// defer to the legacy anagrammer. This is a "range" query.
-			words = anagrammer.Anagram(letters, thisdawg, anagrammer.ModeExact)
+			words = anagrammer.Anagram(letters, dawg, anagrammer.ModeExact)
 		} else {
-			da := dawg.DaPool.Get().(*gaddag.DawgAnagrammer)
-			defer dawg.DaPool.Put(da)
-			err = da.InitForString(thisdawg, letters)
+			da := kwg.DaPool.Get().(*kwg.KWGAnagrammer)
+			defer kwg.DaPool.Put(da)
+			err = da.InitForString(dawg, letters)
 			if err != nil {
 				return nil, err
 			}
-			da.Anagram(thisdawg, func(word alphabet.MachineWord) error {
+			da.Anagram(dawg, func(word tilemapping.MachineWord) error {
 				words = append(words, word.UserVisible(alph))
 				return nil
 			})
@@ -271,7 +274,7 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 		if len(words) == 0 {
 			return nil, errors.New("no words matched this anagram search")
 		}
-		alphas := alphasFromWordList(words, dawgInfo.GetDist())
+		alphas := alphasFromWordList(words, dist)
 		newSp := &wordsearcher.SearchRequest_SearchParam{
 			Conditionparam: &wordsearcher.SearchRequest_SearchParam_Stringarray{
 				Stringarray: &wordsearcher.SearchRequest_StringArray{

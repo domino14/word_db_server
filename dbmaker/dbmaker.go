@@ -14,8 +14,9 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/domino14/macondo/alphabet"
-	"github.com/domino14/macondo/gaddag"
+	"github.com/domino14/word-golib/kwg"
+	"github.com/domino14/word-golib/tilemapping"
+	"github.com/domino14/word_db_server/internal/common"
 
 	// sqlite3 db driver is needed for the word db maker
 	_ "github.com/mattn/go-sqlite3"
@@ -34,23 +35,33 @@ func (a *Alphagram) String() string {
 	return fmt.Sprintf("Alphagram: %s (%d)", a.alphagram, a.combinations)
 }
 
-func (a *Alphagram) pointValue(dist *alphabet.LetterDistribution) uint8 {
-	pts := uint8(0)
-	for _, rn := range a.alphagram {
-		pts += dist.PointValues[rn]
+func (a *Alphagram) pointValue(dist *tilemapping.LetterDistribution) int {
+	pts := 0
+
+	mls, err := tilemapping.ToMachineLetters(a.alphagram, dist.TileMapping())
+	if err != nil {
+		panic(err)
+	}
+	for _, ml := range mls {
+		pts += dist.Score(ml)
 	}
 	return pts
 }
 
-func (a *Alphagram) numVowels(dist *alphabet.LetterDistribution) uint8 {
-	vowels := uint8(0)
-	vowelMap := map[rune]bool{}
+func (a *Alphagram) numVowels(dist *tilemapping.LetterDistribution) int {
+	vowels := 0
+	vowelMap := map[tilemapping.MachineLetter]bool{}
 	for _, v := range dist.Vowels {
 		vowelMap[v] = true
 	}
 
-	for _, rn := range a.alphagram {
-		if vowelMap[rn] {
+	mls, err := tilemapping.ToMachineLetters(a.alphagram, dist.TileMapping())
+	if err != nil {
+		panic(err)
+	}
+
+	for _, ml := range mls {
+		if vowelMap[ml] {
 			vowels++
 		}
 	}
@@ -178,8 +189,7 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo *LexiconInfo, lexMap 
 	exitIfError(err)
 	defer alphStmt.Close()
 	defer wordStmt.Close()
-	dawg := lexiconInfo.Dawg
-	rDawg := lexiconInfo.RDawg
+	// lexKWG := lexiconInfo.KWG
 
 	lexFamily, err := lexMap.familyName(lexiconName)
 	exitIfError(err)
@@ -194,12 +204,16 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo *LexiconInfo, lexMap 
 		// ignore this
 		log.Err(err).Msg("no prior lexicon, ignoring...")
 	}
+	log.Info().Interface("priorLex", priorLex).Msg("finding prior lexicon")
 
 	for idx, alph := range alphs {
 		if idx%10000 == 0 {
 			log.Debug().Msgf("%d...", idx)
 		}
-		wl := len([]rune(alph.alphagram))
+		alphML, err := tilemapping.ToMachineLetters(alph.alphagram, lexiconInfo.LetterDistribution.TileMapping())
+		exitIfError(err)
+
+		wl := len(alphML)
 		if wl <= 15 && wl >= 2 {
 			probs[wl]++
 		} else {
@@ -207,16 +221,17 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo *LexiconInfo, lexMap 
 		}
 		lexSymbolsList := []string{}
 		for _, word := range alph.words {
-			backHooks := sortedHooks(gaddag.FindHooks(dawg, word, gaddag.BackHooks),
-				lexiconInfo.LetterDistribution)
-			frontHooks := sortedHooks(gaddag.FindHooks(rDawg, word, gaddag.FrontHooks),
-				lexiconInfo.LetterDistribution)
+			wordML, err := tilemapping.ToMachineLetters(word, lexiconInfo.LetterDistribution.TileMapping())
+			exitIfError(err)
+
+			backHooks := tilemapping.MachineWord(kwg.FindHooks(lexiconInfo.KWG, wordML, kwg.BackHooks)).UserVisible(lexiconInfo.LetterDistribution.TileMapping())
+			frontHooks := tilemapping.MachineWord(kwg.FindHooks(lexiconInfo.KWG, wordML, kwg.FrontHooks)).UserVisible(lexiconInfo.LetterDistribution.TileMapping())
 			frontInnerHook := 0
 			backInnerHook := 0
-			if gaddag.FindInnerHook(dawg, word, gaddag.BackInnerHook) {
+			if kwg.FindInnerHook(lexiconInfo.KWG, wordML, kwg.BackInnerHook) {
 				backInnerHook = 1
 			}
-			if gaddag.FindInnerHook(dawg, word, gaddag.FrontInnerHook) {
+			if kwg.FindInnerHook(lexiconInfo.KWG, wordML, kwg.FrontInnerHook) {
 				frontInnerHook = 1
 			}
 
@@ -246,7 +261,9 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo *LexiconInfo, lexMap 
 		definitions, _ := populateAlphsDefs(priorLex.LexiconFilename,
 			priorLex.Combinations, priorLex.LetterDistribution)
 		for word := range definitions {
-			if !gaddag.FindWord(lexiconInfo.Dawg, word) {
+			mls, err := tilemapping.ToMachineLetters(word, priorLex.LetterDistribution.TileMapping())
+			exitIfError(err)
+			if !kwg.FindMachineWord(lexiconInfo.KWG, mls) {
 				deletedWords = append(deletedWords, word)
 			}
 		}
@@ -403,12 +420,14 @@ func FixLexiconSymbols(lexiconName string, lexMap LexiconMap) {
 // a previous version of this program. At the minimum, the schema looks like:
 // sqlStmt := `
 // CREATE TABLE alphagrams (probability int, alphagram varchar(20),
-//     length int, combinations int, num_anagrams int);
+//
+//	length int, combinations int, num_anagrams int);
 //
 // CREATE TABLE words (word varchar(20), alphagram varchar(20),
-//     lexicon_symbols varchar(5), definition varchar(512),
-//     front_hooks varchar(26), back_hooks varchar(26),
-//     inner_front_hook int, inner_back_hook int);
+//
+//	lexicon_symbols varchar(5), definition varchar(512),
+//	front_hooks varchar(26), back_hooks varchar(26),
+//	inner_front_hook int, inner_back_hook int);
 //
 // CREATE INDEX alpha_index on alphagrams(alphagram);
 // CREATE INDEX prob_index on alphagrams(probability, length);
@@ -476,7 +495,7 @@ func MigrateLexiconDatabase(lexiconName string, lexiconInfo *LexiconInfo) {
 
 }
 
-func migrateToV2(db *sql.DB, dist *alphabet.LetterDistribution) {
+func migrateToV2(db *sql.DB, dist *tilemapping.LetterDistribution) {
 	// Version 2 has the following improvements:
 	// An index on point value, and point value
 	// An index on num anagrams, and num anagrams
@@ -663,26 +682,21 @@ func migrateToV6(db *sql.DB) {
 	exitIfError(err)
 }
 
-func sortedHooks(hooks []rune, dist *alphabet.LetterDistribution) string {
-	w := alphabet.Word{Word: string(hooks), Dist: dist}
-	return w.MakeAlphagram()
-}
-
 func findLexSymbols(word string, latestCSW, latestTWL *LexiconInfo, lexFamily FamilyName,
 	priorLex *LexiconInfo) string {
 
 	symbols := ""
 
-	if priorLex != nil {
-		if !gaddag.FindWord(priorLex.Dawg, word) && !strings.Contains(symbols, LexiconUpdateSymbol) {
+	if priorLex != nil && priorLex.KWG != nil {
+		if !kwg.FindWord(priorLex.KWG, word) && !strings.Contains(symbols, LexiconUpdateSymbol) {
 			symbols += LexiconUpdateSymbol
 		}
 	}
-	if lexFamily == FamilyCSW && !gaddag.FindWord(latestTWL.Dawg, word) &&
+	if lexFamily == FamilyCSW && !kwg.FindWord(latestTWL.KWG, word) &&
 		!strings.Contains(symbols, CSWOnlySymbol) {
 		symbols += CSWOnlySymbol
 	}
-	if lexFamily == FamilyTWL && !gaddag.FindWord(latestCSW.Dawg, word) &&
+	if lexFamily == FamilyTWL && !kwg.FindWord(latestCSW.KWG, word) &&
 		!strings.Contains(symbols, TWLOnlySymbol) {
 		symbols += TWLOnlySymbol
 	}
@@ -731,31 +745,33 @@ func alphaMapValues(theMap map[string]Alphagram) []Alphagram {
 }
 
 func populateAlphsDefs(filename string, combinations func(string, bool) uint64,
-	dist *alphabet.LetterDistribution) (map[string]string, map[string]Alphagram) {
+	dist *tilemapping.LetterDistribution) (map[string]string, map[string]Alphagram) {
 
 	definitions := make(map[string]*FullDefinition)
 	alphagrams := make(map[string]Alphagram)
-	file, _ := os.Open(filename)
-	// XXX: Check error
+	file, err := os.Open(filename)
+	if err != nil {
+		panic(err)
+	}
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
 		if len(fields) > 0 {
-			word := alphabet.Word{Word: strings.ToUpper(fields[0]), Dist: dist}
+			word := common.InitializeWord(strings.ToUpper(fields[0]), dist)
 			definition := ""
 			if len(fields) > 1 {
 				definition = strings.Join(fields[1:], " ")
 			}
-			addToDefinitions(word.Word, definition, definitions)
+			addToDefinitions(word.Word(), definition, definitions)
 			alphagram := word.MakeAlphagram()
 			alph, ok := alphagrams[alphagram]
 			if !ok {
 				alphagrams[alphagram] = Alphagram{
-					[]string{word.Word},
+					[]string{word.Word()},
 					combinations(alphagram, true),
 					alphagram, 0, 0, 0}
 			} else {
-				alph.words = append(alph.words, word.Word)
+				alph.words = append(alph.words, word.Word())
 				alphagrams[alphagram] = alph
 			}
 		}

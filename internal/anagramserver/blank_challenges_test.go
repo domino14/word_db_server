@@ -3,68 +3,49 @@ package anagramserver
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/domino14/macondo/alphabet"
-	mcconfig "github.com/domino14/macondo/config"
-	"github.com/domino14/macondo/gaddag"
-	"github.com/domino14/macondo/gaddagmaker"
+	"github.com/domino14/word-golib/kwg"
+	"github.com/domino14/word-golib/tilemapping"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 	"github.com/stretchr/testify/assert"
 )
 
-var DefaultConfig = mcconfig.Config{
-	StrategyParamsPath:        os.Getenv("STRATEGY_PARAMS_PATH"),
-	LexiconPath:               os.Getenv("LEXICON_PATH"),
-	LetterDistributionPath:    os.Getenv("LETTER_DISTRIBUTION_PATH"),
-	DefaultLexicon:            "NWL18",
-	DefaultLetterDistribution: "English",
+var DefaultConfig = map[string]any{
+	"data-path":                   os.Getenv("WDB_DATA_PATH"),
+	"default-lexicon":             "NWL20",
+	"default-letter-distribution": "English",
 }
 
-func TestMain(m *testing.M) {
-	for _, lex := range []string{"America", "FISE2"} {
-		gdgPath := filepath.Join(DefaultConfig.LexiconPath, "dawg", lex+".dawg")
-		if _, err := os.Stat(gdgPath); os.IsNotExist(err) {
-			gaddagmaker.GenerateDawg(filepath.Join(DefaultConfig.LexiconPath, lex+".txt"), true, true, false)
-			err = os.Rename("out.dawg", gdgPath)
-			if err != nil {
-				panic(err)
-			}
-		}
-	}
-	os.Exit(m.Run())
-}
-
-func loadDawg(lexName string) (*gaddag.SimpleDawg, error) {
-	return gaddag.LoadDawg(filepath.Join(DefaultConfig.LexiconPath, "dawg", lexName+".dawg"))
+func loadKWG(lexName string) (*kwg.KWG, error) {
+	return kwg.Get(DefaultConfig, lexName)
 }
 
 func TestRacks(t *testing.T) {
-	eng, err := loadDawg("America")
+	eng, err := loadKWG("America")
 	assert.Nil(t, err)
-	span, err := loadDawg("FISE2")
+	span, err := loadKWG("FISE2")
 	assert.Nil(t, err)
 	engAlph := eng.GetAlphabet()
 	spanAlph := span.GetAlphabet()
 
-	eld, err := alphabet.Get(&DefaultConfig, "english")
+	eld, err := tilemapping.GetDistribution(DefaultConfig, "english")
 	if err != nil {
 		t.Error(err)
 	}
 
-	sld, err := alphabet.Get(&DefaultConfig, "spanish")
+	sld, err := tilemapping.GetDistribution(DefaultConfig, "spanish")
 	if err != nil {
 		t.Error(err)
 	}
 
-	dists := []*alphabet.LetterDistribution{eld, sld}
+	dists := []*tilemapping.LetterDistribution{eld, sld}
 
 	for distIdx, dist := range dists {
 		for l := int32(7); l <= 8; l++ {
 			for n := int32(1); n <= 2; n++ {
-				var alph *alphabet.Alphabet
+				var alph *tilemapping.TileMapping
 				if distIdx == 0 {
 					alph = engAlph
 				} else {
@@ -78,7 +59,7 @@ func TestRacks(t *testing.T) {
 					}
 					numBlanks := 0
 					for j := 0; j < len(rack); j++ {
-						if rack[j] == alphabet.BlankMachineLetter {
+						if rack[j] == 0 {
 							numBlanks++
 						}
 					}
@@ -103,7 +84,7 @@ func TestGenBlanks(t *testing.T) {
 		NumWith_2Blanks: 6,
 	}
 
-	qs, err := GenerateBlanks(ctx, &DefaultConfig, req)
+	qs, err := GenerateBlanks(ctx, DefaultConfig, req)
 	if err != nil {
 		t.Errorf("GenBlanks returned an error: %v", err)
 	}
