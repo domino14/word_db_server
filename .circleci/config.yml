@@ -44,7 +44,7 @@ jobs:
       - run: mkdir -p $WDB_DATA_PATH/lexica/gaddag
       - run: mv /opt/word-game-lexica/*.txt $WDB_DATA_PATH/lexica
       - run: mv /opt/word-game-lexica/letterdistributions $WDB_DATA_PATH/letterdistributions
-      - run: mv /opt/word-game-lexica/kwg/*.kwg $WDB_DATA_PATH/lexica/gaddag
+      - run: mv /opt/word-game-lexica/gaddag/*.kwg $WDB_DATA_PATH/lexica/gaddag
       - run: cd cmd/searchserver && go build
       # Generate the db for NWL18.txt. If we add other dbs for testing, we
       # will need to generate those as well.
