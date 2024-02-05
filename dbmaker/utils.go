@@ -138,6 +138,15 @@ func LexiconMappings(dataPath string) LexiconMap {
 			LetterDistribution: englishLD,
 			Difficulties:       createDifficultyMap(lexiconPath, "NWL20"),
 		},
+		{
+			LexiconName:        "NWL23",
+			LexiconFilename:    filepath.Join(lexiconPath, "NWL23.txt"),
+			KWG:                loadKWG(dataPath, "NWL23"),
+			LexiconIndex:       24,
+			DescriptiveName:    "NASPA Word List, 2023 Edition",
+			LetterDistribution: englishLD,
+			Difficulties:       createDifficultyMap(lexiconPath, "NWL23"),
+		},
 	}
 
 	ospsFamily := []*LexiconInfo{

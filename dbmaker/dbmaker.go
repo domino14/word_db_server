@@ -248,7 +248,7 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo *LexiconInfo, lexMap 
 			alph.numVowels(lexiconInfo.LetterDistribution),
 			containsWordUniqueToLexSplit(lexSymbolsList),
 			containsUpdateToLex(lexSymbolsList),
-			alphagramDifficulty(alph.alphagram, lexiconInfo.Difficulties))
+			alphagramDifficulty(alph.alphagram, lexiconInfo.Difficulties, containsUpdateToLex(lexSymbolsList) == uint8(1)))
 		exitIfError(err)
 
 	}

@@ -17,7 +17,7 @@ import (
 
 const (
 	BritishDict  = "CSW21"
-	AmericanDict = "NWL20"
+	AmericanDict = "NWL23"
 )
 
 // Use more specific env var names here to avoid colliding with other

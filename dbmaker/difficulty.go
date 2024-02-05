@@ -10,6 +10,8 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var UpdatesHaveZeroDifficulty = os.Getenv("WDB_UPDATES_HAVE_ZERO_DIFFICULTY") == "1"
+
 func createDifficultyMap(lexiconPath string, lexiconName string) map[string]int {
 	difficultyPath := filepath.Join(lexiconPath, "difficulty",
 		lexiconName)
@@ -56,9 +58,14 @@ func createDifficultyMap(lexiconPath string, lexiconName string) map[string]int 
 	return dm
 }
 
-func alphagramDifficulty(alphagram string, difficulties map[string]int) int {
+func alphagramDifficulty(alphagram string, difficulties map[string]int, isUpdate bool) int {
 	// Default to 0 if not specified. This is ok.
 	if difficulties == nil {
+		return 0
+	}
+	// If this is a newly made database, don't set a difficulty for new words. We don't know what their
+	// difficulties are yet!
+	if isUpdate && UpdatesHaveZeroDifficulty {
 		return 0
 	}
 	var diff int
@@ -97,7 +104,7 @@ func loadDifficulty(db *sql.DB, lexInfo *LexiconInfo) {
 	updateStmt, err := tx.Prepare(updateQuery)
 	exitIfError(err)
 	for _, alph := range alphagrams {
-		d := alphagramDifficulty(alph.alphagram, lexInfo.Difficulties)
+		d := alphagramDifficulty(alph.alphagram, lexInfo.Difficulties, false)
 		_, err := updateStmt.Exec(d, alph.alphagram)
 		exitIfError(err)
 		i++
