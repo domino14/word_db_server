@@ -610,7 +610,6 @@ func migrateToV4(db *sql.DB) {
 		if err := rows.Scan(&word, &alph, &lexiconSymbols); err != nil {
 			log.Fatal().Err(err).Msg("")
 		}
-		//log.Println(word, alph, lexiconSymbols)
 
 		if alph != lastAlph && lastAlph != "" {
 			// We have a new alphagram.
@@ -759,7 +758,6 @@ func populateAlphsDefs(filename string, combinations func(string, bool) uint64,
 		if len(fields) > 0 {
 			word := common.InitializeWord(strings.ToUpper(fields[0]), dist)
 			definition := ""
-			log.Info().Msgf("word %v", word)
 			if len(fields) > 1 {
 				definition = strings.Join(fields[1:], " ")
 			}
