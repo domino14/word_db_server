@@ -759,6 +759,7 @@ func populateAlphsDefs(filename string, combinations func(string, bool) uint64,
 		if len(fields) > 0 {
 			word := common.InitializeWord(strings.ToUpper(fields[0]), dist)
 			definition := ""
+			log.Info().Msgf("word %v", word)
 			if len(fields) > 1 {
 				definition = strings.Join(fields[1:], " ")
 			}
