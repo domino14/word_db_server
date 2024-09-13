@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	wglconfig "github.com/domino14/word-golib/config"
 	"github.com/domino14/word_db_server/internal/anagramserver"
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
 )
@@ -77,7 +78,7 @@ func main() {
 	log.Debug().Interface("config", cfg).Str("rack", cfg.rack).Bool("build", cfg.buildMode).Msg("input")
 
 	s := &anagramserver.Server{
-		Config: map[string]any{"data-path": cfg.dataPath},
+		Config: &wglconfig.Config{DataPath: cfg.dataPath},
 	}
 
 	amResp, err := s.Anagram(context.Background(), &pb.AnagramRequest{

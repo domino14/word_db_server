@@ -7,6 +7,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
+	wglconfig "github.com/domino14/word-golib/config"
 	"github.com/domino14/word-golib/kwg"
 	"github.com/domino14/word-golib/tilemapping"
 
@@ -163,7 +164,7 @@ type QueryGen struct {
 	queryType    QueryType
 	searchParams []*wordsearcher.SearchRequest_SearchParam
 	maxChunkSize int
-	config       map[string]any
+	config       *wglconfig.Config
 }
 
 // NewQueryGen generates a new query generator with the given parameters.
@@ -171,8 +172,9 @@ func NewQueryGen(lexiconName string, queryType QueryType,
 	searchParams []*wordsearcher.SearchRequest_SearchParam,
 	maxChunkSize int, cfg *config.Config) *QueryGen {
 
-	qgenConfig := map[string]any{
-		"data-path": cfg.DataPath}
+	qgenConfig := &wglconfig.Config{
+		DataPath: cfg.DataPath,
+	}
 
 	return &QueryGen{lexiconName, queryType, searchParams, maxChunkSize, qgenConfig}
 }

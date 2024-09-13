@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/domino14/word-golib/config"
 	"github.com/domino14/word-golib/kwg"
 	"github.com/domino14/word-golib/tilemapping"
 	"github.com/rs/zerolog/log"
@@ -15,7 +16,7 @@ import (
 // GenerateBuildChallenge generates a build challenge with given args.
 // As an additional condition, letters must anagram exactly to at least
 // one word, if that argument is passed in.
-func GenerateBuildChallenge(ctx context.Context, cfg map[string]any, req *pb.BuildChallengeCreateRequest) (
+func GenerateBuildChallenge(ctx context.Context, cfg *config.Config, req *pb.BuildChallengeCreateRequest) (
 	*pb.Alphagram, error) {
 
 	dawg, err := kwg.Get(cfg, req.Lexicon)

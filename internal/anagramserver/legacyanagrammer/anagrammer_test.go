@@ -6,15 +6,14 @@ import (
 
 	"github.com/rs/zerolog/log"
 
+	"github.com/domino14/word-golib/config"
 	"github.com/domino14/word-golib/kwg"
 	"github.com/domino14/word-golib/tilemapping"
 	"github.com/matryer/is"
 )
 
-var DefaultConfig = map[string]any{
-	"data-path":                   os.Getenv("WDB_DATA_PATH"),
-	"default-lexicon":             "NWL20",
-	"default-letter-distribution": "English",
+var DefaultConfig = &config.Config{
+	DataPath: os.Getenv("WDB_DATA_PATH"),
 }
 
 type testpair struct {

@@ -6,16 +6,17 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
+	"github.com/domino14/word-golib/config"
 	"github.com/domino14/word-golib/kwg"
 	"github.com/domino14/word-golib/tilemapping"
+
 	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
-	"github.com/stretchr/testify/assert"
 )
 
-var DefaultConfig = map[string]any{
-	"data-path":                   os.Getenv("WDB_DATA_PATH"),
-	"default-lexicon":             "NWL20",
-	"default-letter-distribution": "English",
+var DefaultConfig = &config.Config{
+	DataPath: os.Getenv("WDB_DATA_PATH"),
 }
 
 func loadKWG(lexName string) (*kwg.KWG, error) {

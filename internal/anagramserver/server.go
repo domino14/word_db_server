@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	wglconfig "github.com/domino14/word-golib/config"
 	"github.com/domino14/word-golib/kwg"
 	"github.com/domino14/word-golib/tilemapping"
 
@@ -27,7 +28,7 @@ const (
 )
 
 type Server struct {
-	Config map[string]any
+	Config *wglconfig.Config
 }
 
 func timeTrack(start time.Time, name string) {
@@ -110,11 +111,7 @@ func (s *Server) Anagram(ctx context.Context, req *pb.AnagramRequest) (
 
 		// searchServer needs a *config.Config
 		cfg := &config.Config{}
-		var ok bool
-		cfg.DataPath, ok = s.Config["data-path"].(string)
-		if !ok {
-			return nil, errors.New("could not find data-path in config")
-		}
+		cfg.DataPath = s.Config.DataPath
 		expander := &searchserver.Server{
 			Config: cfg,
 		}
