@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/domino14/word-golib/config"
 	"github.com/domino14/word-golib/kwg"
 	"github.com/domino14/word-golib/tilemapping"
 	"github.com/rs/zerolog/log"
@@ -14,7 +15,7 @@ import (
 const DeletionToken = "X"
 
 func loadKWG(dataPath, lexName string) *kwg.KWG {
-	k, err := kwg.Get(map[string]any{"data-path": dataPath}, lexName)
+	k, err := kwg.Get(&config.Config{DataPath: dataPath}, lexName)
 	if err != nil {
 		log.Err(err).Str("lexName", lexName).Msg("unable to load kwg")
 	}
@@ -22,7 +23,7 @@ func loadKWG(dataPath, lexName string) *kwg.KWG {
 }
 
 func LexiconMappings(dataPath string) LexiconMap {
-	cfg := map[string]any{"data-path": dataPath}
+	cfg := &config.Config{DataPath: dataPath}
 
 	englishLD, err := tilemapping.EnglishLetterDistribution(cfg)
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/domino14/word-golib/config"
 	"github.com/domino14/word-golib/kwg"
 	"github.com/domino14/word-golib/tilemapping"
 	"github.com/rs/zerolog/log"
@@ -65,7 +66,7 @@ func try(nBlanks int32, dist *tilemapping.LetterDistribution, wordLength int32,
 
 // GenerateBlanks - Generate a list of blank word challenges given the
 // parameters in args.
-func GenerateBlanks(ctx context.Context, cfg map[string]any, req *pb.BlankChallengeCreateRequest) (
+func GenerateBlanks(ctx context.Context, cfg *config.Config, req *pb.BlankChallengeCreateRequest) (
 	[]*pb.Alphagram, error) {
 
 	dawg, err := kwg.Get(cfg, req.Lexicon)

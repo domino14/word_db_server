@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	wglconfig "github.com/domino14/word-golib/config"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -38,7 +39,7 @@ func main() {
 		Config: cfg,
 	}
 	anagramServer := &anagramserver.Server{
-		Config: map[string]any{"data-path": cfg.DataPath},
+		Config: &wglconfig.Config{DataPath: cfg.DataPath},
 	}
 	wordSearchServer := &searchserver.WordSearchServer{
 		Config: cfg,

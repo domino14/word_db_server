@@ -4,13 +4,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/domino14/word-golib/config"
 	"github.com/domino14/word-golib/tilemapping"
 )
 
-var DefaultConfig = map[string]any{
-	"data-path":                   os.Getenv("WDB_DATA_PATH"),
-	"default-lexicon":             "NWL18",
-	"default-letter-distribution": "English",
+var DefaultConfig = &config.Config{
+	DataPath: os.Getenv("WDB_DATA_PATH"),
 }
 
 func TestPopulate(t *testing.T) {
