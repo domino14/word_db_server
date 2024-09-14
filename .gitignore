@@ -8,3 +8,4 @@ cmd/searchserver/searchserver
 cmd/cwl/cwl
 cmd/dbmaker/dbmaker
 rpc/api/es
+rpc/api/py

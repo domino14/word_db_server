@@ -18,3 +18,5 @@ plugins:
     out: ./api/es
   - remote: buf.build/connectrpc/es:v1.4.0
     out: ./api/es
+  - remote: buf.build/community/danielgtaylor-betterproto:v1.2.5
+    out: ./api/py
