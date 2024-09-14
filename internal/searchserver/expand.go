@@ -5,39 +5,41 @@ import (
 	"database/sql"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/rs/zerolog/log"
 
 	"github.com/domino14/word_db_server/config"
 	"github.com/domino14/word_db_server/internal/querygen"
-	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
+	pb "github.com/domino14/word_db_server/rpc/api/wordsearcher"
 )
 
 // Expand implements the "expand" rpc command, which takes in a simple
 // list of alphagrams with words and returns all the needed expanded info
 // (such as definitions, hooks, etc).
-func (s *Server) Expand(ctx context.Context, req *pb.SearchResponse) (*pb.SearchResponse, error) {
+func (s *Server) Expand(ctx context.Context, req *connect.Request[pb.SearchResponse]) (
+	*connect.Response[pb.SearchResponse], error) {
 	defer timeTrack(time.Now(), "expand")
-	lexName := req.Lexicon
+	lexName := req.Msg.Lexicon
 	// Get all the alphagrams from the search request.
 	db, err := getDbConnection(s.Config, lexName)
 	if err != nil {
 		return nil, err
 	}
 	defer db.Close()
-	alphStrToObjs, err := getInputAlphagramInfo(req, s.Config, db)
+	alphStrToObjs, err := getInputAlphagramInfo(req.Msg, s.Config, db)
 	if err != nil {
 		return nil, err
 	}
 
-	outputAlphas, err := mergeInputWordInfo(req, s.Config, alphStrToObjs, db)
+	outputAlphas, err := mergeInputWordInfo(req.Msg, s.Config, alphStrToObjs, db)
 	if err != nil {
 		return nil, err
 	}
 
-	return &pb.SearchResponse{
+	return connect.NewResponse(&pb.SearchResponse{
 		Alphagrams: outputAlphas,
 		Lexicon:    lexName,
-	}, nil
+	}), nil
 }
 
 func getInputAlphagramInfo(req *pb.SearchResponse, cfg *config.Config, db *sql.DB) (map[string]*pb.Alphagram, error) {

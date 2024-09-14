@@ -16,7 +16,7 @@ import (
 	"github.com/domino14/word_db_server/config"
 	"github.com/domino14/word_db_server/internal/anagramserver"
 	"github.com/domino14/word_db_server/internal/searchserver"
-	"github.com/domino14/word_db_server/rpc/wordsearcher"
+	"github.com/domino14/word_db_server/rpc/api/wordsearcher/wordsearcherconnect"
 )
 
 const (
@@ -35,6 +35,9 @@ func main() {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
 
+	mux := http.NewServeMux()
+	// Add connect RPC endpoints.
+
 	searchServer := &searchserver.Server{
 		Config: cfg,
 	}
@@ -45,13 +48,9 @@ func main() {
 		Config: cfg,
 	}
 
-	searchHandler := wordsearcher.NewQuestionSearcherServer(searchServer, nil)
-	anagramHandler := wordsearcher.NewAnagrammerServer(anagramServer, nil)
-	wordSearchHandler := wordsearcher.NewWordSearcherServer(wordSearchServer, nil)
-	mux := http.NewServeMux()
-	mux.Handle(searchHandler.PathPrefix(), searchHandler)
-	mux.Handle(anagramHandler.PathPrefix(), anagramHandler)
-	mux.Handle(wordSearchHandler.PathPrefix(), wordSearchHandler)
+	mux.Handle(wordsearcherconnect.NewAnagrammerHandler(anagramServer))
+	mux.Handle(wordsearcherconnect.NewQuestionSearcherHandler(searchServer))
+	mux.Handle(wordsearcherconnect.NewWordSearcherHandler(wordSearchServer))
 	mux.Handle("/plainsearch", plainTextHandler(wordSearchServer, anagramServer))
 
 	srv := &http.Server{

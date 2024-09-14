@@ -7,13 +7,14 @@ import (
 	"sort"
 	"strings"
 
+	"connectrpc.com/connect"
 	"github.com/namsral/flag"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	wglconfig "github.com/domino14/word-golib/config"
 	"github.com/domino14/word_db_server/internal/anagramserver"
-	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
+	pb "github.com/domino14/word_db_server/rpc/api/wordsearcher"
 )
 
 const (
@@ -81,26 +82,26 @@ func main() {
 		Config: &wglconfig.Config{DataPath: cfg.dataPath},
 	}
 
-	amResp, err := s.Anagram(context.Background(), &pb.AnagramRequest{
+	amResp, err := s.Anagram(context.Background(), connect.NewRequest(&pb.AnagramRequest{
 		Lexicon: AmericanDict,
 		Letters: cfg.rack,
 		Mode:    anagramMode,
 		Expand:  true,
-	})
+	}))
 	if err != nil {
 		log.Fatal().Err(err).Msg("")
 	}
-	britResp, err := s.Anagram(context.Background(), &pb.AnagramRequest{
+	britResp, err := s.Anagram(context.Background(), connect.NewRequest(&pb.AnagramRequest{
 		Lexicon: BritishDict,
 		Letters: cfg.rack,
 		Mode:    anagramMode,
 		Expand:  true,
-	})
+	}))
 	if err != nil {
 		log.Fatal().Err(err).Msg("")
 	}
 
-	outputWords, amOnly, britOnly := merge(amResp, britResp)
+	outputWords, amOnly, britOnly := merge(amResp.Msg, britResp.Msg)
 	sort.Sort(ByLonger{outputWords})
 	printWords(outputWords)
 	if cfg.showStats {

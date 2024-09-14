@@ -26,6 +26,10 @@ type Server struct {
 	Config *config.Config
 }
 
+type ServerLegacy struct {
+	Config *config.Config
+}
+
 func getDbConnection(cfg *config.Config, lexName string) (*sql.DB, error) {
 	// Try to connect to the db.
 	if lexName == "" {

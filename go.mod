@@ -1,16 +1,16 @@
 module github.com/domino14/word_db_server
 
-go 1.21.6
+go 1.23.1
 
 require (
+	connectrpc.com/connect v1.16.2
 	github.com/domino14/word-golib v0.2.0
 	github.com/matryer/is v1.4.1
 	github.com/mattn/go-sqlite3 v1.14.19
 	github.com/namsral/flag v1.7.4-pre
 	github.com/rs/zerolog v1.31.0
 	github.com/stretchr/testify v1.8.4
-	github.com/twitchtv/twirp v8.1.3+incompatible
-	google.golang.org/protobuf v1.32.0
+	google.golang.org/protobuf v1.33.0
 )
 
 require (

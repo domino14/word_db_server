@@ -1,19 +1,10 @@
-This folder contains the .proto file(s) and auto-generated files. Run `go generate` in this directory to generate the auto-generated go/twirp files.
+This folder contains the .proto file(s) and auto-generated files. Run `go generate` in parent directory to generate auto-generated files.
 
 Python client/definition files can be created like this:
 
 ```
 go get -u github.com/verloop/twirpy/protoc-gen-twirpy (if not installed)
 protoc  --twirpy_out=. --python_out=. ./rpc/wordsearcher/searcher.proto
-```
-
-JS files can be created like this:
-
-JS twirp file
-
-```
-go get -u https://github.com/thechriswalker/protoc-gen-twirp_js (if not installed)
-protoc --js_out=import_style=commonjs,binary:. --twirp_js_out=. ./rpc/wordsearcher/searcher.proto
 ```
 
 Some example JSON requests for debugging (should use Protobuf in prod!):

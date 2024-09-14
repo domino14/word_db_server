@@ -14,7 +14,7 @@ import (
 	"github.com/domino14/word_db_server/config"
 	anagrammer "github.com/domino14/word_db_server/internal/anagramserver/legacyanagrammer"
 	"github.com/domino14/word_db_server/internal/common"
-	"github.com/domino14/word_db_server/rpc/wordsearcher"
+	"github.com/domino14/word_db_server/rpc/api/wordsearcher"
 )
 
 // UnexpandedQuery just selects word and alphagram. We save bandwidth and

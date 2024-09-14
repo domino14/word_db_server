@@ -1,0 +1,20 @@
+version: v2
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/domino14/word_db_server/rpc/api
+
+plugins:
+  - remote: buf.build/protocolbuffers/go:v1.34.1
+    out: ./api
+    opt:
+      - paths=source_relative
+  - remote: buf.build/connectrpc/go:v1.16.2
+    out: ./api
+    opt:
+      - paths=source_relative
+  - remote: buf.build/bufbuild/es:v1.10.0
+    out: ./api/es
+  - remote: buf.build/connectrpc/es:v1.4.0
+    out: ./api/es

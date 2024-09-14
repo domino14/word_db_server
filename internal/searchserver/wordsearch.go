@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"strings"
 
+	"connectrpc.com/connect"
 	"github.com/domino14/word_db_server/config"
 	"github.com/domino14/word_db_server/internal/querygen"
-	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
+	pb "github.com/domino14/word_db_server/rpc/api/wordsearcher"
 	"github.com/rs/zerolog/log"
 )
 
@@ -16,16 +17,17 @@ type WordSearchServer struct {
 	Config *config.Config
 }
 
-func (s *WordSearchServer) WordSearch(ctx context.Context, req *pb.WordSearchRequest) (*pb.WordSearchResponse, error) {
+func (s *WordSearchServer) WordSearch(ctx context.Context, req *connect.Request[pb.WordSearchRequest]) (
+	*connect.Response[pb.WordSearchResponse], error) {
 	// Uses a glob to search the database directly.
 
-	db, err := getDbConnection(s.Config, req.Lexicon)
+	db, err := getDbConnection(s.Config, req.Msg.Lexicon)
 	if err != nil {
 		return nil, err
 	}
 	defer db.Close()
 	column := ""
-	switch req.AppliesTo {
+	switch req.Msg.AppliesTo {
 	case "word":
 		column = "word"
 	case "definition":
@@ -34,7 +36,7 @@ func (s *WordSearchServer) WordSearch(ctx context.Context, req *pb.WordSearchReq
 		return nil, errors.New("applies_to must be only word or definition")
 	}
 
-	glob := req.Glob
+	glob := req.Msg.Glob
 	glob = strings.ReplaceAll(glob, "*", "%")
 	glob = strings.ReplaceAll(glob, "?", "_")
 
@@ -50,11 +52,12 @@ func (s *WordSearchServer) WordSearch(ctx context.Context, req *pb.WordSearchReq
 	words := []*pb.Word{}
 	words = append(words, processWordRows(rows)...)
 
-	return &pb.WordSearchResponse{Words: words}, nil
+	return connect.NewResponse(&pb.WordSearchResponse{Words: words}), nil
 }
 
-func (s *WordSearchServer) GetWordInformation(ctx context.Context, req *pb.DefineRequest) (*pb.WordSearchResponse, error) {
-	db, err := getDbConnection(s.Config, req.Lexicon)
+func (s *WordSearchServer) GetWordInformation(ctx context.Context, req *connect.Request[pb.DefineRequest]) (
+	*connect.Response[pb.WordSearchResponse], error) {
+	db, err := getDbConnection(s.Config, req.Msg.Lexicon)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +66,7 @@ func (s *WordSearchServer) GetWordInformation(ctx context.Context, req *pb.Defin
 	queryTemplate := querygen.WordInfoQuery
 	where := "word = ?"
 	query := fmt.Sprintf(queryTemplate, where, "")
-	rows, err := db.QueryContext(ctx, query, strings.ToUpper(req.Word))
+	rows, err := db.QueryContext(ctx, query, strings.ToUpper(req.Msg.Word))
 	if err != nil {
 		return nil, err
 	}
@@ -71,5 +74,5 @@ func (s *WordSearchServer) GetWordInformation(ctx context.Context, req *pb.Defin
 	words := []*pb.Word{}
 	words = append(words, processWordRows(rows)...)
 
-	return &pb.WordSearchResponse{Words: words}, nil
+	return connect.NewResponse(&pb.WordSearchResponse{Words: words}), nil
 }

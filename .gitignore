@@ -7,3 +7,4 @@ cmd/searchserver/searchserver
 .vscode
 cmd/cwl/cwl
 cmd/dbmaker/dbmaker
+rpc/api/es

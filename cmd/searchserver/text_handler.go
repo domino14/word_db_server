@@ -6,9 +6,10 @@ import (
 	"sort"
 	"strings"
 
+	"connectrpc.com/connect"
 	"github.com/domino14/word_db_server/internal/anagramserver"
 	"github.com/domino14/word_db_server/internal/searchserver"
-	"github.com/domino14/word_db_server/rpc/wordsearcher"
+	"github.com/domino14/word_db_server/rpc/api/wordsearcher"
 )
 
 // Useful for moo.bot
@@ -85,15 +86,15 @@ func anagram(anagramserver *anagramserver.Server, w http.ResponseWriter, r *http
 	if !ok || len(lexicon[0]) < 1 {
 		lexicon = []string{"CSW21"}
 	}
-	res, err := anagramserver.Anagram(r.Context(), &wordsearcher.AnagramRequest{
+	res, err := anagramserver.Anagram(r.Context(), connect.NewRequest(&wordsearcher.AnagramRequest{
 		Lexicon: lexicon[0],
-		Letters: letters[0]})
+		Letters: letters[0]}))
 	if err != nil {
 		writeError(w, err.Error())
 		return
 	}
 
-	writeWords(w, res.Words)
+	writeWords(w, res.Msg.Words)
 }
 
 func define(wsServer *searchserver.WordSearchServer, w http.ResponseWriter, r *http.Request) {
@@ -106,18 +107,18 @@ func define(wsServer *searchserver.WordSearchServer, w http.ResponseWriter, r *h
 	if !ok || len(lexicon[0]) < 1 {
 		lexicon = []string{"CSW21"}
 	}
-	res, err := wsServer.GetWordInformation(r.Context(), &wordsearcher.DefineRequest{
+	res, err := wsServer.GetWordInformation(r.Context(), connect.NewRequest(&wordsearcher.DefineRequest{
 		Lexicon: lexicon[0], Word: word[0],
-	})
+	}))
 	if err != nil {
 		writeError(w, err.Error())
 		return
 	}
-	if len(res.Words) == 0 {
+	if len(res.Msg.Words) == 0 {
 		w.Write([]byte("word " + word[0] + " not found."))
 		return
 	}
-	w.Write([]byte(res.Words[0].Definition))
+	w.Write([]byte(res.Msg.Words[0].Definition))
 }
 
 func patternSearch(wsServer *searchserver.WordSearchServer, w http.ResponseWriter, r *http.Request) {
@@ -130,18 +131,18 @@ func patternSearch(wsServer *searchserver.WordSearchServer, w http.ResponseWrite
 	if !ok || len(lexicon[0]) < 1 {
 		lexicon = []string{"CSW21"}
 	}
-	res, err := wsServer.WordSearch(r.Context(), &wordsearcher.WordSearchRequest{
+	res, err := wsServer.WordSearch(r.Context(), connect.NewRequest(&wordsearcher.WordSearchRequest{
 		Lexicon: lexicon[0], Glob: pattern[0], AppliesTo: "word",
-	})
+	}))
 	if err != nil {
 		writeError(w, err.Error())
 		return
 	}
-	if len(res.Words) == 0 {
+	if len(res.Msg.Words) == 0 {
 		w.Write([]byte("no words match this pattern."))
 		return
 	}
-	writeWords(w, res.Words)
+	writeWords(w, res.Msg.Words)
 }
 
 func definitionSearch(wsServer *searchserver.WordSearchServer, w http.ResponseWriter, r *http.Request) {
@@ -154,16 +155,16 @@ func definitionSearch(wsServer *searchserver.WordSearchServer, w http.ResponseWr
 	if !ok || len(lexicon[0]) < 1 {
 		lexicon = []string{"CSW21"}
 	}
-	res, err := wsServer.WordSearch(r.Context(), &wordsearcher.WordSearchRequest{
+	res, err := wsServer.WordSearch(r.Context(), connect.NewRequest(&wordsearcher.WordSearchRequest{
 		Lexicon: lexicon[0], Glob: "*" + pattern[0] + "*", AppliesTo: "definition",
-	})
+	}))
 	if err != nil {
 		writeError(w, err.Error())
 		return
 	}
-	if len(res.Words) == 0 {
+	if len(res.Msg.Words) == 0 {
 		w.Write([]byte("no related words."))
 		return
 	}
-	writeWords(w, res.Words)
+	writeWords(w, res.Msg.Words)
 }
