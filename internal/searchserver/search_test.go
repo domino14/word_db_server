@@ -5,8 +5,9 @@ import (
 	"os"
 	"testing"
 
+	"connectrpc.com/connect"
 	"github.com/domino14/word_db_server/config"
-	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
+	pb "github.com/domino14/word_db_server/rpc/api/wordsearcher"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,12 +31,12 @@ func searchHelper(req *pb.SearchRequest) (*pb.SearchResponse, error) {
 	s := &Server{
 		Config: DefaultConfig,
 	}
-	sr, err := s.Search(context.Background(), req)
+	sr, err := s.Search(context.Background(), connect.NewRequest(req))
 
 	if err != nil {
 		return nil, err
 	}
-	return sr, nil
+	return sr.Msg, nil
 }
 
 // These tests should test functionality more than the actual query

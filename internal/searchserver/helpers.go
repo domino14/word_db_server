@@ -2,8 +2,8 @@ package searchserver
 
 /* some helper functions for making word searches */
 import (
-	"github.com/domino14/word_db_server/rpc/wordsearcher"
-	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
+	"github.com/domino14/word_db_server/rpc/api/wordsearcher"
+	pb "github.com/domino14/word_db_server/rpc/api/wordsearcher"
 )
 
 type searchDescription struct{}

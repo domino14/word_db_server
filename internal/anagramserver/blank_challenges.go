@@ -14,7 +14,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/domino14/word_db_server/internal/common"
-	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
+	pb "github.com/domino14/word_db_server/rpc/api/wordsearcher"
 )
 
 var randSource = rand.New(rand.NewSource(time.Now().UnixNano()))

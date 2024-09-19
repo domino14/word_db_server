@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/domino14/word_db_server/rpc/wordsearcher"
+	"github.com/domino14/word_db_server/rpc/api/wordsearcher"
 )
 
 // Clause is a statement in a SQL query.

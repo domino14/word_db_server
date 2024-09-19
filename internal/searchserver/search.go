@@ -6,17 +6,20 @@ import (
 	"errors"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/rs/zerolog/log"
 
 	"github.com/domino14/word_db_server/config"
 	"github.com/domino14/word_db_server/internal/querygen"
-	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
+	pb "github.com/domino14/word_db_server/rpc/api/wordsearcher"
 )
 
 // Search implements the search for alphagrams/words
-func (s *Server) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchResponse, error) {
+func (s *Server) Search(ctx context.Context, req *connect.Request[pb.SearchRequest]) (
+	*connect.Response[pb.SearchResponse], error) {
+
 	defer timeTrack(time.Now(), "search")
-	qgen, err := createQueryGen(req, s.Config, MaxSQLChunkSize)
+	qgen, err := createQueryGen(req.Msg, s.Config, MaxSQLChunkSize)
 	if err != nil {
 		return nil, err
 	}
@@ -33,15 +36,15 @@ func (s *Server) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchR
 	}
 	log.Debug().Msgf("Generated queries %v", queries)
 
-	alphagrams, err := combineQueryResults(queries, db, req.Expand, qgen.Type())
+	alphagrams, err := combineQueryResults(queries, db, req.Msg.Expand, qgen.Type())
 	if err != nil {
 		return nil, err
 	}
 
-	return &pb.SearchResponse{
+	return connect.NewResponse(&pb.SearchResponse{
 		Alphagrams: alphagrams,
 		Lexicon:    qgen.LexiconName(),
-	}, nil
+	}), nil
 }
 
 func createQueryGen(req *pb.SearchRequest, cfg *config.Config, maxChunkSize int) (*querygen.QueryGen, error) {

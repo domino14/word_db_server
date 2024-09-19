@@ -4,9 +4,10 @@ import (
 	"context"
 	"testing"
 
+	"connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 
-	pb "github.com/domino14/word_db_server/rpc/wordsearcher"
+	pb "github.com/domino14/word_db_server/rpc/api/wordsearcher"
 )
 
 func TestExpand(t *testing.T) {
@@ -26,13 +27,13 @@ func TestExpand(t *testing.T) {
 	s := &Server{
 		Config: DefaultConfig,
 	}
-	resp, err := s.Expand(context.Background(), req)
+	resp, err := s.Expand(context.Background(), connect.NewRequest(req))
 	assert.Nil(t, err)
 	assert.Equal(t, []string{
 		"EILNORS", "AINORU?",
-	}, alphsFromPB(resp.Alphagrams))
+	}, alphsFromPB(resp.Msg.Alphagrams))
 	assert.Equal(t, "atomic fallout occurring in precipitation [n RAINOUTS]",
-		resp.Alphagrams[1].Words[0].Definition,
+		resp.Msg.Alphagrams[1].Words[0].Definition,
 	)
 }
 
@@ -49,12 +50,12 @@ func TestExpandHuge(t *testing.T) {
 	s := &Server{
 		Config: DefaultConfig,
 	}
-	expandedResp, err := s.Expand(context.Background(), resp)
+	expandedResp, err := s.Expand(context.Background(), connect.NewRequest(resp))
 	assert.Nil(t, err)
-	assert.Equal(t, 3001, len(expandedResp.Alphagrams))
-	assert.True(t, len(expandedResp.Alphagrams[3000].Words) > 0)
-	assert.True(t, len(expandedResp.Alphagrams[3000].Words[0].Definition) > 0)
-	assert.Equal(t, expandedResp.Alphagrams[3000].Words[0].Alphagram,
-		expandedResp.Alphagrams[3000].Alphagram)
+	assert.Equal(t, 3001, len(expandedResp.Msg.Alphagrams))
+	assert.True(t, len(expandedResp.Msg.Alphagrams[3000].Words) > 0)
+	assert.True(t, len(expandedResp.Msg.Alphagrams[3000].Words[0].Definition) > 0)
+	assert.Equal(t, expandedResp.Msg.Alphagrams[3000].Words[0].Alphagram,
+		expandedResp.Msg.Alphagrams[3000].Alphagram)
 
 }

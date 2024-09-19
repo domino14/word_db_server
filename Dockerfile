@@ -1,4 +1,4 @@
-FROM golang as build-env
+FROM golang AS build-env
 
 RUN mkdir /opt/word_db_server
 WORKDIR /opt/word_db_server
