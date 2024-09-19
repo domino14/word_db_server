@@ -96,12 +96,14 @@ func NewQuestionSearcherClient(httpClient connect.HTTPClient, baseURL string, op
 			httpClient,
 			baseURL+QuestionSearcherSearchProcedure,
 			connect.WithSchema(questionSearcherSearchMethodDescriptor),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
 		expand: connect.NewClient[wordsearcher.SearchResponse, wordsearcher.SearchResponse](
 			httpClient,
 			baseURL+QuestionSearcherExpandProcedure,
 			connect.WithSchema(questionSearcherExpandMethodDescriptor),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -145,12 +147,14 @@ func NewQuestionSearcherHandler(svc QuestionSearcherHandler, opts ...connect.Han
 		QuestionSearcherSearchProcedure,
 		svc.Search,
 		connect.WithSchema(questionSearcherSearchMethodDescriptor),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
 	questionSearcherExpandHandler := connect.NewUnaryHandler(
 		QuestionSearcherExpandProcedure,
 		svc.Expand,
 		connect.WithSchema(questionSearcherExpandMethodDescriptor),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
 	return "/wordsearcher.QuestionSearcher/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -201,18 +205,21 @@ func NewAnagrammerClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			httpClient,
 			baseURL+AnagrammerAnagramProcedure,
 			connect.WithSchema(anagrammerAnagramMethodDescriptor),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
 		blankChallengeCreator: connect.NewClient[wordsearcher.BlankChallengeCreateRequest, wordsearcher.SearchResponse](
 			httpClient,
 			baseURL+AnagrammerBlankChallengeCreatorProcedure,
 			connect.WithSchema(anagrammerBlankChallengeCreatorMethodDescriptor),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
 		buildChallengeCreator: connect.NewClient[wordsearcher.BuildChallengeCreateRequest, wordsearcher.SearchResponse](
 			httpClient,
 			baseURL+AnagrammerBuildChallengeCreatorProcedure,
 			connect.WithSchema(anagrammerBuildChallengeCreatorMethodDescriptor),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -261,18 +268,21 @@ func NewAnagrammerHandler(svc AnagrammerHandler, opts ...connect.HandlerOption) 
 		AnagrammerAnagramProcedure,
 		svc.Anagram,
 		connect.WithSchema(anagrammerAnagramMethodDescriptor),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
 	anagrammerBlankChallengeCreatorHandler := connect.NewUnaryHandler(
 		AnagrammerBlankChallengeCreatorProcedure,
 		svc.BlankChallengeCreator,
 		connect.WithSchema(anagrammerBlankChallengeCreatorMethodDescriptor),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
 	anagrammerBuildChallengeCreatorHandler := connect.NewUnaryHandler(
 		AnagrammerBuildChallengeCreatorProcedure,
 		svc.BuildChallengeCreator,
 		connect.WithSchema(anagrammerBuildChallengeCreatorMethodDescriptor),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
 	return "/wordsearcher.Anagrammer/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -324,12 +334,14 @@ func NewWordSearcherClient(httpClient connect.HTTPClient, baseURL string, opts .
 			httpClient,
 			baseURL+WordSearcherGetWordInformationProcedure,
 			connect.WithSchema(wordSearcherGetWordInformationMethodDescriptor),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
 		wordSearch: connect.NewClient[wordsearcher.WordSearchRequest, wordsearcher.WordSearchResponse](
 			httpClient,
 			baseURL+WordSearcherWordSearchProcedure,
 			connect.WithSchema(wordSearcherWordSearchMethodDescriptor),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -367,12 +379,14 @@ func NewWordSearcherHandler(svc WordSearcherHandler, opts ...connect.HandlerOpti
 		WordSearcherGetWordInformationProcedure,
 		svc.GetWordInformation,
 		connect.WithSchema(wordSearcherGetWordInformationMethodDescriptor),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
 	wordSearcherWordSearchHandler := connect.NewUnaryHandler(
 		WordSearcherWordSearchProcedure,
 		svc.WordSearch,
 		connect.WithSchema(wordSearcherWordSearchMethodDescriptor),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
 	return "/wordsearcher.WordSearcher/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

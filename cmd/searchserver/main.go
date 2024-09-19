@@ -47,11 +47,14 @@ func main() {
 	wordSearchServer := &searchserver.WordSearchServer{
 		Config: cfg,
 	}
-
-	mux.Handle(wordsearcherconnect.NewAnagrammerHandler(anagramServer))
-	mux.Handle(wordsearcherconnect.NewQuestionSearcherHandler(searchServer))
-	mux.Handle(wordsearcherconnect.NewWordSearcherHandler(wordSearchServer))
 	mux.Handle("/plainsearch", plainTextHandler(wordSearchServer, anagramServer))
+
+	api := http.NewServeMux()
+	api.Handle(wordsearcherconnect.NewAnagrammerHandler(anagramServer))
+	api.Handle(wordsearcherconnect.NewQuestionSearcherHandler(searchServer))
+	api.Handle(wordsearcherconnect.NewWordSearcherHandler(wordSearchServer))
+
+	mux.Handle("/api/", http.StripPrefix("/api", api))
 
 	srv := &http.Server{
 		Addr:    ":8180",

@@ -162,23 +162,33 @@ service QuestionSearcher {
   // Search takes in a search request and returns a search response.
   // This response can be expanded or not, depending on the `expand` field
   // in SearchRequest.
-  rpc Search(SearchRequest) returns (SearchResponse);
+  rpc Search(SearchRequest) returns (SearchResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  };
   // Expand takes in an unexpanded search response and returns a
   // search response (fully expanded). See expandedRepr above in
   // the Alphagram field.
-  rpc Expand(SearchResponse) returns (SearchResponse);
+  rpc Expand(SearchResponse) returns (SearchResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  };
 }
 
 service Anagrammer {
   // Anagram does a simple anagram search; it can either be
   // build mode or regular (exact) mode.
-  rpc Anagram(AnagramRequest) returns (AnagramResponse);
+  rpc Anagram(AnagramRequest) returns (AnagramResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
   // BlankChallengeCreator creates blank challenges for Aerolith
   rpc BlankChallengeCreator(BlankChallengeCreateRequest)
-      returns (SearchResponse);
+      returns (SearchResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
   // BuildChallengeCreator creates build challenges for Aerolith.
   rpc BuildChallengeCreator(BuildChallengeCreateRequest)
-      returns (SearchResponse);
+      returns (SearchResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
 }
 
 message WordSearchRequest {
@@ -201,6 +211,10 @@ message WordSearchResponse { repeated Word words = 1; }
 // will search across alphagram information and return questions,
 // and a WordSearcher just cares about the individual words.
 service WordSearcher {
-  rpc GetWordInformation(DefineRequest) returns (WordSearchResponse);
-  rpc WordSearch(WordSearchRequest) returns (WordSearchResponse);
+  rpc GetWordInformation(DefineRequest) returns (WordSearchResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  };
+  rpc WordSearch(WordSearchRequest) returns (WordSearchResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  };
 }
