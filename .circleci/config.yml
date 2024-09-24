@@ -14,22 +14,13 @@ jobs:
 
     docker:
       # specify the version
-      - image: golang:alpine
-      - image: circleci/postgres
+      - image: golang
+      - image: cimg/postgres
         environment:
           POSTGRES_USER: postgres
           POSTGRES_DB: test_db
           POSTGRES_PASSWORD: password
 
-      # Specify service dependencies here if necessary
-      # CircleCI maintains a library of pre-built images
-      # documented at https://circleci.com/docs/2.0/circleci-images/
-      # - image: circleci/postgres:9.4
-
-    #### TEMPLATE_NOTE: go expects specific checkout path representing url
-    #### expecting it in the form of
-    ####   /go/src/github.com/circleci/go-tool
-    ####   /go/src/bitbucket.org/circleci/go-tool
     working_directory: /go/src/github.com/domino14/word_db_server
     steps:
       - checkout
@@ -37,14 +28,8 @@ jobs:
           fingerprints:
             - "bf:37:1b:e1:b2:b0:ec:20:92:43:20:86:40:7c:c4:e0"
       - run:
-          name: Install git, ssh, and build-base (for tests)
-          command: apk update && apk upgrade && apk add git openssh build-base bash
-      - run:
-          name: Install ssl
-          command: apk add --update ca-certificates openssl && update-ca-certificates
-      - run:
-          name: Install curl
-          command: apk --no-cache add curl
+          name: Install git, ssh
+          command: apt-get update && apt-get install -Y git ssh
       - run: if [ ! -n "$(grep "^github.com " ~/.ssh/known_hosts)" ]; then ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null; fi
       - run:
           name: Clone lexicon repo
@@ -72,13 +57,10 @@ jobs:
     environment:
       REPO: /go/src/github.com/domino14/word_db_server
     docker:
-      - image: golang:alpine
+      - image: golang
     steps:
       - checkout
       - setup_remote_docker
-      - run:
-          name: Install curl
-          command: apk --no-cache add curl bash
       - run:
           name: Install Docker client
           command: |
