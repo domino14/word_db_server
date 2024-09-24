@@ -79,6 +79,12 @@ message AddCardsRequest {
 
 message AddCardsResponse {}
 
+message EditLastScoreRequest {
+  string lexicon = 1;
+  string alphagram = 2;
+  Score new_score = 3;
+}
+
 service WordVaultService {
   rpc GetCardInformation(GetCardInfoRequest) returns (Cards) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -87,6 +93,7 @@ service WordVaultService {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
   rpc ScoreCard(ScoreCardRequest) returns (ScoreCardResponse);
+  rpc EditLastScore(EditLastScoreRequest) returns (ScoreCardResponse);
   rpc AddCard(AddCardRequest) returns (AddCardResponse);
   rpc AddCards(AddCardsRequest) returns (AddCardsResponse);
 }

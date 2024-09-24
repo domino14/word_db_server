@@ -230,6 +230,16 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 
 }
 
+func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.EditLastScoreRequest]) (
+	*connect.Response[pb.ScoreCardResponse], error) {
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+
+	return nil, nil
+}
+
 func (s *Server) AddCard(ctx context.Context, req *connect.Request[pb.AddCardRequest]) (
 	*connect.Response[pb.AddCardResponse], error) {
 	user := auth.UserFromContext(ctx)

@@ -115,6 +115,7 @@ func TestAddCardsAndQuiz(t *testing.T) {
 
 	dbPool, err := pgxpool.New(ctx, TestDBURI)
 	is.NoErr(err)
+	defer dbPool.Close()
 
 	q := models.New(dbPool)
 
@@ -160,6 +161,7 @@ func TestScoreCard(t *testing.T) {
 
 	dbPool, err := pgxpool.New(ctx, TestDBURI)
 	is.NoErr(err)
+	defer dbPool.Close()
 
 	q := models.New(dbPool)
 
@@ -232,6 +234,7 @@ func TestGetCards(t *testing.T) {
 
 	dbPool, err := pgxpool.New(ctx, TestDBURI)
 	is.NoErr(err)
+	defer dbPool.Close()
 
 	q := models.New(dbPool)
 
