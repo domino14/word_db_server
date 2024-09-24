@@ -60,17 +60,9 @@ func (s *Server) GetCardInformation(ctx context.Context, req *connect.Request[pb
 	}
 
 	// Load from user params
-	params, err := s.Queries.LoadParams(ctx, int64(user.DBID))
+	params, err := s.fsrsParams(ctx, int64(user.DBID))
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			// No params exist for this user
-			log.Debug().Int("userID", user.DBID).Msg("no-params-found")
-			params = fsrs.DefaultParam()
-			params.EnableShortTerm = true
-			params.EnableFuzz = true
-		} else {
-			return nil, err
-		}
+		return nil, err
 	}
 	f := fsrs.NewFSRS(params) // cache this later!
 
@@ -86,19 +78,16 @@ func (s *Server) GetCardInformation(ctx context.Context, req *connect.Request[pb
 	cards := make([]*pb.Card, len(rows))
 	for i := range rows {
 		fcard := rows[i].FsrsCard
+		cardbts, err := json.Marshal(fcard)
+		if err != nil {
+			return nil, err
+		}
 		cards[i] = &pb.Card{
 			Lexicon: req.Msg.Lexicon,
 			// Just return the alphagram here. The purpose of this endpoint is for
 			// its metadata, not to quiz on any of the cards.
-			Alphagram:     &searchpb.Alphagram{Alphagram: req.Msg.Alphagrams[i]},
-			LastReviewed:  timestamppb.New(fcard.LastReview),
-			NextScheduled: timestamppb.New(rows[i].NextScheduled.Time),
-			NumAsked:      int32(fcard.Reps),
-			NumLapses:     int32(fcard.Lapses),
-			Stability:     fcard.Stability,
-			Difficulty:    fcard.Difficulty,
-			Status:        pb.Status(fcard.State + 1), // iota starts at 0 (New)
-			// Retrievability is computed as of the request.
+			Alphagram:      &searchpb.Alphagram{Alphagram: req.Msg.Alphagrams[i]},
+			CardJsonRepr:   cardbts,
 			Retrievability: f.GetRetrievability(fcard, s.Nower.Now()),
 		}
 	}
@@ -112,9 +101,10 @@ func (s *Server) GetNextScheduled(ctx context.Context, req *connect.Request[pb.G
 		return nil, unauthenticated("user not authenticated")
 	}
 	rows, err := s.Queries.GetNextScheduled(ctx, models.GetNextScheduledParams{
-		UserID:      int64(user.DBID),
-		LexiconName: req.Msg.Lexicon,
-		Limit:       req.Msg.Limit,
+		UserID:        int64(user.DBID),
+		LexiconName:   req.Msg.Lexicon,
+		Limit:         req.Msg.Limit,
+		NextScheduled: pgtype.Timestamptz{Time: s.Nower.Now(), Valid: true},
 	})
 	if err != nil {
 		return nil, err
@@ -143,20 +133,35 @@ func (s *Server) GetNextScheduled(ctx context.Context, req *connect.Request[pb.G
 	}
 	for i := range rows {
 		fcard := rows[i].FsrsCard
+		cardbts, err := json.Marshal(fcard)
+		if err != nil {
+			return nil, err
+		}
 		cards[i] = &pb.Card{
-			Lexicon:       req.Msg.Lexicon,
-			Alphagram:     expandResponse.Msg.Alphagrams[i],
-			LastReviewed:  timestamppb.New(fcard.LastReview),
-			NextScheduled: timestamppb.New(rows[i].NextScheduled.Time),
-			NumAsked:      int32(fcard.Reps),
-			NumLapses:     int32(fcard.Lapses),
-			Stability:     fcard.Stability,
-			Difficulty:    fcard.Difficulty,
-			Status:        pb.Status(fcard.State + 1), // iota starts at 0 (New)
+			Lexicon:      req.Msg.Lexicon,
+			Alphagram:    expandResponse.Msg.Alphagrams[i],
+			CardJsonRepr: cardbts,
 		}
 	}
 	return connect.NewResponse(&pb.Cards{Cards: cards}), nil
 
+}
+
+func (s *Server) fsrsParams(ctx context.Context, dbid int64) (fsrs.Parameters, error) {
+	// Load from user params
+	params, err := s.Queries.LoadParams(ctx, dbid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// No params exist for this user
+			log.Debug().Int64("userID", dbid).Msg("no-params-found")
+			params = fsrs.DefaultParam()
+			params.EnableShortTerm = false
+			params.EnableFuzz = true
+		} else {
+			return fsrs.Parameters{}, err
+		}
+	}
+	return params, nil
 }
 
 func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCardRequest]) (
@@ -180,19 +185,11 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 	defer tx.Rollback(ctx)
 	qtx := s.Queries.WithTx(tx)
 
-	// Load from user params
-	params, err := qtx.LoadParams(ctx, int64(user.DBID))
+	params, err := s.fsrsParams(ctx, int64(user.DBID))
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			// No params exist for this user
-			log.Debug().Int("userID", user.DBID).Msg("no-params-found")
-			params = fsrs.DefaultParam()
-			params.EnableShortTerm = true
-			params.EnableFuzz = true
-		} else {
-			return nil, err
-		}
+		return nil, err
 	}
+
 	f := fsrs.NewFSRS(params) // cache this later!
 
 	cardrow, err := qtx.GetCard(ctx, models.GetCardParams{
@@ -207,8 +204,15 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 		}
 	}
 	card := cardrow.FsrsCard
+
 	schedulingCards := f.Repeat(card, now)
-	card = schedulingCards[fsrs.Rating(req.Msg.Score)].Card
+	rating := fsrs.Rating(req.Msg.Score)
+	card = schedulingCards[rating].Card
+	rlog := schedulingCards[rating].ReviewLog
+	rlogbts, err := json.Marshal(rlog)
+	if err != nil {
+		return nil, err
+	}
 
 	err = qtx.UpdateCard(ctx, models.UpdateCardParams{
 		FsrsCard:      card,
@@ -216,6 +220,7 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 		UserID:        int64(user.DBID),
 		LexiconName:   req.Msg.Lexicon,
 		Alphagram:     req.Msg.Alphagram,
+		ReviewLogItem: rlogbts,
 	})
 	if err != nil {
 		return nil, err
@@ -237,7 +242,78 @@ func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.Edit
 		return nil, unauthenticated("user not authenticated")
 	}
 
-	return nil, nil
+	now := s.Nower.Now()
+	if req.Msg.NewScore < 1 || req.Msg.NewScore > 4 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid score"))
+	}
+	if req.Msg.Lexicon == "" || req.Msg.Alphagram == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("no such lexicon or alphagram"))
+	}
+
+	tx, err := s.DBPool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	qtx := s.Queries.WithTx(tx)
+
+	// Load from user params
+	params, err := s.fsrsParams(ctx, int64(user.DBID))
+	if err != nil {
+		return nil, err
+	}
+	f := fsrs.NewFSRS(params) // cache this later!
+
+	cardrow, err := qtx.GetCard(ctx, models.GetCardParams{
+		UserID:      int64(user.DBID),
+		LexiconName: req.Msg.Lexicon,
+		Alphagram:   req.Msg.Alphagram})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("card with your input parameters was not found"))
+		} else {
+			return nil, err
+		}
+	}
+	if len(cardrow.ReviewLog) == 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("this card has no review history"))
+	}
+
+	card := fsrs.Card{}
+	err = json.Unmarshal(req.Msg.LastCardRepr, &card)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("last card was not properly provided"))
+	}
+
+	// And re-schedule the card.
+	schedulingCards := f.Repeat(card, now)
+	rating := fsrs.Rating(req.Msg.NewScore)
+	card = schedulingCards[rating].Card
+	newrlog := schedulingCards[rating].ReviewLog
+	rlogbts, err := json.Marshal(newrlog)
+	if err != nil {
+		return nil, err
+	}
+	// Overwrite last log with this new log.
+	err = qtx.UpdateCardReplaceLastLog(ctx, models.UpdateCardReplaceLastLogParams{
+		FsrsCard:      card,
+		NextScheduled: pgtype.Timestamptz{Time: card.Due, Valid: true},
+		UserID:        int64(user.DBID),
+		LexiconName:   req.Msg.Lexicon,
+		Alphagram:     req.Msg.Alphagram,
+		ReviewLogItem: rlogbts,
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = tx.Commit(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&pb.ScoreCardResponse{
+		NextScheduled: timestamppb.New(card.Due),
+	}), nil
+
 }
 
 func (s *Server) AddCard(ctx context.Context, req *connect.Request[pb.AddCardRequest]) (

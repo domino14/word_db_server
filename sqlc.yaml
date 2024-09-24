@@ -18,3 +18,8 @@ sql:
         go_type:
           import: "github.com/open-spaced-repetition/go-fsrs/v3"
           type: "Card"
+      - column: "wordvault_cards.review_log"
+        go_type:
+          import: "github.com/open-spaced-repetition/go-fsrs/v3"
+          type: "ReviewLog"
+          slice: true

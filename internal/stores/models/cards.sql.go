@@ -66,7 +66,7 @@ func (q *Queries) AddCards(ctx context.Context, arg AddCardsParams) error {
 }
 
 const getCard = `-- name: GetCard :one
-SELECT next_scheduled, fsrs_card
+SELECT next_scheduled, fsrs_card, review_log
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = $3
 `
@@ -80,12 +80,13 @@ type GetCardParams struct {
 type GetCardRow struct {
 	NextScheduled pgtype.Timestamptz
 	FsrsCard      go_fsrs.Card
+	ReviewLog     []go_fsrs.ReviewLog
 }
 
 func (q *Queries) GetCard(ctx context.Context, arg GetCardParams) (GetCardRow, error) {
 	row := q.db.QueryRow(ctx, getCard, arg.UserID, arg.LexiconName, arg.Alphagram)
 	var i GetCardRow
-	err := row.Scan(&i.NextScheduled, &i.FsrsCard)
+	err := row.Scan(&i.NextScheduled, &i.FsrsCard, &i.ReviewLog)
 	return i, err
 }
 
@@ -130,14 +131,15 @@ func (q *Queries) GetCards(ctx context.Context, arg GetCardsParams) ([]GetCardsR
 const getNextScheduled = `-- name: GetNextScheduled :many
 SELECT alphagram, next_scheduled, fsrs_card
 FROM wordvault_cards
-WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= NOW()
-LIMIT $3
+WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3
+LIMIT $4
 `
 
 type GetNextScheduledParams struct {
-	UserID      int64
-	LexiconName string
-	Limit       int32
+	UserID        int64
+	LexiconName   string
+	NextScheduled pgtype.Timestamptz
+	Limit         int32
 }
 
 type GetNextScheduledRow struct {
@@ -147,7 +149,12 @@ type GetNextScheduledRow struct {
 }
 
 func (q *Queries) GetNextScheduled(ctx context.Context, arg GetNextScheduledParams) ([]GetNextScheduledRow, error) {
-	rows, err := q.db.Query(ctx, getNextScheduled, arg.UserID, arg.LexiconName, arg.Limit)
+	rows, err := q.db.Query(ctx, getNextScheduled,
+		arg.UserID,
+		arg.LexiconName,
+		arg.NextScheduled,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +202,7 @@ func (q *Queries) SetParams(ctx context.Context, arg SetParamsParams) error {
 
 const updateCard = `-- name: UpdateCard :exec
 UPDATE wordvault_cards
-SET fsrs_card = $1, next_scheduled = $2
+SET fsrs_card = $1, next_scheduled = $2, review_log = review_log || $6::jsonb
 WHERE user_id = $3 AND lexicon_name = $4 AND alphagram = $5
 `
 
@@ -205,6 +212,7 @@ type UpdateCardParams struct {
 	UserID        int64
 	LexiconName   string
 	Alphagram     string
+	ReviewLogItem []byte
 }
 
 func (q *Queries) UpdateCard(ctx context.Context, arg UpdateCardParams) error {
@@ -214,6 +222,40 @@ func (q *Queries) UpdateCard(ctx context.Context, arg UpdateCardParams) error {
 		arg.UserID,
 		arg.LexiconName,
 		arg.Alphagram,
+		arg.ReviewLogItem,
+	)
+	return err
+}
+
+const updateCardReplaceLastLog = `-- name: UpdateCardReplaceLastLog :exec
+UPDATE wordvault_cards
+SET
+    fsrs_card = $1,
+    next_scheduled = $2,
+    review_log = (review_log || $6::jsonb) - jsonb_array_length(review_log)
+WHERE
+    user_id = $3
+    AND lexicon_name = $4
+    AND alphagram = $5
+`
+
+type UpdateCardReplaceLastLogParams struct {
+	FsrsCard      go_fsrs.Card
+	NextScheduled pgtype.Timestamptz
+	UserID        int64
+	LexiconName   string
+	Alphagram     string
+	ReviewLogItem []byte
+}
+
+func (q *Queries) UpdateCardReplaceLastLog(ctx context.Context, arg UpdateCardReplaceLastLogParams) error {
+	_, err := q.db.Exec(ctx, updateCardReplaceLastLog,
+		arg.FsrsCard,
+		arg.NextScheduled,
+		arg.UserID,
+		arg.LexiconName,
+		arg.Alphagram,
+		arg.ReviewLogItem,
 	)
 	return err
 }

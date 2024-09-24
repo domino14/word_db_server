@@ -12,37 +12,13 @@ enum Score {
   SCORE_EASY = 4;
 }
 
-enum Status {
-  STATUS_NONE = 0;
-  STATUS_NEW = 1;
-  STATUS_LEARNING = 2;
-  STATUS_REVIEW = 3;
-  STATUS_RELEARNING = 4;
-}
-
 message Card {
   string lexicon = 1;
   wordsearcher.Alphagram alphagram = 2;
-  google.protobuf.Timestamp last_reviewed = 3;
-  google.protobuf.Timestamp next_scheduled = 4;
-  int32 num_asked = 5;
-  int32 num_lapses = 6;
-  // https://github.com/open-spaced-repetition/fsrs4anki/wiki/ABC-of-FSRS
-  // FSRS is based on the "Three Component Model of Memory". The model
-  // asserts that three variables are sufficient to describe the status
-  // of a unitary memory in a human brain. These three variables include:
-
-  // Stability (S): The time, in days, required for R to decrease from 100% to
-  // 90%. For example, S = 365 means that an entire year will pass before the
-  // probability of recalling a particular card drops to 90%.
-  double stability = 7;
-  // Difficulty (D): The inherent complexity of a particular information.
-  // It represents how difficult it is to increase memory stability after a
-  // review.
-  double difficulty = 8;
-
-  double retrievability = 9;
-  Status status = 10;
+  bytes card_json_repr = 3;
+  // The retrievability of a card is not part of the json repr and is computed
+  // as of the time of request.
+  double retrievability = 4;
 }
 
 message GetCardInfoRequest {
@@ -83,6 +59,7 @@ message EditLastScoreRequest {
   string lexicon = 1;
   string alphagram = 2;
   Score new_score = 3;
+  bytes last_card_repr = 4;
 }
 
 service WordVaultService {

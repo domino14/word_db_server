@@ -28,6 +28,7 @@ func main() {
 	fmt.Println("revlog", revlog)
 	fmt.Println("state", revlog.State)
 	fmt.Println("due", card.Due)
+	f = fsrs.NewFSRS(p)
 
 	schedulingCards = f.Repeat(card, card.Due)
 	fmt.Println("----")
@@ -36,6 +37,7 @@ func main() {
 	fmt.Println("revlog", revlog)
 	fmt.Println("state", revlog.State)
 	fmt.Println("due", card.Due)
+	f = fsrs.NewFSRS(p)
 
 	schedulingCards = f.Repeat(card, card.Due)
 	fmt.Println("----")

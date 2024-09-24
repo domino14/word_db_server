@@ -7,6 +7,7 @@ CREATE TABLE wordvault_cards(
     alphagram TEXT NOT NULL,
     next_scheduled TIMESTAMPTZ NOT NULL,
     fsrs_card JSONB NOT NULL DEFAULT '{}',
+    review_log JSONB NOT NULL DEFAULT '[]',
     UNIQUE(user_id, lexicon_name, alphagram));
 
 CREATE INDEX cards_userid_idx ON wordvault_cards USING btree(user_id);

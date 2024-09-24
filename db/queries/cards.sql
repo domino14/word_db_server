@@ -1,5 +1,5 @@
 -- name: GetCard :one
-SELECT next_scheduled, fsrs_card
+SELECT next_scheduled, fsrs_card, review_log
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = $3;
 
@@ -11,13 +11,24 @@ WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY(@alphagrams::text[]
 -- name: GetNextScheduled :many
 SELECT alphagram, next_scheduled, fsrs_card
 FROM wordvault_cards
-WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= NOW()
-LIMIT $3;
+WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3
+LIMIT $4;
 
 -- name: UpdateCard :exec
 UPDATE wordvault_cards
-SET fsrs_card = $1, next_scheduled = $2
+SET fsrs_card = $1, next_scheduled = $2, review_log = review_log || @review_log_item::jsonb
 WHERE user_id = $3 AND lexicon_name = $4 AND alphagram = $5;
+
+-- name: UpdateCardReplaceLastLog :exec
+UPDATE wordvault_cards
+SET
+    fsrs_card = $1,
+    next_scheduled = $2,
+    review_log = (review_log || @review_log_item::jsonb) - jsonb_array_length(review_log)
+WHERE
+    user_id = $3
+    AND lexicon_name = $4
+    AND alphagram = $5;
 
 -- name: AddCard :exec
 INSERT INTO wordvault_cards(user_id, lexicon_name, alphagram, next_scheduled, fsrs_card)

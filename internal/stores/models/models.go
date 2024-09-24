@@ -15,6 +15,7 @@ type WordvaultCard struct {
 	Alphagram     string
 	NextScheduled pgtype.Timestamptz
 	FsrsCard      go_fsrs.Card
+	ReviewLog     []go_fsrs.ReviewLog
 }
 
 type WordvaultParam struct {
