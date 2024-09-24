@@ -94,34 +94,38 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
+      - name: Log in to the container registry
+        uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          registry: ghcr.io
+          username: domino14
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker images
-        run: |
-          docker build -t domino14/word_db_server:${{ github.sha }} \
-                       -t domino14/word_db_server:latest \
+      - name: Build images
+        run: >
+          docker build -t ghcr.io/domino14/word-db-server:${{ github.sha }}
+                       -t ghcr.io/domino14/word-db-server:latest
                        $REPO
+      - name: Push images
+        run: >
+          docker push ghcr.io/domino14/word-db-server:${{ github.sha }} &&
+          docker push ghcr.io/domino14/word-db-server:latest
 
-          docker push domino14/word_db_server:${{ github.sha }}
-          docker push domino14/word_db_server:latest
-
-      - name: Notify Discord (success)
+      - name: Discord notification
         if: ${{ success() }}
-        run: |
-          curl -X POST -H "Content-Type: application/json" \
-            -d '{"content": ":tada: A build_docker job has succeeded! (Branch: '${{ github.ref }})"}' \
-            "${{ secrets.DISCORD_WEBHOOK }}"
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        uses: Ilshidur/action-discord@master
+        with:
+          args: "word_db_server docker container built successfully"
 
-      - name: Notify Discord (failure)
+      - name: Discord notification
         if: ${{ failure() }}
-        run: |
-          curl -X POST -H "Content-Type: application/json" \
-            -d '{"content": ":red_circle: A build_docker job has failed! (Branch: '${{ github.ref }})"}' \
-            "${{ secrets.DISCORD_WEBHOOK }}"
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        uses: Ilshidur/action-discord@master
+        with:
+          args: ":red_circle: word_db_server docker container build job failed!"
 
   deploy:
     name: Deploy to Kubernetes
@@ -159,16 +163,18 @@ jobs:
           cd aerolith-k8s
           inv deploy-wdb-server
 
-      - name: Notify Discord (success)
+      - name: Discord notification
         if: ${{ success() }}
-        run: |
-          curl -X POST -H "Content-Type: application/json" \
-            -d '{"content": ":tada: A deploy job has succeeded! (Branch: '${{ github.ref }})"}' \
-            "${{ secrets.DISCORD_WEBHOOK }}"
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        uses: Ilshidur/action-discord@master
+        with:
+          args: "word_db_server deployed successfully to production"
 
-      - name: Notify Discord (failure)
+      - name: Discord notification
         if: ${{ failure() }}
-        run: |
-          curl -X POST -H "Content-Type: application/json" \
-            -d '{"content": ":red_circle: A deploy job has failed! (Branch: '${{ github.ref }})"}' \
-            "${{ secrets.DISCORD_WEBHOOK }}"
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        uses: Ilshidur/action-discord@master
+        with:
+          args: ":red_circle: word_db_server failed to deploy to production!"
