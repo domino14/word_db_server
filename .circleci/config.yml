@@ -60,12 +60,6 @@ jobs:
 
       - run: cd cmd/dbmaker && go build
       - run: ./cmd/dbmaker/dbmaker -outputdir $WDB_DATA_PATH/lexica/db -dbs NWL18
-      - run:
-          name: Wait for Postgres to be ready
-          command: |
-            until pg_isready -h 127.0.0.1 -p 5432; do
-              sleep 1
-            done
       # specify any bash command here prefixed with `run: `
       - run: go test -v ./...
       - discord/status: &discord-webhook-setting
