@@ -15,7 +15,7 @@ jobs:
     docker:
       # specify the version
       - image: golang
-      - image: cimg/postgres
+      - image: cimg/postgres:16.4.0
         environment:
           POSTGRES_USER: postgres
           POSTGRES_DB: test_db
