@@ -64,9 +64,11 @@ func RecreateTestDB() error {
 	// And create all tables/sequences/etc.
 	m, err := migrate.New(MigrationsPath, TestDBURI)
 	if err != nil {
+		log.Err(err).Msg("on-new")
 		return err
 	}
 	if err := m.Up(); err != nil {
+		log.Err(err).Msg("on-up")
 		return err
 	}
 	e1, e2 := m.Close()
