@@ -30,7 +30,6 @@ func (s *Server) Expand(ctx context.Context, req *connect.Request[pb.SearchRespo
 	if err != nil {
 		return nil, err
 	}
-
 	outputAlphas, err := mergeInputWordInfo(req.Msg, s.Config, alphStrToObjs, db)
 	if err != nil {
 		return nil, err

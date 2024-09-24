@@ -8,9 +8,18 @@ jobs:
   build:
     environment:
       WDB_DATA_PATH: /opt/data
+      TEST_DBSERVER_URI: postgres://postgres:password@localhost:5432/?sslmode=disable
+      TEST_DB_URI: postgres://postgres:password@localhost:5432/test_db?sslmode=disable
+      DB_MIGRATIONS_PATH: file:///go/src/github.com/domino14/word_db_server/db/migrations
+
     docker:
       # specify the version
       - image: golang:alpine
+      - image: circleci/postgres:13-alpine
+        environment:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: test_db
+          POSTGRES_PASSWORD: password
 
       # Specify service dependencies here if necessary
       # CircleCI maintains a library of pre-built images
@@ -51,7 +60,12 @@ jobs:
 
       - run: cd cmd/dbmaker && go build
       - run: ./cmd/dbmaker/dbmaker -outputdir $WDB_DATA_PATH/lexica/db -dbs NWL18
-
+      - run:
+          name: Wait for Postgres to be ready
+          command: |
+            until pg_isready -h 127.0.0.1 -p 5432; do
+              sleep 1
+            done
       # specify any bash command here prefixed with `run: `
       - run: go test -v ./...
       - discord/status: &discord-webhook-setting
