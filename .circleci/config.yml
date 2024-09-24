@@ -59,7 +59,7 @@ jobs:
       # will need to generate those as well.
 
       - run: cd cmd/dbmaker && go build
-      - run: ./cmd/dbmaker/dbmaker -outputdir $WDB_DATA_PATH/lexica/db -dbs NWL18
+      - run: ./cmd/dbmaker/dbmaker -outputdir $WDB_DATA_PATH/lexica/db -dbs NWL18,NWL23
       # specify any bash command here prefixed with `run: `
       - run: go test -v ./...
       - discord/status: &discord-webhook-setting
