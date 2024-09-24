@@ -3,8 +3,6 @@ name: CI
 on:
   push:
     branches: ["**"]
-  pull_request:
-    branches: ["**"]
 
 jobs:
   build:
@@ -69,19 +67,21 @@ jobs:
         run: |
           go test -v ./...
 
-      - name: Notify Discord (success)
+      - name: Discord notification
         if: ${{ success() }}
-        run: |
-          curl -X POST -H "Content-Type: application/json" \
-            -d '{"content": ":tada: A build job has succeeded! (Branch: '${{ github.ref }})"}' \
-            "${{ secrets.DISCORD_WEBHOOK }}"
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        uses: Ilshidur/action-discord@master
+        with:
+          args: "word_db_server backend built successfully for branch {{GITHUB_REF_NAME}}."
 
-      - name: Notify Discord (failure)
+      - name: Discord notification
         if: ${{ failure() }}
-        run: |
-          curl -X POST -H "Content-Type: application/json" \
-            -d '{"content": ":red_circle: A build job has failed! (Branch: '${{ github.ref }})"}' \
-            "${{ secrets.DISCORD_WEBHOOK }}"
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        uses: Ilshidur/action-discord@master
+        with:
+          args: ":red_circle: word_db_server backend job failed! {{GITHUB_REF_NAME}}."
 
   build_docker:
     name: Build and Push Docker Image
@@ -131,15 +131,12 @@ jobs:
     env:
       KUBECONFIG: /opt/webolith-private/admin.conf
     steps:
-      - name: Set up SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.K8S_DEPLOY_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan github.com >> ~/.ssh/known_hosts
-
-      - name: Clone aerolith-k8s repo
-        run: git clone git@github.com:domino14/aerolith-k8s
+      - name: Clone lexicon repo
+        uses: actions/checkout@v4
+        with:
+          repository: domino14/aerolith-k8s
+          path: aerolith-k8s
+          token: ${{ secrets.AEROLITH_K8S_GH_PAT }}
 
       - name: Install doctl
         uses: digitalocean/action-doctl@v2
