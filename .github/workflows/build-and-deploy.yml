@@ -155,7 +155,7 @@ jobs:
         run: doctl kubernetes cluster kubeconfig save k8s-1-24-4-do-0-nyc1-1666148172372
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.x"
 
