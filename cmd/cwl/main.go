@@ -67,10 +67,11 @@ func main() {
 	cfg := &Config{}
 	cfg.Load(os.Args[1:])
 
-	zerolog.SetGlobalLevel(zerolog.WarnLevel)
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	if strings.ToLower(LogLevel) == "debug" {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
+	log.Debug().Msg("debug logging is on")
 
 	anagramMode := pb.AnagramRequest_EXACT
 	if cfg.buildMode {
