@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -21,10 +22,11 @@ type card struct {
 }
 
 type gameStateManager struct {
-	visibleCard card
-	loggedIn    bool
-	username    string
-	jwt         string
+	visibleCard   card
+	loggedIn      bool
+	username      string
+	jwt           string
+	showSolutions bool
 }
 
 type loginPacket struct {
@@ -36,15 +38,36 @@ func (m *gameStateManager) View() string {
 	if !m.loggedIn {
 		return "You are not logged in. Hit enter to open an Aerolith log-in window."
 	}
+	header := "You are logged in as " + m.username
+	var body string
+	var footer string
+	if m.visibleCard.alphagram == "" {
+		body = "There are no cards loaded. Type \"next\" to load the next scheduled card,\n" +
+			"or \"load\" to load some new cards into your WordVault."
+	} else {
+		body = strings.Repeat("-", 20)
+		body += "\n\n"
+		body += "  " + m.visibleCard.alphagram
+		body += "\n\n"
+		if m.showSolutions {
+			for i := range m.visibleCard.sols {
+				body += m.visibleCard.sols[i] + "\n"
+			}
+		}
+		body += "\n\n"
+		footer = "(1) Missed    (2) Hard    (3) Good    (4) Easy \n\n      (F) Flip   (P) Previous"
+	}
 
-	return "You are logged in as " + m.username
+	return header + "\n\n" + body + "\n\n" +
+		strings.Repeat("-", 25) + "\n" + footer + "\n"
 }
 
 type model struct {
-	textInput    textinput.Model
-	mgr          *gameStateManager
-	aerolithURI  string
-	callbackChan chan string
+	textInput             textinput.Model
+	mgr                   *gameStateManager
+	callbackserverStarted bool
+	aerolithURI           string
+	callbackChan          chan string
 }
 
 func initialModel(aerolithURI string) model {
@@ -99,7 +122,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case tea.KeyEnter:
 			if !m.mgr.loggedIn {
-				return m, loginCmd(m.aerolithURI, m.mgr, m.callbackChan)
+				if !m.callbackserverStarted {
+					m.callbackserverStarted = true
+					return m, loginCmd(m.aerolithURI, m.mgr, m.callbackChan)
+				} else {
+					fmt.Println("Already listening for a callback")
+					return m, nil
+				}
 			}
 			m.textInput.Reset()
 			return m, nil
@@ -108,6 +137,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Handle the JWT returned from the loginCmd?
 	case loginPacket:
 		// JWT received, update the state
+		m.callbackserverStarted = false
 		m.mgr.loggedIn = true
 		m.mgr.username = msg.username
 		m.mgr.jwt = msg.jwt
@@ -190,7 +220,7 @@ func loginCmd(aerolithURI string, mgr *gameStateManager, callbackChan chan strin
 func startCallbackServer(server *http.Server, shutdownChan <-chan struct{}) {
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Could not listen on :8080: %v\n", err)
+			log.Fatalf("Could not listen on :8521: %v\n", err)
 		}
 	}()
 
