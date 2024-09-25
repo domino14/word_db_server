@@ -10,8 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     env:
       WDB_DATA_PATH: /opt/data
-      TEST_DBSERVER_URI: postgres://postgres:password@localhost:5432/?sslmode=disable
-      TEST_DB_URI: postgres://postgres:password@localhost:5432/test_db?sslmode=disable
+      TEST_DBNAME: wordvault_test
+      TEST_DBHOST: localhost
+      TEST_DBPORT: 5432
+      TEST_DBSSLMODE: disable
+      TEST_DBUSER: postgres
+      TEST_DBPASSWORD: password
       DB_MIGRATIONS_PATH: file://${{ github.workspace }}/db/migrations
     services:
       postgres:
@@ -133,7 +137,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/master'
     env:
-      KUBECONFIG: /opt/webolith-private/admin.conf
+      KUBECONFIG: /opt/kubeadmin.conf
     steps:
       - name: Clone lexicon repo
         uses: actions/checkout@v4

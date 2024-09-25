@@ -26,14 +26,25 @@ import (
 	pb "github.com/domino14/word_db_server/rpc/api/wordvault"
 )
 
-var TestDBURI = os.Getenv("TEST_DB_URI")
-var TestDBServerURI = os.Getenv("TEST_DBSERVER_URI")
-
 var MigrationsPath = os.Getenv("DB_MIGRATIONS_PATH")
-var TestDBName = "wordvault_test"
 
 var DefaultConfig = &config.Config{
 	DataPath: os.Getenv("WDB_DATA_PATH"),
+}
+
+func testDBURI(useDBName bool) string {
+	user := os.Getenv("TEST_DBUSER")
+	pass := os.Getenv("TEST_DBPASSWORD")
+	dbname := os.Getenv("TEST_DBNAME")
+	dbhost := os.Getenv("TEST_DBHOST")
+	dbport := os.Getenv("TEST_DBPORT")
+	sslmode := os.Getenv("TEST_DBSSLMODE")
+
+	if !useDBName {
+		dbname = ""
+	}
+
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", user, pass, dbhost, dbport, dbname, sslmode)
 }
 
 func ctxForTests() context.Context {
@@ -45,24 +56,24 @@ func ctxForTests() context.Context {
 
 func RecreateTestDB() error {
 	ctx := context.Background()
-	db, err := pgx.Connect(ctx, TestDBServerURI)
+	db, err := pgx.Connect(ctx, testDBURI(false))
 	if err != nil {
 		return err
 	}
 	defer db.Close(ctx)
 	log.Info().Msg("dropping db")
-	_, err = db.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s", TestDBName))
+	_, err = db.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s", os.Getenv("TEST_DBNAME")))
 	if err != nil {
 		return err
 	}
 	log.Info().Msg("creating db")
-	_, err = db.Exec(ctx, fmt.Sprintf("CREATE DATABASE %s", TestDBName))
+	_, err = db.Exec(ctx, fmt.Sprintf("CREATE DATABASE %s", os.Getenv("TEST_DBNAME")))
 	if err != nil {
 		return err
 	}
 	log.Info().Msg("running migrations")
 	// And create all tables/sequences/etc.
-	m, err := migrate.New(MigrationsPath, TestDBURI)
+	m, err := migrate.New(MigrationsPath, testDBURI(true))
 	if err != nil {
 		log.Err(err).Msg("on-new")
 		return err
@@ -80,13 +91,13 @@ func RecreateTestDB() error {
 
 func TeardownTestDB() error {
 	ctx := context.Background()
-	db, err := pgx.Connect(ctx, TestDBServerURI)
+	db, err := pgx.Connect(ctx, testDBURI(false))
 	if err != nil {
 		return err
 	}
 	defer db.Close(ctx)
 
-	_, err = db.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s", TestDBName))
+	_, err = db.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s", os.Getenv("TEST_DBNAME")))
 	if err != nil {
 		return err
 	}
@@ -118,7 +129,7 @@ func TestAddCardsAndQuiz(t *testing.T) {
 	// defer TeardownTestDB()
 	ctx := ctxForTests()
 
-	dbPool, err := pgxpool.New(ctx, TestDBURI)
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
 	is.NoErr(err)
 	defer dbPool.Close()
 
@@ -168,7 +179,7 @@ func TestScoreCard(t *testing.T) {
 	// defer TeardownTestDB()
 	ctx := ctxForTests()
 
-	dbPool, err := pgxpool.New(ctx, TestDBURI)
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
 	is.NoErr(err)
 	defer dbPool.Close()
 
@@ -241,7 +252,7 @@ func TestGetCards(t *testing.T) {
 	// defer TeardownTestDB()
 	ctx := ctxForTests()
 
-	dbPool, err := pgxpool.New(ctx, TestDBURI)
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
 	is.NoErr(err)
 	defer dbPool.Close()
 
@@ -319,7 +330,7 @@ func TestEditCardScore(t *testing.T) {
 	// defer TeardownTestDB()
 	ctx := ctxForTests()
 
-	dbPool, err := pgxpool.New(ctx, TestDBURI)
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
 	is.NoErr(err)
 	defer dbPool.Close()
 
@@ -420,7 +431,7 @@ func TestIntervalVariability(t *testing.T) {
 	// defer TeardownTestDB()
 	ctx := ctxForTests()
 
-	dbPool, err := pgxpool.New(ctx, TestDBURI)
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
 	is.NoErr(err)
 	defer dbPool.Close()
 
