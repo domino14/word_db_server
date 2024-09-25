@@ -9,6 +9,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/rs/zerolog/log"
 
 	"github.com/domino14/word_db_server/internal/auth"
 )
@@ -44,6 +45,7 @@ func userJWTAuth(ctx context.Context, secretKey []byte, req connect.AnyRequest, 
 		return secretKey, nil
 	})
 	if err != nil {
+		log.Err(err).Msg("err-parsing-token")
 		return nil, connect.NewError(
 			connect.CodeUnauthenticated,
 			errors.New("could not parse token"),
