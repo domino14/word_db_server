@@ -107,6 +107,9 @@ func (s *Server) GetNextScheduled(ctx context.Context, req *connect.Request[pb.G
 		NextScheduled: pgtype.Timestamptz{Time: s.Nower.Now(), Valid: true},
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return connect.NewResponse(&pb.Cards{}), nil
+		}
 		return nil, err
 	}
 	cards := make([]*pb.Card, len(rows))
