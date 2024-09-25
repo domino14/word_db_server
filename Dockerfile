@@ -20,7 +20,7 @@ FROM debian:bookworm-slim
 COPY --from=build-env /opt/word_db_server/README.md /opt/README.md
 COPY --from=build-env /opt/word_db_server/cmd/searchserver/searchserver /opt/searchserver
 COPY --from=build-env /opt/word_db_server/cmd/dbmaker/dbmaker /opt/dbmaker
-
+COPY --from=build-env /opt/word_db_server/db /opt/db
 EXPOSE 8180
 
 WORKDIR /opt
