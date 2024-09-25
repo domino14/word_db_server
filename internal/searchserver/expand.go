@@ -19,6 +19,8 @@ import (
 func (s *Server) Expand(ctx context.Context, req *connect.Request[pb.SearchResponse]) (
 	*connect.Response[pb.SearchResponse], error) {
 	defer timeTrack(time.Now(), "expand")
+	log.Info().Int("num-alphagrams", len(req.Msg.Alphagrams)).Str("lexicon", req.Msg.Lexicon).
+		Msg("expand-request")
 	lexName := req.Msg.Lexicon
 	// Get all the alphagrams from the search request.
 	db, err := getDbConnection(s.Config, lexName)

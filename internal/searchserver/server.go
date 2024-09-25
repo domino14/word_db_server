@@ -44,5 +44,5 @@ func getDbConnection(cfg *config.Config, lexName string) (*sql.DB, error) {
 
 func timeTrack(start time.Time, name string) {
 	elapsed := time.Since(start)
-	log.Info().Msgf("%s took %s", name, elapsed)
+	log.Info().Dur("elapsed-ms", elapsed).Str("name", name).Msgf("time-track")
 }

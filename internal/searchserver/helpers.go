@@ -2,11 +2,12 @@ package searchserver
 
 /* some helper functions for making word searches */
 import (
+	"fmt"
+	"strings"
+
 	"github.com/domino14/word_db_server/rpc/api/wordsearcher"
 	pb "github.com/domino14/word_db_server/rpc/api/wordsearcher"
 )
-
-type searchDescription struct{}
 
 func SearchDescLexicon(lexicon string) *pb.SearchRequest_SearchParam {
 	return &pb.SearchRequest_SearchParam{
@@ -131,4 +132,50 @@ func WordSearch(params []*pb.SearchRequest_SearchParam, expand bool) *pb.SearchR
 		Searchparams: params,
 		Expand:       expand,
 	}
+}
+
+func searchReqDescription(req *pb.SearchRequest) string {
+	var ss strings.Builder
+	for i := range req.Searchparams {
+		switch req.Searchparams[i].Condition {
+		case pb.SearchRequest_LEXICON:
+			ss.WriteString("<Lexicon: " + req.Searchparams[i].GetStringvalue().Value + "> ")
+		case pb.SearchRequest_LENGTH:
+			ss.WriteString("<Length: " + req.Searchparams[i].GetMinmax().String() + "> ")
+		case pb.SearchRequest_PROBABILITY_RANGE:
+			ss.WriteString("<Prob Range: " + req.Searchparams[i].GetMinmax().String() + "> ")
+		case pb.SearchRequest_DIFFICULTY_RANGE:
+			ss.WriteString("<Difficulty Range: " + req.Searchparams[i].GetMinmax().String() + "> ")
+		case pb.SearchRequest_PROBABILITY_LIMIT:
+			ss.WriteString("<Prob Limit: " + req.Searchparams[i].GetMinmax().String() + "> ")
+		case pb.SearchRequest_POINT_VALUE:
+			ss.WriteString("<Point Value: " + req.Searchparams[i].GetMinmax().String() + "> ")
+		case pb.SearchRequest_NUMBER_OF_ANAGRAMS:
+			ss.WriteString("<Num Anagrams: " + req.Searchparams[i].GetMinmax().String() + "> ")
+		case pb.SearchRequest_ALPHAGRAM_LIST:
+			nalphas := len(req.Searchparams[i].GetStringarray().Values)
+			preview := req.Searchparams[i].GetStringarray().Values[:min(nalphas, 3)]
+			desc := fmt.Sprintf("%d alphagrams (preview: %v)", nalphas, preview)
+			ss.WriteString("<Alphagram List: " + desc + "> ")
+		case pb.SearchRequest_WORD_LIST:
+			nwords := len(req.Searchparams[i].GetStringarray().Values)
+			preview := req.Searchparams[i].GetStringarray().Values[:min(nwords, 3)]
+			desc := fmt.Sprintf("%d words (preview: %v)", nwords, preview)
+			ss.WriteString("<Word List: " + desc + "> ")
+		case pb.SearchRequest_PROBABILITY_LIST:
+			nalphas := len(req.Searchparams[i].GetNumberarray().Values)
+			preview := req.Searchparams[i].GetNumberarray().Values[:min(nalphas, 3)]
+			desc := fmt.Sprintf("%d alphas (preview: %v)", nalphas, preview)
+			ss.WriteString("<Probability List: " + desc + "> ")
+		case pb.SearchRequest_NOT_IN_LEXICON:
+			ss.WriteString("<Not in lexicon: " + req.Searchparams[i].GetNumbervalue().String() + "> ")
+		case pb.SearchRequest_DELETED_WORD:
+			ss.WriteString("<Deleted words> ")
+		case pb.SearchRequest_MATCHING_ANAGRAM:
+			ss.WriteString("<Matching anagram: " + req.Searchparams[i].GetStringvalue().Value + "> ")
+
+		}
+	}
+	ss.WriteString(fmt.Sprintf("(Expand: %v)", req.Expand))
+	return ss.String()
 }

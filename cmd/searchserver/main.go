@@ -42,6 +42,7 @@ func main() {
 	if strings.ToLower(cfg.LogLevel) == "debug" {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
+	log.Debug().Msg("debug logging is on")
 
 	log.Info().Msg("setting up migration")
 	m, err := migrate.New(cfg.DBMigrationsPath, cfg.DBConnUri)

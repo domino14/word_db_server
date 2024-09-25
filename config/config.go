@@ -16,7 +16,7 @@ type Config struct {
 func (c *Config) Load(args []string) error {
 	fs := flag.NewFlagSet("wdb-server", flag.ContinueOnError)
 	fs.StringVar(&c.DataPath, "wdb-data-path", "", "data path")
-	fs.StringVar(&c.LogLevel, "log-level", "debug", "log level")
+	fs.StringVar(&c.LogLevel, "log-level", "info", "log level")
 	fs.StringVar(&c.DBMigrationsPath, "db-migrations-path", "", "the path where migrations are stored")
 	fs.StringVar(&c.DBConnUri, "db-conn-uri", "", "the db connection URI")
 	fs.StringVar(&c.SecretKey, "secret-key", "", "the secret key for JWT signing")

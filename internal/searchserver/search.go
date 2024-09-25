@@ -19,6 +19,8 @@ func (s *Server) Search(ctx context.Context, req *connect.Request[pb.SearchReque
 	*connect.Response[pb.SearchResponse], error) {
 
 	defer timeTrack(time.Now(), "search")
+	log.Info().Str("desc", searchReqDescription(req.Msg)).Msg("searchRequest")
+
 	qgen, err := createQueryGen(req.Msg, s.Config, MaxSQLChunkSize)
 	if err != nil {
 		return nil, err
@@ -48,7 +50,7 @@ func (s *Server) Search(ctx context.Context, req *connect.Request[pb.SearchReque
 }
 
 func createQueryGen(req *pb.SearchRequest, cfg *config.Config, maxChunkSize int) (*querygen.QueryGen, error) {
-	log.Info().Msgf("Creating query gen for request %v", req)
+	log.Debug().Msgf("Creating query gen for request %v", req)
 	if req.Searchparams == nil || len(req.Searchparams) < 1 {
 		return nil, errors.New("no search params provided")
 	}
