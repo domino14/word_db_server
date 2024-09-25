@@ -108,8 +108,8 @@ jobs:
       - name: Build images
         run: >
           docker build -t ghcr.io/domino14/word-db-server:${{ github.sha }}
-                       -t ghcr.io/domino14/word-db-server:latest
-                       $REPO
+          -t ghcr.io/domino14/word-db-server:latest
+          $REPO
       - name: Push images
         run: >
           docker push ghcr.io/domino14/word-db-server:${{ github.sha }} &&
