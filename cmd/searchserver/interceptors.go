@@ -37,8 +37,7 @@ func userJWTAuth(ctx context.Context, secretKey []byte, req connect.AnyRequest, 
 	connect.AnyResponse, error) {
 
 	usertoken := strings.TrimPrefix(req.Header().Get("Authorization"), "Bearer ")
-
-	token, err := jwt.Parse(req.Header().Get(usertoken), func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(usertoken, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 		}
