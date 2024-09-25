@@ -1,0 +1,25 @@
+version: "2"
+sql:
+- schema: "db/migrations"
+  queries: "db/queries"
+  engine: "postgresql"
+  gen:
+    go:
+      out: "internal/stores/models"
+      sql_package: "pgx/v5"
+      overrides:
+      - db_type: "uuid"
+        go_type: "github.com/google/uuid.UUID"
+      - column: "wordvault_params.params"
+        go_type:
+          import: "github.com/open-spaced-repetition/go-fsrs/v3"
+          type: "Parameters"
+      - column: "wordvault_cards.fsrs_card"
+        go_type:
+          import: "github.com/open-spaced-repetition/go-fsrs/v3"
+          type: "Card"
+      - column: "wordvault_cards.review_log"
+        go_type:
+          import: "github.com/open-spaced-repetition/go-fsrs/v3"
+          type: "ReviewLog"
+          slice: true

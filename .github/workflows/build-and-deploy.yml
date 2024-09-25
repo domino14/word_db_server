@@ -1,0 +1,184 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    env:
+      WDB_DATA_PATH: /opt/data
+      TEST_DBNAME: wordvault_test
+      TEST_DBHOST: localhost
+      TEST_DBPORT: 5432
+      TEST_DBSSLMODE: disable
+      TEST_DBUSER: postgres
+      TEST_DBPASSWORD: password
+      DB_MIGRATIONS_PATH: file://${{ github.workspace }}/db/migrations
+    services:
+      postgres:
+        image: postgres:16.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: test_db
+          POSTGRES_PASSWORD: password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ">=1.23"
+
+      - name: Clone lexicon repo
+        uses: actions/checkout@v4
+        with:
+          repository: domino14/word-game-lexica
+          path: word-game-lexica
+          token: ${{ secrets.LEXICA_GH_PAT }}
+
+      - name: Prepare lexicon data
+        run: |
+          mkdir -p $WDB_DATA_PATH/lexica/db
+          mkdir -p $WDB_DATA_PATH/lexica/gaddag
+          mv word-game-lexica/*.txt $WDB_DATA_PATH/lexica
+          mv word-game-lexica/letterdistributions $WDB_DATA_PATH/letterdistributions
+          mv word-game-lexica/gaddag/*.kwg $WDB_DATA_PATH/lexica/gaddag
+
+      - name: Build searchserver
+        run: |
+          cd cmd/searchserver && go build
+
+      - name: Build dbmaker
+        run: |
+          cd cmd/dbmaker && go build
+
+      - name: Generate databases
+        run: |
+          ./cmd/dbmaker/dbmaker -outputdir $WDB_DATA_PATH/lexica/db -dbs NWL18,NWL23
+
+      - name: Run tests
+        run: |
+          go test -v ./...
+
+      - name: Discord notification
+        if: ${{ success() }}
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        uses: Ilshidur/action-discord@master
+        with:
+          args: "word_db_server backend built successfully for branch {{GITHUB_REF_NAME}}."
+
+      - name: Discord notification
+        if: ${{ failure() }}
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        uses: Ilshidur/action-discord@master
+        with:
+          args: ":red_circle: word_db_server backend job failed! {{GITHUB_REF_NAME}}."
+
+  build_docker:
+    name: Build and Push Docker Image
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
+    env:
+      REPO: ${{ github.workspace }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to the container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: domino14
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build images
+        run: >
+          docker build -t ghcr.io/domino14/word-db-server:${{ github.sha }}
+                       -t ghcr.io/domino14/word-db-server:latest
+                       $REPO
+      - name: Push images
+        run: >
+          docker push ghcr.io/domino14/word-db-server:${{ github.sha }} &&
+          docker push ghcr.io/domino14/word-db-server:latest
+
+      - name: Discord notification
+        if: ${{ success() }}
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        uses: Ilshidur/action-discord@master
+        with:
+          args: "word_db_server docker container built successfully"
+
+      - name: Discord notification
+        if: ${{ failure() }}
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        uses: Ilshidur/action-discord@master
+        with:
+          args: ":red_circle: word_db_server docker container build job failed!"
+
+  deploy:
+    name: Deploy to Kubernetes
+    needs: build_docker
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
+    env:
+      KUBECONFIG: /opt/kubeadmin.conf
+    steps:
+      - name: Clone lexicon repo
+        uses: actions/checkout@v4
+        with:
+          repository: domino14/aerolith-k8s
+          path: aerolith-k8s
+          token: ${{ secrets.AEROLITH_K8S_GH_PAT }}
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Save kubeconfig
+        run: doctl kubernetes cluster kubeconfig save k8s-1-24-4-do-0-nyc1-1666148172372
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+
+      - name: Install invoke
+        run: pip install invoke
+
+      - name: Deploy wdb-server
+        run: |
+          cd aerolith-k8s
+          inv deploy-wdb-server
+
+      - name: Discord notification
+        if: ${{ success() }}
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        uses: Ilshidur/action-discord@master
+        with:
+          args: "word_db_server deployed successfully to production"
+
+      - name: Discord notification
+        if: ${{ failure() }}
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        uses: Ilshidur/action-discord@master
+        with:
+          args: ":red_circle: word_db_server failed to deploy to production!"

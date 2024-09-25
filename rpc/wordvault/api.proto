@@ -1,0 +1,76 @@
+syntax = "proto3";
+package wordvault;
+
+import "google/protobuf/timestamp.proto";
+import "wordsearcher/searcher.proto";
+
+enum Score {
+  SCORE_NONE = 0;
+  SCORE_AGAIN = 1;
+  SCORE_HARD = 2;
+  SCORE_GOOD = 3;
+  SCORE_EASY = 4;
+}
+
+message Card {
+  string lexicon = 1;
+  wordsearcher.Alphagram alphagram = 2;
+  bytes card_json_repr = 3;
+  // The retrievability of a card is not part of the json repr and is computed
+  // as of the time of request.
+  double retrievability = 4;
+}
+
+message GetCardInfoRequest {
+  string lexicon = 1;
+  repeated string alphagrams = 2;
+}
+
+message GetNextScheduledRequest {
+  string lexicon = 1;
+  int32 limit = 2;
+}
+
+message Cards { repeated Card cards = 1; }
+
+message ScoreCardRequest {
+  Score score = 1;
+  string lexicon = 2;
+  string alphagram = 3;
+}
+
+message ScoreCardResponse { google.protobuf.Timestamp next_scheduled = 1; }
+
+message AddCardRequest {
+  string lexicon = 1;
+  string alphagram = 2;
+}
+
+message AddCardResponse {}
+
+message AddCardsRequest {
+  string lexicon = 1;
+  repeated string alphagrams = 2;
+}
+
+message AddCardsResponse {}
+
+message EditLastScoreRequest {
+  string lexicon = 1;
+  string alphagram = 2;
+  Score new_score = 3;
+  bytes last_card_repr = 4;
+}
+
+service WordVaultService {
+  rpc GetCardInformation(GetCardInfoRequest) returns (Cards) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  rpc GetNextScheduled(GetNextScheduledRequest) returns (Cards) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  rpc ScoreCard(ScoreCardRequest) returns (ScoreCardResponse);
+  rpc EditLastScore(EditLastScoreRequest) returns (ScoreCardResponse);
+  rpc AddCard(AddCardRequest) returns (AddCardResponse);
+  rpc AddCards(AddCardsRequest) returns (AddCardsResponse);
+}
