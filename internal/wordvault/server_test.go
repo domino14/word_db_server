@@ -344,10 +344,24 @@ func TestEditCardScore(t *testing.T) {
 	fakenower := &FakeNower{}
 	s.Nower = fakenower
 
+	resp, err := s.WordSearchServer.Search(ctx, connect.NewRequest(
+		searchserver.WordSearch([]*searchpb.SearchRequest_SearchParam{
+			searchserver.SearchDescLexicon("NWL23"),
+			searchserver.SearchDescLength(7, 7),
+			searchserver.SearchDescProbRange(7601, 8000),
+		}, false)))
+	is.NoErr(err)
+
+	alphaStrs := []string{}
+	for i := range resp.Msg.Alphagrams {
+		alphaStrs = append(alphaStrs, resp.Msg.Alphagrams[i].Alphagram)
+	}
+
 	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
 		Lexicon:    "NWL23",
-		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO"},
+		Alphagrams: alphaStrs,
 	}))
+
 	is.NoErr(err)
 
 	fakenower.fakenow, err = time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
@@ -356,7 +370,7 @@ func TestEditCardScore(t *testing.T) {
 	res, err := s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
 		Score:     pb.Score_SCORE_EASY,
 		Lexicon:   "NWL23",
-		Alphagram: "ADEEGMMO",
+		Alphagram: "AEGLPSU",
 	}))
 	is.NoErr(err)
 
@@ -364,7 +378,7 @@ func TestEditCardScore(t *testing.T) {
 	res, err = s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
 		Score:     pb.Score_SCORE_EASY,
 		Lexicon:   "NWL23",
-		Alphagram: "ADEEGMMO",
+		Alphagram: "AEGLPSU",
 	}))
 	is.NoErr(err)
 	fakenower.fakenow = res.Msg.NextScheduled.AsTime().Add(5 * time.Second)
@@ -373,13 +387,13 @@ func TestEditCardScore(t *testing.T) {
 
 	cards, err := s.GetNextScheduled(ctx, connect.NewRequest(&pb.GetNextScheduledRequest{
 		Lexicon: "NWL23",
-		Limit:   5,
+		Limit:   500,
 	}))
 	is.NoErr(err)
-	is.Equal(len(cards.Msg.Cards), 2)
+	is.Equal(len(cards.Msg.Cards), 400)
 	cidx := -1
-	for i := range 2 {
-		if cards.Msg.Cards[i].Alphagram.Alphagram == "ADEEGMMO" {
+	for i := range 400 {
+		if cards.Msg.Cards[i].Alphagram.Alphagram == "AEGLPSU" {
 			cidx = i
 		}
 	}
@@ -388,7 +402,7 @@ func TestEditCardScore(t *testing.T) {
 	res, err = s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
 		Score:     pb.Score_SCORE_AGAIN,
 		Lexicon:   "NWL23",
-		Alphagram: "ADEEGMMO",
+		Alphagram: "AEGLPSU",
 	}))
 	is.NoErr(err)
 
@@ -397,7 +411,7 @@ func TestEditCardScore(t *testing.T) {
 	res, err = s.EditLastScore(ctx, connect.NewRequest(&pb.EditLastScoreRequest{
 		NewScore:     pb.Score_SCORE_EASY,
 		Lexicon:      "NWL23",
-		Alphagram:    "ADEEGMMO",
+		Alphagram:    "AEGLPSU",
 		LastCardRepr: cards.Msg.Cards[cidx].CardJsonRepr,
 	}))
 	is.NoErr(err)
@@ -410,11 +424,11 @@ func TestEditCardScore(t *testing.T) {
 
 	info, err := s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
 		Lexicon:    "NWL23",
-		Alphagrams: []string{"ADEEGMMO"},
+		Alphagrams: []string{"AEGLPSU"},
 	}))
 
 	is.Equal(len(info.Msg.Cards), 1)
-	is.Equal(info.Msg.Cards[0].Alphagram.Alphagram, "ADEEGMMO")
+	is.Equal(info.Msg.Cards[0].Alphagram.Alphagram, "AEGLPSU")
 
 	card := fsrs.Card{}
 	err = json.Unmarshal(info.Msg.Cards[0].CardJsonRepr, &card)

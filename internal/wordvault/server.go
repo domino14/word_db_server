@@ -118,22 +118,22 @@ func (s *Server) GetNextScheduled(ctx context.Context, req *connect.Request[pb.G
 	for i := range rows {
 		alphagrams[i] = rows[i].Alphagram
 	}
-	expandResponse, err := s.WordSearchServer.Search(ctx, connect.NewRequest(&searchpb.SearchRequest{
-		Expand: true,
-		Searchparams: []*searchpb.SearchRequest_SearchParam{
-			{
-				Condition: searchpb.SearchRequest_LEXICON,
-				Conditionparam: &searchpb.SearchRequest_SearchParam_Stringvalue{
-					Stringvalue: &searchpb.SearchRequest_StringValue{Value: req.Msg.Lexicon},
-				}},
-			{Condition: searchpb.SearchRequest_ALPHAGRAM_LIST,
-				Conditionparam: &searchpb.SearchRequest_SearchParam_Stringarray{
-					Stringarray: &searchpb.SearchRequest_StringArray{Values: alphagrams},
-				}},
-		}}))
+	// expand does not return the alphagrams in the order they came in.
+	expandResponse, err := s.WordSearchServer.Search(
+		ctx,
+		connect.NewRequest(
+			searchserver.WordSearch([]*searchpb.SearchRequest_SearchParam{
+				searchserver.SearchDescLexicon(req.Msg.Lexicon),
+				searchserver.SearchDescAlphagramList(alphagrams),
+			}, true)))
 	if err != nil {
 		return nil, err
 	}
+	expandMap := map[string]*searchpb.Alphagram{}
+	for _, alpha := range expandResponse.Msg.Alphagrams {
+		expandMap[alpha.Alphagram] = alpha
+	}
+
 	for i := range rows {
 		fcard := rows[i].FsrsCard
 		cardbts, err := json.Marshal(fcard)
@@ -142,7 +142,7 @@ func (s *Server) GetNextScheduled(ctx context.Context, req *connect.Request[pb.G
 		}
 		cards[i] = &pb.Card{
 			Lexicon:      req.Msg.Lexicon,
-			Alphagram:    expandResponse.Msg.Alphagrams[i],
+			Alphagram:    expandMap[rows[i].Alphagram],
 			CardJsonRepr: cardbts,
 		}
 	}
