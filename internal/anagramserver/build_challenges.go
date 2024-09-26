@@ -9,8 +9,8 @@ import (
 	"github.com/domino14/word-golib/tilemapping"
 	"github.com/rs/zerolog/log"
 
+	pb "github.com/domino14/word_db_server/api/rpc/wordsearcher"
 	"github.com/domino14/word_db_server/internal/common"
-	pb "github.com/domino14/word_db_server/rpc/api/wordsearcher"
 )
 
 // GenerateBuildChallenge generates a build challenge with given args.

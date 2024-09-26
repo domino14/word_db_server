@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
+	"github.com/domino14/word_db_server/api/rpc/wordsearcher"
 	"github.com/domino14/word_db_server/internal/anagramserver"
 	"github.com/domino14/word_db_server/internal/searchserver"
-	"github.com/domino14/word_db_server/rpc/api/wordsearcher"
 )
 
 // Useful for moo.bot

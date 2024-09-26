@@ -8,9 +8,9 @@ import (
 	"connectrpc.com/connect"
 	"github.com/rs/zerolog/log"
 
+	pb "github.com/domino14/word_db_server/api/rpc/wordsearcher"
 	"github.com/domino14/word_db_server/config"
 	"github.com/domino14/word_db_server/internal/querygen"
-	pb "github.com/domino14/word_db_server/rpc/api/wordsearcher"
 )
 
 // Expand implements the "expand" rpc command, which takes in a simple

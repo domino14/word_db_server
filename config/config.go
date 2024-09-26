@@ -5,11 +5,13 @@ import (
 )
 
 type Config struct {
-	DataPath         string
-	LogLevel         string
-	DBMigrationsPath string
-	DBConnUri        string
-	SecretKey        string
+	DataPath          string
+	LogLevel          string
+	DBMigrationsPath  string
+	DBConnUri         string
+	SecretKey         string
+	MaxNonmemberCards int
+	MaxCardsAdd       int
 }
 
 // Load loads the configs from the given arguments
@@ -20,6 +22,8 @@ func (c *Config) Load(args []string) error {
 	fs.StringVar(&c.DBMigrationsPath, "db-migrations-path", "", "the path where migrations are stored")
 	fs.StringVar(&c.DBConnUri, "db-conn-uri", "", "the db connection URI")
 	fs.StringVar(&c.SecretKey, "secret-key", "", "the secret key for JWT signing")
+	fs.IntVar(&c.MaxCardsAdd, "max-cards-add", 1000, "maximum cards that can be added at once")
+	fs.IntVar(&c.MaxNonmemberCards, "max-nonmember-cards", 10000, "maximum total cards for non-members")
 	err := fs.Parse(args)
 	return err
 }

@@ -1,11 +1,11 @@
 word_db_server
 *.sublime-*
 *.db
-rpc/**/*.py
+api/**/*.py
 cmd/searchserver/searchserver
 *~
 .vscode
 cmd/cwl/cwl
 cmd/dbmaker/dbmaker
-rpc/api/es
-rpc/api/python
+api/es
+api/python

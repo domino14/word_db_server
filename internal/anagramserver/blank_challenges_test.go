@@ -12,7 +12,7 @@ import (
 	"github.com/domino14/word-golib/kwg"
 	"github.com/domino14/word-golib/tilemapping"
 
-	pb "github.com/domino14/word_db_server/rpc/api/wordsearcher"
+	pb "github.com/domino14/word_db_server/api/rpc/wordsearcher"
 )
 
 var DefaultConfig = &config.Config{

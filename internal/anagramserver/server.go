@@ -11,10 +11,10 @@ import (
 	"github.com/domino14/word-golib/kwg"
 	"github.com/domino14/word-golib/tilemapping"
 
+	pb "github.com/domino14/word_db_server/api/rpc/wordsearcher"
 	"github.com/domino14/word_db_server/config"
 	anagrammer "github.com/domino14/word_db_server/internal/anagramserver/legacyanagrammer"
 	"github.com/domino14/word_db_server/internal/searchserver"
-	pb "github.com/domino14/word_db_server/rpc/api/wordsearcher"
 	"github.com/rs/zerolog/log"
 )
 

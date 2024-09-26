@@ -13,8 +13,8 @@ import (
 	"github.com/rs/zerolog/log"
 
 	wglconfig "github.com/domino14/word-golib/config"
+	pb "github.com/domino14/word_db_server/api/rpc/wordsearcher"
 	"github.com/domino14/word_db_server/internal/anagramserver"
-	pb "github.com/domino14/word_db_server/rpc/api/wordsearcher"
 )
 
 const (

@@ -74,7 +74,11 @@ func userJWTAuth(ctx context.Context, secretKey []byte, req connect.AnyRequest, 
 		if usn == "" {
 			return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unexpected empty usn claim"))
 		}
-		ctx = auth.StoreUserInContext(ctx, uid, usn)
+		mbr, ok := claims["mbr"].(bool)
+		if !ok {
+			return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unexpected mbr claim"))
+		}
+		ctx = auth.StoreUserInContext(ctx, uid, usn, mbr)
 	} else {
 		return nil, connect.NewError(
 			connect.CodeUnauthenticated,

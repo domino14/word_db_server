@@ -12,38 +12,18 @@ import (
 	go_fsrs "github.com/open-spaced-repetition/go-fsrs/v3"
 )
 
-const addCard = `-- name: AddCard :exec
-INSERT INTO wordvault_cards(user_id, lexicon_name, alphagram, next_scheduled, fsrs_card)
-VALUES($1, $2, $3, $4, $5)
-`
-
-type AddCardParams struct {
-	UserID        int64
-	LexiconName   string
-	Alphagram     string
-	NextScheduled pgtype.Timestamptz
-	FsrsCard      go_fsrs.Card
-}
-
-func (q *Queries) AddCard(ctx context.Context, arg AddCardParams) error {
-	_, err := q.db.Exec(ctx, addCard,
-		arg.UserID,
-		arg.LexiconName,
-		arg.Alphagram,
-		arg.NextScheduled,
-		arg.FsrsCard,
-	)
-	return err
-}
-
-const addCards = `-- name: AddCards :exec
-INSERT INTO wordvault_cards(alphagram, next_scheduled, fsrs_card, user_id, lexicon_name)
-SELECT unnest($1::TEXT[]),
-       unnest($2::TIMESTAMPTZ[]),
-       unnest(array_fill($3::JSONB, array[array_length($1, 1)])),
-       unnest(array_fill($4::BIGINT, array[array_length($1, 1)])),
-       unnest(array_fill($5::TEXT, array[array_length($1, 1)]))
-ON CONFLICT(user_id, lexicon_name, alphagram) DO NOTHING
+const addCards = `-- name: AddCards :one
+WITH inserted_rows AS (
+    INSERT INTO wordvault_cards(alphagram, next_scheduled, fsrs_card, user_id, lexicon_name)
+    SELECT unnest($1::TEXT[]),
+        unnest($2::TIMESTAMPTZ[]),
+        unnest(array_fill($3::JSONB, array[array_length($1, 1)])),
+        unnest(array_fill($4::BIGINT, array[array_length($1, 1)])),
+        unnest(array_fill($5::TEXT, array[array_length($1, 1)]))
+    ON CONFLICT(user_id, lexicon_name, alphagram) DO NOTHING
+    RETURNING 1
+)
+SELECT COUNT(*) FROM inserted_rows
 `
 
 type AddCardsParams struct {
@@ -54,15 +34,17 @@ type AddCardsParams struct {
 	LexiconName    string
 }
 
-func (q *Queries) AddCards(ctx context.Context, arg AddCardsParams) error {
-	_, err := q.db.Exec(ctx, addCards,
+func (q *Queries) AddCards(ctx context.Context, arg AddCardsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, addCards,
 		arg.Alphagrams,
 		arg.NextScheduleds,
 		arg.FsrsCard,
 		arg.UserID,
 		arg.LexiconName,
 	)
-	return err
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const getCard = `-- name: GetCard :one
@@ -163,6 +145,37 @@ func (q *Queries) GetNextScheduled(ctx context.Context, arg GetNextScheduledPara
 	for rows.Next() {
 		var i GetNextScheduledRow
 		if err := rows.Scan(&i.Alphagram, &i.NextScheduled, &i.FsrsCard); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getNumCardsInVault = `-- name: GetNumCardsInVault :many
+SELECT lexicon_name, count(*) as card_count FROM wordvault_cards
+WHERE user_id = $1
+GROUP BY lexicon_name
+`
+
+type GetNumCardsInVaultRow struct {
+	LexiconName string
+	CardCount   int64
+}
+
+func (q *Queries) GetNumCardsInVault(ctx context.Context, userID int64) ([]GetNumCardsInVaultRow, error) {
+	rows, err := q.db.Query(ctx, getNumCardsInVault, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetNumCardsInVaultRow
+	for rows.Next() {
+		var i GetNumCardsInVaultRow
+		if err := rows.Scan(&i.LexiconName, &i.CardCount); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

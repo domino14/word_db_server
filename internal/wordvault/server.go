@@ -15,13 +15,15 @@ import (
 	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	searchpb "github.com/domino14/word_db_server/api/rpc/wordsearcher"
+	pb "github.com/domino14/word_db_server/api/rpc/wordvault"
 	"github.com/domino14/word_db_server/config"
 	"github.com/domino14/word_db_server/internal/auth"
 	"github.com/domino14/word_db_server/internal/searchserver"
 	"github.com/domino14/word_db_server/internal/stores/models"
-	searchpb "github.com/domino14/word_db_server/rpc/api/wordsearcher"
-	pb "github.com/domino14/word_db_server/rpc/api/wordvault"
 )
+
+var ErrNeedMembership = errors.New("adding these cards would put you over your limit; please upgrade your account to add more cards <3")
 
 type nower interface {
 	Now() time.Time
@@ -32,8 +34,6 @@ type RealNower struct{}
 func (r RealNower) Now() time.Time {
 	return time.Now()
 }
-
-const MaxCardsAdd = 1000
 
 type Server struct {
 	Config           *config.Config
@@ -319,44 +319,31 @@ func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.Edit
 
 }
 
-func (s *Server) AddCard(ctx context.Context, req *connect.Request[pb.AddCardRequest]) (
-	*connect.Response[pb.AddCardResponse], error) {
-	user := auth.UserFromContext(ctx)
-	if user == nil {
-		return nil, unauthenticated("user not authenticated")
-	}
-	// In the future load these for the user
-	// p := fsrs.DefaultParam()
-	// p.EnableFuzz = true
-	// p.EnableShortTerm = false
-
-	card := fsrs.NewCard()
-	now := s.Nower.Now()
-
-	card.Due = now
-	err := s.Queries.AddCard(ctx, models.AddCardParams{
-		UserID:        int64(user.DBID),
-		LexiconName:   req.Msg.Lexicon,
-		Alphagram:     req.Msg.Alphagram,
-		NextScheduled: pgtype.Timestamptz{Time: now, Valid: true},
-		FsrsCard:      card,
-	})
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInvalidArgument, err)
-	}
-	return connect.NewResponse(&pb.AddCardResponse{}), nil
-}
-
 func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsRequest]) (
 	*connect.Response[pb.AddCardsResponse], error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
 		return nil, unauthenticated("user not authenticated")
 	}
-	if len(req.Msg.Alphagrams) > MaxCardsAdd {
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("cannot add more than %d cards at a time", MaxCardsAdd))
+	if len(req.Msg.Alphagrams) > s.Config.MaxCardsAdd {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("cannot add more than %d cards at a time", s.Config.MaxCardsAdd))
 	}
-	// Just add the same card for ease for now.
+	if !user.Member {
+		rows, err := s.Queries.GetNumCardsInVault(ctx, int64(user.DBID))
+		if err != nil {
+			return nil, err
+		}
+		total := 0
+		for i := range rows {
+			total += int(rows[i].CardCount)
+		}
+		if total+len(req.Msg.Alphagrams) > s.Config.MaxNonmemberCards {
+			return nil, connect.NewError(connect.CodeInvalidArgument, ErrNeedMembership)
+		}
+	}
+	// if len(req.Msg.Alphagrams)
+
+	// Just add the same card to all rows for ease for now.
 	card := fsrs.NewCard()
 	now := s.Nower.Now()
 
@@ -371,7 +358,7 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 		return nil, err
 	}
 
-	err = s.Queries.AddCards(ctx, models.AddCardsParams{
+	numInserted, err := s.Queries.AddCards(ctx, models.AddCardsParams{
 		UserID:      int64(user.DBID),
 		LexiconName: req.Msg.Lexicon,
 		// sqlc compiler can't detect this is a special type. It's ok.
@@ -382,5 +369,29 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
-	return connect.NewResponse(&pb.AddCardsResponse{}), nil
+	return connect.NewResponse(&pb.AddCardsResponse{NumCardsAdded: int32(numInserted)}), nil
+}
+
+func (s *Server) GetCardCount(ctx context.Context, req *connect.Request[pb.GetCardCountRequest]) (
+	*connect.Response[pb.CardCountResponse], error) {
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+	rows, err := s.Queries.GetNumCardsInVault(ctx, int64(user.DBID))
+	if err != nil {
+		return nil, err
+	}
+	cardCount := map[string]uint32{}
+
+	total := uint32(0)
+	for i := range rows {
+		total += uint32(rows[i].CardCount)
+		cardCount[rows[i].LexiconName] = uint32(rows[i].CardCount)
+	}
+
+	return connect.NewResponse(&pb.CardCountResponse{
+		NumCards:   cardCount,
+		TotalCards: total,
+	}), nil
 }
