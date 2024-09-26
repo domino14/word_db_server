@@ -45,6 +45,10 @@ func LexiconMappings(dataPath string) LexiconMap {
 	if err != nil {
 		panic(err)
 	}
+	norwegianLD, err := tilemapping.NamedLetterDistribution(cfg, "norwegian")
+	if err != nil {
+		panic(err)
+	}
 
 	lexiconPath := filepath.Join(dataPath, "lexica")
 
@@ -204,6 +208,17 @@ func LexiconMappings(dataPath string) LexiconMap {
 		},
 	}
 
+	norskFamily := []*LexiconInfo{
+		{
+			LexiconName:        "NSF2022",
+			LexiconFilename:    filepath.Join(lexiconPath, "NSF2022.txt"),
+			KWG:                loadKWG(dataPath, "NSF2022"),
+			LexiconIndex:       25,
+			DescriptiveName:    "Norsk Scrabbleforbund 2022",
+			LetterDistribution: norwegianLD,
+		},
+	}
+
 	frenchFamily := []*LexiconInfo{
 		{
 			LexiconName:        "FRA20",
@@ -229,6 +244,7 @@ func LexiconMappings(dataPath string) LexiconMap {
 		FamilyOSPS:    ospsFamily,
 		FamilyDeutsch: deutschFamily,
 		FamilyFrench:  frenchFamily,
+		FamilyNorsk:   norskFamily,
 	}
 
 	return lexiconMap
