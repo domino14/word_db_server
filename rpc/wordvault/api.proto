@@ -2,7 +2,7 @@ syntax = "proto3";
 package wordvault;
 
 import "google/protobuf/timestamp.proto";
-import "wordsearcher/searcher.proto";
+import "rpc/wordsearcher/searcher.proto";
 
 enum Score {
   SCORE_NONE = 0;
@@ -41,19 +41,12 @@ message ScoreCardRequest {
 
 message ScoreCardResponse { google.protobuf.Timestamp next_scheduled = 1; }
 
-message AddCardRequest {
-  string lexicon = 1;
-  string alphagram = 2;
-}
-
-message AddCardResponse {}
-
 message AddCardsRequest {
   string lexicon = 1;
   repeated string alphagrams = 2;
 }
 
-message AddCardsResponse {}
+message AddCardsResponse { int32 num_cards_added = 1; }
 
 message EditLastScoreRequest {
   string lexicon = 1;
@@ -62,7 +55,17 @@ message EditLastScoreRequest {
   bytes last_card_repr = 4;
 }
 
+message GetCardCountRequest {}
+
+message CardCountResponse {
+  map<string, uint32> num_cards = 1;
+  uint32 total_cards = 2;
+}
+
 service WordVaultService {
+  rpc GetCardCount(GetCardCountRequest) returns (CardCountResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
   rpc GetCardInformation(GetCardInfoRequest) returns (Cards) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -71,6 +74,5 @@ service WordVaultService {
   }
   rpc ScoreCard(ScoreCardRequest) returns (ScoreCardResponse);
   rpc EditLastScore(EditLastScoreRequest) returns (ScoreCardResponse);
-  rpc AddCard(AddCardRequest) returns (AddCardResponse);
   rpc AddCards(AddCardsRequest) returns (AddCardsResponse);
 }

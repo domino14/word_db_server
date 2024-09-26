@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/domino14/word_db_server/rpc/api/wordsearcher"
-	pb "github.com/domino14/word_db_server/rpc/api/wordsearcher"
+	"github.com/domino14/word_db_server/api/rpc/wordsearcher"
+	pb "github.com/domino14/word_db_server/api/rpc/wordsearcher"
 )
 
 func SearchDescLexicon(lexicon string) *pb.SearchRequest_SearchParam {

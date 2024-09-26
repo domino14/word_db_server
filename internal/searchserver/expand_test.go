@@ -7,7 +7,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 
-	pb "github.com/domino14/word_db_server/rpc/api/wordsearcher"
+	pb "github.com/domino14/word_db_server/api/rpc/wordsearcher"
 )
 
 func TestExpand(t *testing.T) {

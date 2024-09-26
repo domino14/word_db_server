@@ -13,12 +13,14 @@ const (
 type AuthedUser struct {
 	DBID     int
 	Username string
+	Member   bool
 }
 
-func StoreUserInContext(ctx context.Context, dbid int, username string) context.Context {
+func StoreUserInContext(ctx context.Context, dbid int, username string, member bool) context.Context {
 	ctx = context.WithValue(ctx, userkey, &AuthedUser{
 		DBID:     dbid,
 		Username: username,
+		Member:   member,
 	})
 	return ctx
 }

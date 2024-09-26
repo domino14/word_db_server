@@ -3,7 +3,7 @@ managed:
   enabled: true
   override:
     - file_option: go_package_prefix
-      value: github.com/domino14/word_db_server/rpc/api
+      value: github.com/domino14/word_db_server/api
 
 plugins:
   - remote: buf.build/protocolbuffers/go:v1.34.1

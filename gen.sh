@@ -3,10 +3,7 @@ set -e
 
 buf_generate() {
   echo "Starting buf generate"
-  (
-    cd rpc || exit
-    buf generate
-  )
+  buf generate
 }
 
 sqlc_generate() {

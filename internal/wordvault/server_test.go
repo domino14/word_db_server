@@ -19,17 +19,19 @@ import (
 	"github.com/open-spaced-repetition/go-fsrs/v3"
 	"github.com/rs/zerolog/log"
 
+	searchpb "github.com/domino14/word_db_server/api/rpc/wordsearcher"
+	pb "github.com/domino14/word_db_server/api/rpc/wordvault"
 	"github.com/domino14/word_db_server/config"
 	"github.com/domino14/word_db_server/internal/auth"
 	"github.com/domino14/word_db_server/internal/searchserver"
 	"github.com/domino14/word_db_server/internal/stores/models"
-	pb "github.com/domino14/word_db_server/rpc/api/wordvault"
 )
 
-var MigrationsPath = os.Getenv("DB_MIGRATIONS_PATH")
-
 var DefaultConfig = &config.Config{
-	DataPath: os.Getenv("WDB_DATA_PATH"),
+	DataPath:          os.Getenv("WDB_DATA_PATH"),
+	DBMigrationsPath:  os.Getenv("DB_MIGRATIONS_PATH"),
+	MaxNonmemberCards: 10000,
+	MaxCardsAdd:       1000,
 }
 
 func testDBURI(useDBName bool) string {
@@ -50,7 +52,7 @@ func testDBURI(useDBName bool) string {
 func ctxForTests() context.Context {
 	ctx := context.Background()
 	ctx = log.Logger.WithContext(ctx)
-	ctx = auth.StoreUserInContext(ctx, 42, "cesar")
+	ctx = auth.StoreUserInContext(ctx, 42, "cesar", false)
 	return ctx
 }
 
@@ -73,7 +75,7 @@ func RecreateTestDB() error {
 	}
 	log.Info().Msg("running migrations")
 	// And create all tables/sequences/etc.
-	m, err := migrate.New(MigrationsPath, testDBURI(true))
+	m, err := migrate.New(DefaultConfig.DBMigrationsPath, testDBURI(true))
 	if err != nil {
 		log.Err(err).Msg("on-new")
 		return err
@@ -137,16 +139,18 @@ func TestAddCardsAndQuiz(t *testing.T) {
 
 	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
 
-	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+	added, err := s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
 		Lexicon:    "NWL23",
 		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO"},
 	}))
 	is.NoErr(err)
-	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+	is.Equal(added.Msg.NumCardsAdded, int32(2))
+	added, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
 		Lexicon:    "NWL23",
 		Alphagrams: []string{"ADEEHMMO", "AEFFGINR"},
 	}))
 	is.NoErr(err)
+	is.Equal(added.Msg.NumCardsAdded, int32(1))
 
 	res, err := s.GetNextScheduled(ctx, connect.NewRequest(&pb.GetNextScheduledRequest{
 		Lexicon: "NWL23", Limit: 5,
@@ -441,11 +445,19 @@ func TestIntervalVariability(t *testing.T) {
 	fakenower := &FakeNower{}
 	s.Nower = fakenower
 
-	_, err = s.AddCard(ctx, connect.NewRequest(&pb.AddCardRequest{
-		Lexicon:   "NWL23",
-		Alphagram: "ADEEGMMO",
+	added, err := s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO"},
 	}))
 	is.NoErr(err)
+	is.Equal(added.Msg.NumCardsAdded, int32(1))
+
+	added, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO"},
+	}))
+	is.NoErr(err)
+	is.Equal(added.Msg.NumCardsAdded, int32(0))
 
 	fakenower.fakenow, err = time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
 	// Add a small fuzz because fsrs seeds based on the passed-in time.
@@ -514,4 +526,65 @@ func TestIntervalVariability(t *testing.T) {
 	oneyearafter, err := time.Parse(time.RFC3339, "2025-09-22T23:00:00Z")
 	is.NoErr(err)
 	is.True(res.Msg.NextScheduled.AsTime().Before(oneyearafter))
+}
+
+func TestCardMemberLimits(t *testing.T) {
+	is := is.New(t)
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	// defer TeardownTestDB()
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+	config := *DefaultConfig
+	config.MaxNonmemberCards = 500
+
+	s := NewServer(&config, dbPool, q, &searchserver.Server{Config: &config})
+
+	resp, err := s.WordSearchServer.Search(ctx, connect.NewRequest(
+		searchserver.WordSearch([]*searchpb.SearchRequest_SearchParam{
+			searchserver.SearchDescLexicon("NWL23"),
+			searchserver.SearchDescLength(7, 7),
+			searchserver.SearchDescProbRange(7601, 8000),
+		}, false)))
+	is.NoErr(err)
+
+	alphaStrs := []string{}
+	for i := range resp.Msg.Alphagrams {
+		alphaStrs = append(alphaStrs, resp.Msg.Alphagrams[i].Alphagram)
+	}
+
+	added, err := s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: alphaStrs,
+	}))
+
+	is.NoErr(err)
+	is.Equal(added.Msg.NumCardsAdded, int32(400))
+
+	resp, err = s.WordSearchServer.Search(ctx, connect.NewRequest(
+		searchserver.WordSearch([]*searchpb.SearchRequest_SearchParam{
+			searchserver.SearchDescLexicon("NWL23"),
+			searchserver.SearchDescLength(8, 8),
+			searchserver.SearchDescProbRange(8601, 9000),
+		}, false)))
+	is.NoErr(err)
+
+	alphaStrs = []string{}
+	for i := range resp.Msg.Alphagrams {
+		alphaStrs = append(alphaStrs, resp.Msg.Alphagrams[i].Alphagram)
+	}
+
+	added, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: alphaStrs,
+	}))
+	is.Equal(err.Error(), "invalid_argument: "+ErrNeedMembership.Error())
+
 }

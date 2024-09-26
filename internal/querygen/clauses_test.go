@@ -3,7 +3,7 @@ package querygen
 import (
 	"testing"
 
-	"github.com/domino14/word_db_server/rpc/api/wordsearcher"
+	"github.com/domino14/word_db_server/api/rpc/wordsearcher"
 	"github.com/stretchr/testify/assert"
 )
 

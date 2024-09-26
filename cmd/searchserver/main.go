@@ -18,13 +18,13 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"github.com/domino14/word_db_server/api/rpc/wordsearcher/wordsearcherconnect"
+	"github.com/domino14/word_db_server/api/rpc/wordvault/wordvaultconnect"
 	"github.com/domino14/word_db_server/config"
 	"github.com/domino14/word_db_server/internal/anagramserver"
 	"github.com/domino14/word_db_server/internal/searchserver"
 	"github.com/domino14/word_db_server/internal/stores/models"
 	"github.com/domino14/word_db_server/internal/wordvault"
-	"github.com/domino14/word_db_server/rpc/api/wordsearcher/wordsearcherconnect"
-	"github.com/domino14/word_db_server/rpc/api/wordvault/wordvaultconnect"
 )
 
 const (
