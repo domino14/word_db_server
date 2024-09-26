@@ -95,6 +95,7 @@ func combineQueryResults(queries []*querygen.Query, db *sql.DB, expand bool, qty
 			return nil, err
 		}
 		alphagrams = append(alphagrams, processQuestionRows(rows, expand, qtype)...)
+
 		rows.Close()
 	}
 
