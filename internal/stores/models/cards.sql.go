@@ -156,6 +156,59 @@ func (q *Queries) GetNextScheduled(ctx context.Context, arg GetNextScheduledPara
 	return items, nil
 }
 
+const getNextScheduledBreakdown = `-- name: GetNextScheduledBreakdown :many
+WITH scheduled_cards AS (
+    SELECT
+        COALESCE(
+            CASE WHEN next_scheduled <= $2 THEN 'overdue' END,
+            TO_CHAR(next_scheduled, 'YYYY-MM-DD')
+        )::text AS scheduled_date
+    FROM
+        wordvault_cards
+    WHERE user_id = $1
+)
+SELECT
+    scheduled_date,
+    COUNT(*) AS question_count
+FROM
+    scheduled_cards
+GROUP BY
+    scheduled_date
+ORDER BY
+    scheduled_date = 'overdue' DESC,
+    scheduled_date
+`
+
+type GetNextScheduledBreakdownParams struct {
+	UserID int64
+	Now    pgtype.Timestamptz
+}
+
+type GetNextScheduledBreakdownRow struct {
+	ScheduledDate string
+	QuestionCount int64
+}
+
+func (q *Queries) GetNextScheduledBreakdown(ctx context.Context, arg GetNextScheduledBreakdownParams) ([]GetNextScheduledBreakdownRow, error) {
+	rows, err := q.db.Query(ctx, getNextScheduledBreakdown, arg.UserID, arg.Now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetNextScheduledBreakdownRow
+	for rows.Next() {
+		var i GetNextScheduledBreakdownRow
+		if err := rows.Scan(&i.ScheduledDate, &i.QuestionCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getNumCardsInVault = `-- name: GetNumCardsInVault :many
 SELECT lexicon_name, count(*) as card_count FROM wordvault_cards
 WHERE user_id = $1
@@ -185,6 +238,24 @@ func (q *Queries) GetNumCardsInVault(ctx context.Context, userID int64) ([]GetNu
 		return nil, err
 	}
 	return items, nil
+}
+
+const getOverdueCount = `-- name: GetOverdueCount :one
+SELECT
+    count(*) from wordvault_cards
+WHERE next_scheduled <= $2 AND user_id = $1
+`
+
+type GetOverdueCountParams struct {
+	UserID int64
+	Now    pgtype.Timestamptz
+}
+
+func (q *Queries) GetOverdueCount(ctx context.Context, arg GetOverdueCountParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getOverdueCount, arg.UserID, arg.Now)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const loadParams = `-- name: LoadParams :one

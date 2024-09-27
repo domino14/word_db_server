@@ -62,6 +62,10 @@ message CardCountResponse {
   uint32 total_cards = 2;
 }
 
+message NextScheduledCountRequest { bool only_overdue = 1; }
+
+message NextScheduledBreakdown { map<string, uint32> breakdown = 1; }
+
 service WordVaultService {
   rpc GetCardCount(GetCardCountRequest) returns (CardCountResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -72,6 +76,8 @@ service WordVaultService {
   rpc GetNextScheduled(GetNextScheduledRequest) returns (Cards) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  rpc NextScheduledCount(NextScheduledCountRequest)
+      returns (NextScheduledBreakdown);
   rpc ScoreCard(ScoreCardRequest) returns (ScoreCardResponse);
   rpc EditLastScore(EditLastScoreRequest) returns (ScoreCardResponse);
   rpc AddCards(AddCardsRequest) returns (AddCardsResponse);
