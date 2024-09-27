@@ -413,9 +413,14 @@ func (s *Server) NextScheduledCount(ctx context.Context, req *connect.Request[pb
 		}
 		breakdown["overdue"] = uint32(ocCount)
 	} else {
+		tz := "UTC"
+		if req.Msg.Timezone != "" {
+			tz = req.Msg.Timezone
+		}
 		rows, err := s.Queries.GetNextScheduledBreakdown(ctx, models.GetNextScheduledBreakdownParams{
 			UserID: int64(user.DBID),
 			Now:    toPGTimestamp(s.Nower.Now()),
+			Tz:     tz,
 		})
 		if err != nil {
 			return nil, err

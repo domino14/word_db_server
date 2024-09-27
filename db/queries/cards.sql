@@ -62,7 +62,7 @@ WITH scheduled_cards AS (
     SELECT
         COALESCE(
             CASE WHEN next_scheduled <= @now THEN 'overdue' END,
-            TO_CHAR(next_scheduled, 'YYYY-MM-DD')
+            TO_CHAR(next_scheduled AT TIME ZONE @tz::text, 'YYYY-MM-DD')
         )::text AS scheduled_date
     FROM
         wordvault_cards

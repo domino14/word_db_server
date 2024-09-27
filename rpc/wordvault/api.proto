@@ -62,7 +62,10 @@ message CardCountResponse {
   uint32 total_cards = 2;
 }
 
-message NextScheduledCountRequest { bool only_overdue = 1; }
+message NextScheduledCountRequest {
+  bool only_overdue = 1;
+  string timezone = 2;
+}
 
 message NextScheduledBreakdown { map<string, uint32> breakdown = 1; }
 

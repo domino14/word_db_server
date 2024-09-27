@@ -161,7 +161,7 @@ WITH scheduled_cards AS (
     SELECT
         COALESCE(
             CASE WHEN next_scheduled <= $2 THEN 'overdue' END,
-            TO_CHAR(next_scheduled, 'YYYY-MM-DD')
+            TO_CHAR(next_scheduled AT TIME ZONE $3::text, 'YYYY-MM-DD')
         )::text AS scheduled_date
     FROM
         wordvault_cards
@@ -182,6 +182,7 @@ ORDER BY
 type GetNextScheduledBreakdownParams struct {
 	UserID int64
 	Now    pgtype.Timestamptz
+	Tz     string
 }
 
 type GetNextScheduledBreakdownRow struct {
@@ -190,7 +191,7 @@ type GetNextScheduledBreakdownRow struct {
 }
 
 func (q *Queries) GetNextScheduledBreakdown(ctx context.Context, arg GetNextScheduledBreakdownParams) ([]GetNextScheduledBreakdownRow, error) {
-	rows, err := q.db.Query(ctx, getNextScheduledBreakdown, arg.UserID, arg.Now)
+	rows, err := q.db.Query(ctx, getNextScheduledBreakdown, arg.UserID, arg.Now, arg.Tz)
 	if err != nil {
 		return nil, err
 	}
