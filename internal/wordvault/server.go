@@ -104,7 +104,7 @@ func (s *Server) GetNextScheduled(ctx context.Context, req *connect.Request[pb.G
 		UserID:        int64(user.DBID),
 		LexiconName:   req.Msg.Lexicon,
 		Limit:         req.Msg.Limit,
-		NextScheduled: pgtype.Timestamptz{Time: s.Nower.Now(), Valid: true},
+		NextScheduled: toPGTimestamp(s.Nower.Now()),
 	})
 	if err != nil {
 		return nil, err
@@ -219,7 +219,7 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 
 	err = qtx.UpdateCard(ctx, models.UpdateCardParams{
 		FsrsCard:      card,
-		NextScheduled: pgtype.Timestamptz{Time: card.Due, Valid: true},
+		NextScheduled: toPGTimestamp(card.Due),
 		UserID:        int64(user.DBID),
 		LexiconName:   req.Msg.Lexicon,
 		Alphagram:     req.Msg.Alphagram,
@@ -300,7 +300,7 @@ func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.Edit
 	// Overwrite last log with this new log.
 	err = qtx.UpdateCardReplaceLastLog(ctx, models.UpdateCardReplaceLastLogParams{
 		FsrsCard:      card,
-		NextScheduled: pgtype.Timestamptz{Time: card.Due, Valid: true},
+		NextScheduled: toPGTimestamp(card.Due),
 		UserID:        int64(user.DBID),
 		LexiconName:   req.Msg.Lexicon,
 		Alphagram:     req.Msg.Alphagram,
@@ -351,7 +351,7 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 	alphagrams := req.Msg.Alphagrams
 	nextScheduleds := make([]pgtype.Timestamptz, len(alphagrams))
 	for i := range alphagrams {
-		nextScheduleds[i] = pgtype.Timestamptz{Time: now, Valid: true}
+		nextScheduleds[i] = toPGTimestamp(now)
 	}
 	bts, err := json.Marshal(card)
 	if err != nil {
@@ -394,4 +394,36 @@ func (s *Server) GetCardCount(ctx context.Context, req *connect.Request[pb.GetCa
 		NumCards:   cardCount,
 		TotalCards: total,
 	}), nil
+}
+
+func (s *Server) NextScheduledCount(ctx context.Context, req *connect.Request[pb.NextScheduledCountRequest]) (
+	*connect.Response[pb.NextScheduledBreakdown], error) {
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+	breakdown := map[string]uint32{}
+	if req.Msg.OnlyOverdue {
+		ocCount, err := s.Queries.GetOverdueCount(ctx, models.GetOverdueCountParams{
+			UserID: int64(user.DBID),
+			Now:    toPGTimestamp(s.Nower.Now()),
+		})
+		if err != nil {
+			return nil, err
+		}
+		breakdown["overdue"] = uint32(ocCount)
+	} else {
+		rows, err := s.Queries.GetNextScheduledBreakdown(ctx, models.GetNextScheduledBreakdownParams{
+			UserID: int64(user.DBID),
+			Now:    toPGTimestamp(s.Nower.Now()),
+		})
+		if err != nil {
+			return nil, err
+		}
+		for i := range rows {
+			breakdown[rows[i].ScheduledDate] = uint32(rows[i].QuestionCount)
+		}
+	}
+
+	return connect.NewResponse(&pb.NextScheduledBreakdown{Breakdown: breakdown}), nil
 }

@@ -602,3 +602,76 @@ func TestCardMemberLimits(t *testing.T) {
 	is.Equal(err.Error(), "invalid_argument: "+ErrNeedMembership.Error())
 
 }
+
+func TestOverdueCount(t *testing.T) {
+	is := is.New(t)
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	// defer TeardownTestDB()
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+	config := *DefaultConfig
+	config.MaxNonmemberCards = 500
+
+	s := NewServer(&config, dbPool, q, &searchserver.Server{Config: &config})
+	fakenower := &FakeNower{}
+	s.Nower = fakenower
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
+
+	resp, _ := s.WordSearchServer.Search(ctx, connect.NewRequest(
+		searchserver.WordSearch([]*searchpb.SearchRequest_SearchParam{
+			searchserver.SearchDescLexicon("NWL23"),
+			searchserver.SearchDescLength(7, 7),
+			searchserver.SearchDescProbRange(7601, 8000),
+		}, false)))
+
+	alphaStrs := []string{}
+	for i := range resp.Msg.Alphagrams {
+		alphaStrs = append(alphaStrs, resp.Msg.Alphagrams[i].Alphagram)
+	}
+
+	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: alphaStrs,
+	}))
+
+	for _, alpha := range alphaStrs {
+		score := rand.IntN(4) + 1
+		_, err := s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+			Score:     pb.Score(score),
+			Lexicon:   "NWL23",
+			Alphagram: alpha,
+		}))
+		is.NoErr(err)
+	}
+
+	// Scored 400 cards.
+	res, err := s.NextScheduledCount(ctx, connect.NewRequest(&pb.NextScheduledCountRequest{
+		OnlyOverdue: true,
+	}))
+	is.NoErr(err)
+	is.Equal(res.Msg.Breakdown["overdue"], uint32(0))
+
+	// Set the time to a couple days in the future and get a full breakdown of questions
+	// due. There should be some overdue, and some due in the future (the ones that were
+	// marked easier).
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-24T23:00:00Z")
+	res, err = s.NextScheduledCount(ctx, connect.NewRequest(&pb.NextScheduledCountRequest{
+		OnlyOverdue: false,
+	}))
+
+	is.NoErr(err)
+	is.True(res.Msg.Breakdown["overdue"] > 0 && res.Msg.Breakdown["overdue"] != 400)
+	sum := uint32(0)
+	for _, v := range res.Msg.Breakdown {
+		sum += v
+	}
+	is.Equal(sum, uint32(400))
+}
