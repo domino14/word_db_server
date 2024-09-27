@@ -642,6 +642,27 @@ func TestOverdueCount(t *testing.T) {
 		Alphagrams: alphaStrs,
 	}))
 
+	res, err := s.NextScheduledCount(ctx, connect.NewRequest(&pb.NextScheduledCountRequest{
+		OnlyOverdue: true,
+	}))
+	is.NoErr(err)
+	is.Equal(res.Msg.Breakdown["overdue"], uint32(400))
+
+	// test tz handling
+	// Set the time to an hour before we added the cards. A little ghetto,
+	// but it'll do for our tests
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-22T22:00:00Z")
+	// Then get the scheduled counts. It's 2024-09-23 in Singapore at the above time.
+	res, err = s.NextScheduledCount(ctx, connect.NewRequest(&pb.NextScheduledCountRequest{
+		OnlyOverdue: false,
+		Timezone:    "Asia/Singapore",
+	}))
+	is.NoErr(err)
+	is.Equal(res.Msg.Breakdown["overdue"], uint32(0))
+	is.Equal(res.Msg.Breakdown["2024-09-23"], uint32(400))
+	// Restore the fake time.
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
+
 	for _, alpha := range alphaStrs {
 		score := rand.IntN(4) + 1
 		_, err := s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
@@ -653,7 +674,7 @@ func TestOverdueCount(t *testing.T) {
 	}
 
 	// Scored 400 cards.
-	res, err := s.NextScheduledCount(ctx, connect.NewRequest(&pb.NextScheduledCountRequest{
+	res, err = s.NextScheduledCount(ctx, connect.NewRequest(&pb.NextScheduledCountRequest{
 		OnlyOverdue: true,
 	}))
 	is.NoErr(err)
