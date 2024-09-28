@@ -660,6 +660,15 @@ func TestOverdueCount(t *testing.T) {
 	is.NoErr(err)
 	is.Equal(res.Msg.Breakdown["overdue"], uint32(0))
 	is.Equal(res.Msg.Breakdown["2024-09-23"], uint32(400))
+
+	res, err = s.NextScheduledCount(ctx, connect.NewRequest(&pb.NextScheduledCountRequest{
+		OnlyOverdue: false,
+		Timezone:    "America/New_York",
+	}))
+	is.NoErr(err)
+	is.Equal(res.Msg.Breakdown["overdue"], uint32(0))
+	is.Equal(res.Msg.Breakdown["2024-09-22"], uint32(400))
+
 	// Restore the fake time.
 	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
 

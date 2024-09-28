@@ -426,7 +426,16 @@ func (s *Server) NextScheduledCount(ctx context.Context, req *connect.Request[pb
 			return nil, err
 		}
 		for i := range rows {
-			breakdown[rows[i].ScheduledDate] = uint32(rows[i].QuestionCount)
+			var s string
+			switch rows[i].ScheduledDate.InfinityModifier {
+			case pgtype.Finite:
+				s = rows[i].ScheduledDate.Time.Format("2006-01-02")
+			case pgtype.Infinity:
+				s = "infinity"
+			case pgtype.NegativeInfinity:
+				s = "overdue"
+			}
+			breakdown[s] = uint32(rows[i].QuestionCount)
 		}
 	}
 

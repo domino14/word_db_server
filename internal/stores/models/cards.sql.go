@@ -159,10 +159,9 @@ func (q *Queries) GetNextScheduled(ctx context.Context, arg GetNextScheduledPara
 const getNextScheduledBreakdown = `-- name: GetNextScheduledBreakdown :many
 WITH scheduled_cards AS (
     SELECT
-        COALESCE(
-            CASE WHEN next_scheduled <= $2 THEN 'overdue' END,
-            TO_CHAR(next_scheduled AT TIME ZONE $3::text, 'YYYY-MM-DD')
-        )::text AS scheduled_date
+            CASE WHEN next_scheduled <= $2 THEN '-infinity'::date
+            ELSE (next_scheduled AT TIME ZONE $3::text)::date END
+        AS scheduled_date
     FROM
         wordvault_cards
     WHERE user_id = $1
@@ -175,7 +174,6 @@ FROM
 GROUP BY
     scheduled_date
 ORDER BY
-    scheduled_date = 'overdue' DESC,
     scheduled_date
 `
 
@@ -186,7 +184,7 @@ type GetNextScheduledBreakdownParams struct {
 }
 
 type GetNextScheduledBreakdownRow struct {
-	ScheduledDate string
+	ScheduledDate pgtype.Date
 	QuestionCount int64
 }
 
