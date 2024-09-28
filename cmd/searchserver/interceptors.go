@@ -67,7 +67,7 @@ func userJWTAuth(ctx context.Context, secretKey []byte, req connect.AnyRequest, 
 			)
 		}
 		iss, ok := claims["iss"].(string)
-		if !ok || iss != "aerolith.org" {
+		if !ok || (iss != "aerolith.org" && iss != "aerolith.localhost") {
 			return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unexpected iss claim"))
 		}
 		usn, ok := claims["usn"].(string)

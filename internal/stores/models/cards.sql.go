@@ -159,13 +159,12 @@ func (q *Queries) GetNextScheduled(ctx context.Context, arg GetNextScheduledPara
 const getNextScheduledBreakdown = `-- name: GetNextScheduledBreakdown :many
 WITH scheduled_cards AS (
     SELECT
-        COALESCE(
-            CASE WHEN next_scheduled <= $2 THEN 'overdue' END,
-            TO_CHAR(next_scheduled AT TIME ZONE $3::text, 'YYYY-MM-DD')
-        )::text AS scheduled_date
+        CASE WHEN next_scheduled <= $3 THEN '-infinity'::date
+        ELSE (next_scheduled AT TIME ZONE $4::text)::date END
+        AS scheduled_date
     FROM
         wordvault_cards
-    WHERE user_id = $1
+    WHERE user_id = $1 AND lexicon_name = $2
 )
 SELECT
     scheduled_date,
@@ -175,23 +174,28 @@ FROM
 GROUP BY
     scheduled_date
 ORDER BY
-    scheduled_date = 'overdue' DESC,
     scheduled_date
 `
 
 type GetNextScheduledBreakdownParams struct {
-	UserID int64
-	Now    pgtype.Timestamptz
-	Tz     string
+	UserID      int64
+	LexiconName string
+	Now         pgtype.Timestamptz
+	Tz          string
 }
 
 type GetNextScheduledBreakdownRow struct {
-	ScheduledDate string
+	ScheduledDate pgtype.Date
 	QuestionCount int64
 }
 
 func (q *Queries) GetNextScheduledBreakdown(ctx context.Context, arg GetNextScheduledBreakdownParams) ([]GetNextScheduledBreakdownRow, error) {
-	rows, err := q.db.Query(ctx, getNextScheduledBreakdown, arg.UserID, arg.Now, arg.Tz)
+	rows, err := q.db.Query(ctx, getNextScheduledBreakdown,
+		arg.UserID,
+		arg.LexiconName,
+		arg.Now,
+		arg.Tz,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -244,16 +248,17 @@ func (q *Queries) GetNumCardsInVault(ctx context.Context, userID int64) ([]GetNu
 const getOverdueCount = `-- name: GetOverdueCount :one
 SELECT
     count(*) from wordvault_cards
-WHERE next_scheduled <= $2 AND user_id = $1
+WHERE next_scheduled <= $3 AND user_id = $1 AND lexicon_name = $2
 `
 
 type GetOverdueCountParams struct {
-	UserID int64
-	Now    pgtype.Timestamptz
+	UserID      int64
+	LexiconName string
+	Now         pgtype.Timestamptz
 }
 
 func (q *Queries) GetOverdueCount(ctx context.Context, arg GetOverdueCountParams) (int64, error) {
-	row := q.db.QueryRow(ctx, getOverdueCount, arg.UserID, arg.Now)
+	row := q.db.QueryRow(ctx, getOverdueCount, arg.UserID, arg.LexiconName, arg.Now)
 	var count int64
 	err := row.Scan(&count)
 	return count, err

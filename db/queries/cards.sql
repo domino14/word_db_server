@@ -60,13 +60,12 @@ SELECT COUNT(*) FROM inserted_rows;
 -- name: GetNextScheduledBreakdown :many
 WITH scheduled_cards AS (
     SELECT
-        COALESCE(
-            CASE WHEN next_scheduled <= @now THEN 'overdue' END,
-            TO_CHAR(next_scheduled AT TIME ZONE @tz::text, 'YYYY-MM-DD')
-        )::text AS scheduled_date
+        CASE WHEN next_scheduled <= @now THEN '-infinity'::date
+        ELSE (next_scheduled AT TIME ZONE @tz::text)::date END
+        AS scheduled_date
     FROM
         wordvault_cards
-    WHERE user_id = $1
+    WHERE user_id = $1 AND lexicon_name = $2
 )
 SELECT
     scheduled_date,
@@ -76,11 +75,9 @@ FROM
 GROUP BY
     scheduled_date
 ORDER BY
-    scheduled_date = 'overdue' DESC,
     scheduled_date;
-
 
 -- name: GetOverdueCount :one
 SELECT
     count(*) from wordvault_cards
-WHERE next_scheduled <= @now AND user_id = $1;
+WHERE next_scheduled <= @now AND user_id = $1 AND lexicon_name = $2;

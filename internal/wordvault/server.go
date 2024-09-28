@@ -405,8 +405,9 @@ func (s *Server) NextScheduledCount(ctx context.Context, req *connect.Request[pb
 	breakdown := map[string]uint32{}
 	if req.Msg.OnlyOverdue {
 		ocCount, err := s.Queries.GetOverdueCount(ctx, models.GetOverdueCountParams{
-			UserID: int64(user.DBID),
-			Now:    toPGTimestamp(s.Nower.Now()),
+			UserID:      int64(user.DBID),
+			Now:         toPGTimestamp(s.Nower.Now()),
+			LexiconName: req.Msg.Lexicon,
 		})
 		if err != nil {
 			return nil, err
@@ -418,15 +419,25 @@ func (s *Server) NextScheduledCount(ctx context.Context, req *connect.Request[pb
 			tz = req.Msg.Timezone
 		}
 		rows, err := s.Queries.GetNextScheduledBreakdown(ctx, models.GetNextScheduledBreakdownParams{
-			UserID: int64(user.DBID),
-			Now:    toPGTimestamp(s.Nower.Now()),
-			Tz:     tz,
+			UserID:      int64(user.DBID),
+			Now:         toPGTimestamp(s.Nower.Now()),
+			Tz:          tz,
+			LexiconName: req.Msg.Lexicon,
 		})
 		if err != nil {
 			return nil, err
 		}
 		for i := range rows {
-			breakdown[rows[i].ScheduledDate] = uint32(rows[i].QuestionCount)
+			var s string
+			switch rows[i].ScheduledDate.InfinityModifier {
+			case pgtype.Finite:
+				s = rows[i].ScheduledDate.Time.Format("2006-01-02")
+			case pgtype.Infinity:
+				s = "infinity"
+			case pgtype.NegativeInfinity:
+				s = "overdue"
+			}
+			breakdown[s] = uint32(rows[i].QuestionCount)
 		}
 	}
 
