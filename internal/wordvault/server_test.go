@@ -644,6 +644,7 @@ func TestOverdueCount(t *testing.T) {
 
 	res, err := s.NextScheduledCount(ctx, connect.NewRequest(&pb.NextScheduledCountRequest{
 		OnlyOverdue: true,
+		Lexicon:     "NWL23",
 	}))
 	is.NoErr(err)
 	is.Equal(res.Msg.Breakdown["overdue"], uint32(400))
@@ -656,6 +657,7 @@ func TestOverdueCount(t *testing.T) {
 	res, err = s.NextScheduledCount(ctx, connect.NewRequest(&pb.NextScheduledCountRequest{
 		OnlyOverdue: false,
 		Timezone:    "Asia/Singapore",
+		Lexicon:     "NWL23",
 	}))
 	is.NoErr(err)
 	is.Equal(res.Msg.Breakdown["overdue"], uint32(0))
@@ -664,6 +666,7 @@ func TestOverdueCount(t *testing.T) {
 	res, err = s.NextScheduledCount(ctx, connect.NewRequest(&pb.NextScheduledCountRequest{
 		OnlyOverdue: false,
 		Timezone:    "America/New_York",
+		Lexicon:     "NWL23",
 	}))
 	is.NoErr(err)
 	is.Equal(res.Msg.Breakdown["overdue"], uint32(0))
@@ -685,6 +688,7 @@ func TestOverdueCount(t *testing.T) {
 	// Scored 400 cards.
 	res, err = s.NextScheduledCount(ctx, connect.NewRequest(&pb.NextScheduledCountRequest{
 		OnlyOverdue: true,
+		Lexicon:     "NWL23",
 	}))
 	is.NoErr(err)
 	is.Equal(res.Msg.Breakdown["overdue"], uint32(0))
@@ -695,6 +699,7 @@ func TestOverdueCount(t *testing.T) {
 	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-24T23:00:00Z")
 	res, err = s.NextScheduledCount(ctx, connect.NewRequest(&pb.NextScheduledCountRequest{
 		OnlyOverdue: false,
+		Lexicon:     "NWL23",
 	}))
 
 	is.NoErr(err)

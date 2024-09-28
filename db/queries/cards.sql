@@ -65,7 +65,7 @@ WITH scheduled_cards AS (
         AS scheduled_date
     FROM
         wordvault_cards
-    WHERE user_id = $1
+    WHERE user_id = $1 AND lexicon_name = $2
 )
 SELECT
     scheduled_date,
@@ -80,4 +80,4 @@ ORDER BY
 -- name: GetOverdueCount :one
 SELECT
     count(*) from wordvault_cards
-WHERE next_scheduled <= @now AND user_id = $1;
+WHERE next_scheduled <= @now AND user_id = $1 AND lexicon_name = $2;
