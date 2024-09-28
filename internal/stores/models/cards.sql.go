@@ -159,8 +159,8 @@ func (q *Queries) GetNextScheduled(ctx context.Context, arg GetNextScheduledPara
 const getNextScheduledBreakdown = `-- name: GetNextScheduledBreakdown :many
 WITH scheduled_cards AS (
     SELECT
-            CASE WHEN next_scheduled <= $2 THEN '-infinity'::date
-            ELSE (next_scheduled AT TIME ZONE $3::text)::date END
+        CASE WHEN next_scheduled <= $2 THEN '-infinity'::date
+        ELSE (next_scheduled AT TIME ZONE $3::text)::date END
         AS scheduled_date
     FROM
         wordvault_cards

@@ -60,8 +60,8 @@ SELECT COUNT(*) FROM inserted_rows;
 -- name: GetNextScheduledBreakdown :many
 WITH scheduled_cards AS (
     SELECT
-            CASE WHEN next_scheduled <= @now THEN '-infinity'::date
-            ELSE (next_scheduled AT TIME ZONE @tz::text)::date END
+        CASE WHEN next_scheduled <= @now THEN '-infinity'::date
+        ELSE (next_scheduled AT TIME ZONE @tz::text)::date END
         AS scheduled_date
     FROM
         wordvault_cards
