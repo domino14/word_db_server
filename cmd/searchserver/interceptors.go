@@ -27,7 +27,7 @@ func NewAuthInterceptor(secretKey []byte) connect.UnaryInterceptorFunc {
 			if header.Get("Authorization") != "" {
 				return userJWTAuth(ctx, secretKey, req, next)
 			}
-			return nil, errors.New("no auth method")
+			return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("no auth method"))
 		})
 	}
 	return connect.UnaryInterceptorFunc(interceptor)
