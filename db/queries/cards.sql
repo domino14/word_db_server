@@ -12,7 +12,7 @@ WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY(@alphagrams::text[]
 SELECT alphagram, next_scheduled, fsrs_card
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3
-ORDER BY next_scheduled ASC
+ORDER BY next_scheduled ASC, random()
 LIMIT $4;
 
 -- name: GetNumCardsInVault :many

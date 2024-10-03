@@ -15,7 +15,9 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/justinas/alice"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/hlog"
 	"github.com/rs/zerolog/log"
 
 	"github.com/domino14/word_db_server/api/rpc/wordsearcher/wordsearcherconnect"
@@ -88,7 +90,26 @@ func main() {
 	// Only this latter service requires user auth:
 	api.Handle(wordvaultconnect.NewWordVaultServiceHandler(wordvaultServer, interceptors))
 
-	mux.Handle("/api/", http.StripPrefix("/api", api))
+	apichain := alice.New(
+		hlog.NewHandler(log.With().Str("service", "word-db-server").Logger()),
+		hlog.AccessHandler(func(r *http.Request, status int, size int, d time.Duration) {
+			// Extract client IP address
+			clientIP := r.RemoteAddr
+			if forwardedFor := r.Header.Get("X-Forwarded-For"); forwardedFor != "" {
+				// X-Forwarded-For can contain multiple IPs, use the first one
+				clientIP = strings.Split(forwardedFor, ",")[0]
+			}
+
+			hlog.FromRequest(r).Info().
+				Str("path", r.URL.Path).
+				Str("clientIP", clientIP).
+				Int("status", status).
+				Int("size", size).
+				Dur("duration", d).Msg("")
+		}),
+	).Then(api)
+
+	mux.Handle("/api/", http.StripPrefix("/api", apichain))
 
 	srv := &http.Server{
 		Addr:    ":8180",

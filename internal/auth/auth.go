@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+
+	"github.com/rs/zerolog/log"
 )
 
 type ctxkey string
@@ -22,6 +24,8 @@ func StoreUserInContext(ctx context.Context, dbid int, username string, member b
 		Username: username,
 		Member:   member,
 	})
+	logger := log.With().Str("username", username).Logger()
+	ctx = logger.WithContext(ctx)
 	return ctx
 }
 

@@ -402,7 +402,14 @@ func (s *Server) NextScheduledCount(ctx context.Context, req *connect.Request[pb
 	if user == nil {
 		return nil, unauthenticated("user not authenticated")
 	}
+	log := log.Ctx(ctx)
 	breakdown := map[string]uint32{}
+	log.Info().Interface("req", req.Msg).Msg("next-scheduled-count")
+
+	if req.Msg.Lexicon == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("must provide a lexicon"))
+	}
+
 	if req.Msg.OnlyOverdue {
 		ocCount, err := s.Queries.GetOverdueCount(ctx, models.GetOverdueCountParams{
 			UserID:      int64(user.DBID),
