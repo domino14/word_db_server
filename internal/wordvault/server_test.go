@@ -144,13 +144,13 @@ func TestAddCardsAndQuiz(t *testing.T) {
 		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO"},
 	}))
 	is.NoErr(err)
-	is.Equal(added.Msg.NumCardsAdded, int32(2))
+	is.Equal(added.Msg.NumCardsAdded, uint32(2))
 	added, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
 		Lexicon:    "NWL23",
 		Alphagrams: []string{"ADEEHMMO", "AEFFGINR"},
 	}))
 	is.NoErr(err)
-	is.Equal(added.Msg.NumCardsAdded, int32(1))
+	is.Equal(added.Msg.NumCardsAdded, uint32(1))
 
 	res, err := s.GetNextScheduled(ctx, connect.NewRequest(&pb.GetNextScheduledRequest{
 		Lexicon: "NWL23", Limit: 5,
@@ -464,14 +464,14 @@ func TestIntervalVariability(t *testing.T) {
 		Alphagrams: []string{"ADEEGMMO"},
 	}))
 	is.NoErr(err)
-	is.Equal(added.Msg.NumCardsAdded, int32(1))
+	is.Equal(added.Msg.NumCardsAdded, uint32(1))
 
 	added, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
 		Lexicon:    "NWL23",
 		Alphagrams: []string{"ADEEGMMO"},
 	}))
 	is.NoErr(err)
-	is.Equal(added.Msg.NumCardsAdded, int32(0))
+	is.Equal(added.Msg.NumCardsAdded, uint32(0))
 
 	fakenower.fakenow, err = time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
 	// Add a small fuzz because fsrs seeds based on the passed-in time.
@@ -580,7 +580,7 @@ func TestCardMemberLimits(t *testing.T) {
 	}))
 
 	is.NoErr(err)
-	is.Equal(added.Msg.NumCardsAdded, int32(400))
+	is.Equal(added.Msg.NumCardsAdded, uint32(400))
 
 	resp, err = s.WordSearchServer.Search(ctx, connect.NewRequest(
 		searchserver.WordSearch([]*searchpb.SearchRequest_SearchParam{

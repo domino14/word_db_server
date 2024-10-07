@@ -81,3 +81,31 @@ ORDER BY
 SELECT
     count(*) from wordvault_cards
 WHERE next_scheduled <= @now AND user_id = $1 AND lexicon_name = $2;
+
+-- name: PostponementQuery :many
+SELECT alphagram, next_scheduled, fsrs_card
+FROM wordvault_cards
+WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3;
+
+-- name: DeleteCards :exec
+DELETE FROM wordvault_cards
+WHERE user_id = $1 AND lexicon_name = $2;
+
+-- name: BulkUpdateCards :exec
+-- WITH updated_values AS (
+--   SELECT
+--     UNNEST($1::BIGINT[]) AS user_id,
+--     UNNEST($2::TEXT[]) AS lexicon_name,
+--     UNNEST($3::TEXT[]) AS alphagram,
+--     UNNEST($4::JSONB[]) AS fsrs_card,
+--     UNNEST($5::TIMESTAMPTZ[]) AS next_scheduled
+-- )
+-- UPDATE wordvault_cards w
+-- SET
+--   fsrs_card = u.fsrs_card,
+--   next_scheduled = u.next_scheduled
+-- FROM updated_values u
+-- WHERE
+--   w.user_id = u.user_id AND
+--   w.lexicon_name = u.lexicon_name AND
+--   w.alphagram = u.alphagram;
