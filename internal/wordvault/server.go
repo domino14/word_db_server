@@ -487,9 +487,14 @@ func (s *Server) Postpone(ctx context.Context, req *connect.Request[pb.PostponeR
 	}
 	desiredRetention := params.RequestRetention
 
-	// put this whole thing in a transaction
+	tx, err := s.DBPool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	qtx := s.Queries.WithTx(tx)
 
-	duecards, err := s.Queries.PostponementQuery(ctx, models.PostponementQueryParams{
+	duecards, err := qtx.PostponementQuery(ctx, models.PostponementQueryParams{
 		UserID:        int64(user.DBID),
 		LexiconName:   req.Msg.Lexicon,
 		NextScheduled: toPGTimestamp(s.Nower.Now()),
@@ -545,8 +550,34 @@ func (s *Server) Postpone(ctx context.Context, req *connect.Request[pb.PostponeR
 		cnt++
 	}
 
+	alphagrams := make([]string, cnt)
+	nextScheduleds := make([]pgtype.Timestamptz, cnt)
+	cards := make([][]byte, cnt)
+	for i := range cnt {
+		alphagrams[i] = postponements[i].alphagram
+		nextScheduleds[i] = toPGTimestamp(postponements[i].card.Due)
+		cards[i], err = json.Marshal(postponements[i].card)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// then update all the postponed cards in the db.
-	// postponed indexes range from 0 to cnt-1
+	err = qtx.BulkUpdateCards(ctx, models.BulkUpdateCardsParams{
+		Alphagrams:     alphagrams,
+		NextScheduleds: nextScheduleds,
+		FsrsCards:      cards,
+		UserID:         int64(user.DBID),
+		LexiconName:    req.Msg.Lexicon,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	return connect.NewResponse(&pb.PostponeResponse{NumPostponed: cnt}), nil
 }

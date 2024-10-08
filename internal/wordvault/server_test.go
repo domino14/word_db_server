@@ -307,6 +307,7 @@ func TestGetCards(t *testing.T) {
 	is.NoErr(err)
 	fmt.Println(info)
 	is.Equal(len(info.Msg.Cards), 2)
+	// XXX: This value seems to be arch-dependent?? This test fails on M1 Macbook Pro.
 	is.Equal(info.Msg.Cards[0].Retrievability, 0.43596977331178927)
 	is.Equal(info.Msg.Cards[0].Alphagram.Alphagram, "ADEEGMMO")
 
@@ -709,4 +710,108 @@ func TestOverdueCount(t *testing.T) {
 		sum += v
 	}
 	is.Equal(sum, uint32(400))
+}
+
+func TestPostpone(t *testing.T) {
+	is := is.New(t)
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	// defer TeardownTestDB()
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+	config := *DefaultConfig
+	config.MaxNonmemberCards = 500
+
+	s := NewServer(&config, dbPool, q, &searchserver.Server{Config: &config})
+	fakenower := &FakeNower{}
+	s.Nower = fakenower
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
+
+	resp, _ := s.WordSearchServer.Search(ctx, connect.NewRequest(
+		searchserver.WordSearch([]*searchpb.SearchRequest_SearchParam{
+			searchserver.SearchDescLexicon("NWL23"),
+			searchserver.SearchDescLength(7, 7),
+			searchserver.SearchDescProbRange(7601, 8000),
+		}, false)))
+
+	alphaStrs := []string{}
+	for i := range resp.Msg.Alphagrams {
+		alphaStrs = append(alphaStrs, resp.Msg.Alphagrams[i].Alphagram)
+	}
+
+	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: alphaStrs,
+	}))
+
+	for idx, alpha := range alphaStrs {
+		score := 4 // Default rating is "easy", pushing out to the future
+		if idx%5 == 1 {
+			score = 1 // Rate every fifth question as "missed"
+		}
+		_, err := s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+			Score:     pb.Score(score),
+			Lexicon:   "NWL23",
+			Alphagram: alpha,
+		}))
+		is.NoErr(err)
+	}
+
+	// Scored 400 cards.
+	res, err := s.NextScheduledCount(ctx, connect.NewRequest(&pb.NextScheduledCountRequest{
+		OnlyOverdue: true,
+		Lexicon:     "NWL23",
+	}))
+	is.NoErr(err)
+	is.Equal(res.Msg.Breakdown["overdue"], uint32(0))
+	// Go ahead a couple days in the future. All the missed questions should be due.
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-25T23:00:00Z")
+
+	res, err = s.NextScheduledCount(ctx, connect.NewRequest(&pb.NextScheduledCountRequest{
+		OnlyOverdue: true,
+		Lexicon:     "NWL23",
+	}))
+	is.NoErr(err)
+	is.Equal(res.Msg.Breakdown["overdue"], uint32(80)) // 400 / 5 = 80
+
+	ppres, err := s.Postpone(ctx, connect.NewRequest(&pb.PostponeRequest{
+		Lexicon:       "NWL23",
+		NumToPostpone: 50,
+	}))
+	is.NoErr(err)
+	is.Equal(ppres.Msg.NumPostponed, uint32(50))
+
+	// We postponed 50 questions, so make sure there are 30 due now.
+	res, err = s.NextScheduledCount(ctx, connect.NewRequest(&pb.NextScheduledCountRequest{
+		OnlyOverdue: true,
+		Lexicon:     "NWL23",
+	}))
+	is.NoErr(err)
+	is.Equal(res.Msg.Breakdown["overdue"], uint32(30))
+
+	// Go ahead a couple more days in the future. All 80 questions are overdue again.
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-28T23:00:00Z")
+	res, err = s.NextScheduledCount(ctx, connect.NewRequest(&pb.NextScheduledCountRequest{
+		OnlyOverdue: true,
+		Lexicon:     "NWL23",
+	}))
+	is.NoErr(err)
+	is.Equal(res.Msg.Breakdown["overdue"], uint32(80))
+
+	// Go a few weeks in the future. All questions are due
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-10-28T23:00:00Z")
+	res, err = s.NextScheduledCount(ctx, connect.NewRequest(&pb.NextScheduledCountRequest{
+		OnlyOverdue: true,
+		Lexicon:     "NWL23",
+	}))
+	is.NoErr(err)
+	is.Equal(res.Msg.Breakdown["overdue"], uint32(400))
+
 }

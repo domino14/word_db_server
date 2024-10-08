@@ -47,6 +47,45 @@ func (q *Queries) AddCards(ctx context.Context, arg AddCardsParams) (int64, erro
 	return count, err
 }
 
+const bulkUpdateCards = `-- name: BulkUpdateCards :exec
+WITH updated_values AS (
+  SELECT
+    UNNEST($1::TEXT[]) AS alphagram,
+    UNNEST($2::TIMESTAMPTZ[]) AS next_scheduled,
+    UNNEST($3::JSONB[]) AS fsrs_card,
+    UNNEST(array_fill($4::BIGINT, array[array_length($1, 1)])) AS user_id,
+    UNNEST(array_fill($5::TEXT, array[array_length($1, 1)])) AS lexicon_name
+)
+UPDATE wordvault_cards w
+SET
+  fsrs_card = u.fsrs_card,
+  next_scheduled = u.next_scheduled
+FROM updated_values u
+WHERE
+  w.user_id = u.user_id AND
+  w.lexicon_name = u.lexicon_name AND
+  w.alphagram = u.alphagram
+`
+
+type BulkUpdateCardsParams struct {
+	Alphagrams     []string
+	NextScheduleds []pgtype.Timestamptz
+	FsrsCards      [][]byte
+	UserID         int64
+	LexiconName    string
+}
+
+func (q *Queries) BulkUpdateCards(ctx context.Context, arg BulkUpdateCardsParams) error {
+	_, err := q.db.Exec(ctx, bulkUpdateCards,
+		arg.Alphagrams,
+		arg.NextScheduleds,
+		arg.FsrsCards,
+		arg.UserID,
+		arg.LexiconName,
+	)
+	return err
+}
+
 const deleteCards = `-- name: DeleteCards :exec
 DELETE FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2

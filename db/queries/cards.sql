@@ -92,20 +92,20 @@ DELETE FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2;
 
 -- name: BulkUpdateCards :exec
--- WITH updated_values AS (
---   SELECT
---     UNNEST($1::BIGINT[]) AS user_id,
---     UNNEST($2::TEXT[]) AS lexicon_name,
---     UNNEST($3::TEXT[]) AS alphagram,
---     UNNEST($4::JSONB[]) AS fsrs_card,
---     UNNEST($5::TIMESTAMPTZ[]) AS next_scheduled
--- )
--- UPDATE wordvault_cards w
--- SET
---   fsrs_card = u.fsrs_card,
---   next_scheduled = u.next_scheduled
--- FROM updated_values u
--- WHERE
---   w.user_id = u.user_id AND
---   w.lexicon_name = u.lexicon_name AND
---   w.alphagram = u.alphagram;
+WITH updated_values AS (
+  SELECT
+    UNNEST(@alphagrams::TEXT[]) AS alphagram,
+    UNNEST(@next_scheduleds::TIMESTAMPTZ[]) AS next_scheduled,
+    UNNEST(@fsrs_cards::JSONB[]) AS fsrs_card,
+    UNNEST(array_fill(@user_id::BIGINT, array[array_length(@alphagrams, 1)])) AS user_id,
+    UNNEST(array_fill(@lexicon_name::TEXT, array[array_length(@alphagrams, 1)])) AS lexicon_name
+)
+UPDATE wordvault_cards w
+SET
+  fsrs_card = u.fsrs_card,
+  next_scheduled = u.next_scheduled
+FROM updated_values u
+WHERE
+  w.user_id = u.user_id AND
+  w.lexicon_name = u.lexicon_name AND
+  w.alphagram = u.alphagram;
