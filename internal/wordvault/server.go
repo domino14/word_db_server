@@ -239,8 +239,14 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 	if err != nil {
 		return nil, err
 	}
+	cardJson, err := json.Marshal(card)
+	if err != nil {
+		return nil, err
+	}
+
 	return connect.NewResponse(&pb.ScoreCardResponse{
 		NextScheduled: timestamppb.New(card.Due),
+		CardJsonRepr:  cardJson,
 	}), nil
 
 }
@@ -320,8 +326,13 @@ func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.Edit
 	if err != nil {
 		return nil, err
 	}
+	cardJson, err := json.Marshal(card)
+	if err != nil {
+		return nil, err
+	}
 	return connect.NewResponse(&pb.ScoreCardResponse{
 		NextScheduled: timestamppb.New(card.Due),
+		CardJsonRepr:  cardJson,
 	}), nil
 
 }
