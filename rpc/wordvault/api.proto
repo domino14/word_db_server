@@ -28,7 +28,7 @@ message GetCardInfoRequest {
 
 message GetNextScheduledRequest {
   string lexicon = 1;
-  int32 limit = 2;
+  uint32 limit = 2;
 }
 
 message Cards { repeated Card cards = 1; }
@@ -46,7 +46,7 @@ message AddCardsRequest {
   repeated string alphagrams = 2;
 }
 
-message AddCardsResponse { int32 num_cards_added = 1; }
+message AddCardsResponse { uint32 num_cards_added = 1; }
 
 message EditLastScoreRequest {
   string lexicon = 1;
@@ -70,6 +70,13 @@ message NextScheduledCountRequest {
 
 message NextScheduledBreakdown { map<string, uint32> breakdown = 1; }
 
+message PostponeRequest {
+  string lexicon = 1;
+  uint32 num_to_postpone = 2;
+}
+
+message PostponeResponse { uint32 num_postponed = 1; }
+
 service WordVaultService {
   rpc GetCardCount(GetCardCountRequest) returns (CardCountResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -85,4 +92,5 @@ service WordVaultService {
   rpc ScoreCard(ScoreCardRequest) returns (ScoreCardResponse);
   rpc EditLastScore(EditLastScoreRequest) returns (ScoreCardResponse);
   rpc AddCards(AddCardsRequest) returns (AddCardsResponse);
+  rpc Postpone(PostponeRequest) returns (PostponeResponse);
 }

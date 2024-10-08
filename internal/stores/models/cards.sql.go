@@ -47,6 +47,60 @@ func (q *Queries) AddCards(ctx context.Context, arg AddCardsParams) (int64, erro
 	return count, err
 }
 
+const bulkUpdateCards = `-- name: BulkUpdateCards :exec
+WITH updated_values AS (
+  SELECT
+    UNNEST($1::TEXT[]) AS alphagram,
+    UNNEST($2::TIMESTAMPTZ[]) AS next_scheduled,
+    UNNEST($3::JSONB[]) AS fsrs_card,
+    UNNEST(array_fill($4::BIGINT, array[array_length($1, 1)])) AS user_id,
+    UNNEST(array_fill($5::TEXT, array[array_length($1, 1)])) AS lexicon_name
+)
+UPDATE wordvault_cards w
+SET
+  fsrs_card = u.fsrs_card,
+  next_scheduled = u.next_scheduled
+FROM updated_values u
+WHERE
+  w.user_id = u.user_id AND
+  w.lexicon_name = u.lexicon_name AND
+  w.alphagram = u.alphagram
+`
+
+type BulkUpdateCardsParams struct {
+	Alphagrams     []string
+	NextScheduleds []pgtype.Timestamptz
+	FsrsCards      [][]byte
+	UserID         int64
+	LexiconName    string
+}
+
+func (q *Queries) BulkUpdateCards(ctx context.Context, arg BulkUpdateCardsParams) error {
+	_, err := q.db.Exec(ctx, bulkUpdateCards,
+		arg.Alphagrams,
+		arg.NextScheduleds,
+		arg.FsrsCards,
+		arg.UserID,
+		arg.LexiconName,
+	)
+	return err
+}
+
+const deleteCards = `-- name: DeleteCards :exec
+DELETE FROM wordvault_cards
+WHERE user_id = $1 AND lexicon_name = $2
+`
+
+type DeleteCardsParams struct {
+	UserID      int64
+	LexiconName string
+}
+
+func (q *Queries) DeleteCards(ctx context.Context, arg DeleteCardsParams) error {
+	_, err := q.db.Exec(ctx, deleteCards, arg.UserID, arg.LexiconName)
+	return err
+}
+
 const getCard = `-- name: GetCard :one
 SELECT next_scheduled, fsrs_card, review_log
 FROM wordvault_cards
@@ -274,6 +328,44 @@ func (q *Queries) LoadParams(ctx context.Context, userID int64) (go_fsrs.Paramet
 	var params go_fsrs.Parameters
 	err := row.Scan(&params)
 	return params, err
+}
+
+const postponementQuery = `-- name: PostponementQuery :many
+SELECT alphagram, next_scheduled, fsrs_card
+FROM wordvault_cards
+WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3
+`
+
+type PostponementQueryParams struct {
+	UserID        int64
+	LexiconName   string
+	NextScheduled pgtype.Timestamptz
+}
+
+type PostponementQueryRow struct {
+	Alphagram     string
+	NextScheduled pgtype.Timestamptz
+	FsrsCard      go_fsrs.Card
+}
+
+func (q *Queries) PostponementQuery(ctx context.Context, arg PostponementQueryParams) ([]PostponementQueryRow, error) {
+	rows, err := q.db.Query(ctx, postponementQuery, arg.UserID, arg.LexiconName, arg.NextScheduled)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PostponementQueryRow
+	for rows.Next() {
+		var i PostponementQueryRow
+		if err := rows.Scan(&i.Alphagram, &i.NextScheduled, &i.FsrsCard); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const setParams = `-- name: SetParams :exec

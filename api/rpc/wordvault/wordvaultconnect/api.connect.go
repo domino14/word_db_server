@@ -54,6 +54,9 @@ const (
 	// WordVaultServiceAddCardsProcedure is the fully-qualified name of the WordVaultService's AddCards
 	// RPC.
 	WordVaultServiceAddCardsProcedure = "/wordvault.WordVaultService/AddCards"
+	// WordVaultServicePostponeProcedure is the fully-qualified name of the WordVaultService's Postpone
+	// RPC.
+	WordVaultServicePostponeProcedure = "/wordvault.WordVaultService/Postpone"
 )
 
 // These variables are the protoreflect.Descriptor objects for the RPCs defined in this package.
@@ -66,6 +69,7 @@ var (
 	wordVaultServiceScoreCardMethodDescriptor          = wordVaultServiceServiceDescriptor.Methods().ByName("ScoreCard")
 	wordVaultServiceEditLastScoreMethodDescriptor      = wordVaultServiceServiceDescriptor.Methods().ByName("EditLastScore")
 	wordVaultServiceAddCardsMethodDescriptor           = wordVaultServiceServiceDescriptor.Methods().ByName("AddCards")
+	wordVaultServicePostponeMethodDescriptor           = wordVaultServiceServiceDescriptor.Methods().ByName("Postpone")
 )
 
 // WordVaultServiceClient is a client for the wordvault.WordVaultService service.
@@ -77,6 +81,7 @@ type WordVaultServiceClient interface {
 	ScoreCard(context.Context, *connect.Request[wordvault.ScoreCardRequest]) (*connect.Response[wordvault.ScoreCardResponse], error)
 	EditLastScore(context.Context, *connect.Request[wordvault.EditLastScoreRequest]) (*connect.Response[wordvault.ScoreCardResponse], error)
 	AddCards(context.Context, *connect.Request[wordvault.AddCardsRequest]) (*connect.Response[wordvault.AddCardsResponse], error)
+	Postpone(context.Context, *connect.Request[wordvault.PostponeRequest]) (*connect.Response[wordvault.PostponeResponse], error)
 }
 
 // NewWordVaultServiceClient constructs a client for the wordvault.WordVaultService service. By
@@ -134,6 +139,12 @@ func NewWordVaultServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(wordVaultServiceAddCardsMethodDescriptor),
 			connect.WithClientOptions(opts...),
 		),
+		postpone: connect.NewClient[wordvault.PostponeRequest, wordvault.PostponeResponse](
+			httpClient,
+			baseURL+WordVaultServicePostponeProcedure,
+			connect.WithSchema(wordVaultServicePostponeMethodDescriptor),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -146,6 +157,7 @@ type wordVaultServiceClient struct {
 	scoreCard          *connect.Client[wordvault.ScoreCardRequest, wordvault.ScoreCardResponse]
 	editLastScore      *connect.Client[wordvault.EditLastScoreRequest, wordvault.ScoreCardResponse]
 	addCards           *connect.Client[wordvault.AddCardsRequest, wordvault.AddCardsResponse]
+	postpone           *connect.Client[wordvault.PostponeRequest, wordvault.PostponeResponse]
 }
 
 // GetCardCount calls wordvault.WordVaultService.GetCardCount.
@@ -183,6 +195,11 @@ func (c *wordVaultServiceClient) AddCards(ctx context.Context, req *connect.Requ
 	return c.addCards.CallUnary(ctx, req)
 }
 
+// Postpone calls wordvault.WordVaultService.Postpone.
+func (c *wordVaultServiceClient) Postpone(ctx context.Context, req *connect.Request[wordvault.PostponeRequest]) (*connect.Response[wordvault.PostponeResponse], error) {
+	return c.postpone.CallUnary(ctx, req)
+}
+
 // WordVaultServiceHandler is an implementation of the wordvault.WordVaultService service.
 type WordVaultServiceHandler interface {
 	GetCardCount(context.Context, *connect.Request[wordvault.GetCardCountRequest]) (*connect.Response[wordvault.CardCountResponse], error)
@@ -192,6 +209,7 @@ type WordVaultServiceHandler interface {
 	ScoreCard(context.Context, *connect.Request[wordvault.ScoreCardRequest]) (*connect.Response[wordvault.ScoreCardResponse], error)
 	EditLastScore(context.Context, *connect.Request[wordvault.EditLastScoreRequest]) (*connect.Response[wordvault.ScoreCardResponse], error)
 	AddCards(context.Context, *connect.Request[wordvault.AddCardsRequest]) (*connect.Response[wordvault.AddCardsResponse], error)
+	Postpone(context.Context, *connect.Request[wordvault.PostponeRequest]) (*connect.Response[wordvault.PostponeResponse], error)
 }
 
 // NewWordVaultServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -245,6 +263,12 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 		connect.WithSchema(wordVaultServiceAddCardsMethodDescriptor),
 		connect.WithHandlerOptions(opts...),
 	)
+	wordVaultServicePostponeHandler := connect.NewUnaryHandler(
+		WordVaultServicePostponeProcedure,
+		svc.Postpone,
+		connect.WithSchema(wordVaultServicePostponeMethodDescriptor),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/wordvault.WordVaultService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case WordVaultServiceGetCardCountProcedure:
@@ -261,6 +285,8 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 			wordVaultServiceEditLastScoreHandler.ServeHTTP(w, r)
 		case WordVaultServiceAddCardsProcedure:
 			wordVaultServiceAddCardsHandler.ServeHTTP(w, r)
+		case WordVaultServicePostponeProcedure:
+			wordVaultServicePostponeHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -296,4 +322,8 @@ func (UnimplementedWordVaultServiceHandler) EditLastScore(context.Context, *conn
 
 func (UnimplementedWordVaultServiceHandler) AddCards(context.Context, *connect.Request[wordvault.AddCardsRequest]) (*connect.Response[wordvault.AddCardsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.AddCards is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) Postpone(context.Context, *connect.Request[wordvault.PostponeRequest]) (*connect.Response[wordvault.PostponeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.Postpone is not implemented"))
 }

@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"math/rand/v2"
+	"sort"
 	"time"
 
 	"connectrpc.com/connect"
@@ -103,7 +106,7 @@ func (s *Server) GetNextScheduled(ctx context.Context, req *connect.Request[pb.G
 	rows, err := s.Queries.GetNextScheduled(ctx, models.GetNextScheduledParams{
 		UserID:        int64(user.DBID),
 		LexiconName:   req.Msg.Lexicon,
-		Limit:         req.Msg.Limit,
+		Limit:         int32(req.Msg.Limit),
 		NextScheduled: toPGTimestamp(s.Nower.Now()),
 	})
 	if err != nil {
@@ -208,6 +211,10 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 	}
 	card := cardrow.FsrsCard
 
+	// It seems from reading the code that card.ElapsedDays gets updated by
+	// the below function, so it doesn't need to be recalculated upon
+	// db load. However, the db version of this variable is useless. It
+	// should be a local variable and not stored in the db.
 	schedulingCards := f.Repeat(card, now)
 	rating := fsrs.Rating(req.Msg.Score)
 	card = schedulingCards[rating].Card
@@ -369,7 +376,7 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
-	return connect.NewResponse(&pb.AddCardsResponse{NumCardsAdded: int32(numInserted)}), nil
+	return connect.NewResponse(&pb.AddCardsResponse{NumCardsAdded: uint32(numInserted)}), nil
 }
 
 func (s *Server) GetCardCount(ctx context.Context, req *connect.Request[pb.GetCardCountRequest]) (
@@ -449,4 +456,128 @@ func (s *Server) NextScheduledCount(ctx context.Context, req *connect.Request[pb
 	}
 
 	return connect.NewResponse(&pb.NextScheduledBreakdown{Breakdown: breakdown}), nil
+}
+
+type postponement struct {
+	alphagram                string
+	card                     *fsrs.Card
+	forgettingCurve          float64
+	elapsedDaysAfterPostpone float64
+}
+
+func forgettingCurve(elapsedDays, stability, factor, decay float64) float64 {
+	return math.Pow(1+factor*elapsedDays/stability, decay)
+}
+
+func (s *Server) Postpone(ctx context.Context, req *connect.Request[pb.PostponeRequest]) (
+	*connect.Response[pb.PostponeResponse], error) {
+
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+	if req.Msg.NumToPostpone == 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("need at least one card to postpone"))
+	}
+	log := log.Ctx(ctx)
+
+	params, err := s.fsrsParams(ctx, int64(user.DBID))
+	if err != nil {
+		return nil, err
+	}
+	desiredRetention := params.RequestRetention
+
+	tx, err := s.DBPool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	qtx := s.Queries.WithTx(tx)
+
+	duecards, err := qtx.PostponementQuery(ctx, models.PostponementQueryParams{
+		UserID:        int64(user.DBID),
+		LexiconName:   req.Msg.Lexicon,
+		NextScheduled: toPGTimestamp(s.Nower.Now()),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(duecards) == 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("no cards are overdue"))
+	}
+
+	now := s.Nower.Now()
+	log.Info().Int("ncards", len(duecards)).Msg("potential-cards-to-postpone")
+	postponements := make([]postponement, len(duecards))
+	for i := range duecards {
+		card := &duecards[i].FsrsCard
+		postponements[i].card = card
+		postponements[i].alphagram = duecards[i].Alphagram
+		ivl := card.ScheduledDays
+
+		elapsedDays := now.Sub(card.LastReview).Hours() / 24.0
+		postponements[i].elapsedDaysAfterPostpone = elapsedDays + float64(ivl)*0.075
+		postponements[i].forgettingCurve = forgettingCurve(
+			max(postponements[i].elapsedDaysAfterPostpone, 0), card.Stability,
+			params.Factor, params.Decay)
+	}
+
+	sort.Slice(postponements, func(i, j int) bool {
+		forgettingOddsIncreaseI := (1/postponements[i].forgettingCurve-1)/(1/desiredRetention-1) - 1
+		forgettingOddsIncreaseJ := (1/postponements[j].forgettingCurve-1)/(1/desiredRetention-1) - 1
+		if forgettingOddsIncreaseI == forgettingOddsIncreaseJ {
+			// Favor postponing cards with higher stability first.
+			return postponements[i].card.Stability > postponements[j].card.Stability
+		}
+		return forgettingOddsIncreaseI < forgettingOddsIncreaseJ
+	})
+
+	var cnt uint32
+	for i := range postponements {
+		if cnt >= req.Msg.NumToPostpone {
+			break
+		}
+		ivl := postponements[i].card.ScheduledDays
+		elapsedDays := now.Sub(postponements[i].card.LastReview).Hours() / 24
+		delay := elapsedDays - float64(ivl)
+		newIvl := min(
+			max(1, math.Ceil(float64(ivl)*(1.05+0.05*rand.Float64()))+delay), params.MaximumInterval,
+		)
+		// card := updateCardDue(postponements[i].card, newIvl)
+		postponements[i].card.ScheduledDays = uint64(newIvl)
+		newIvlDuration := time.Duration(newIvl * 24.0 * float64(time.Hour))
+		postponements[i].card.Due = postponements[i].card.LastReview.Add(newIvlDuration)
+		cnt++
+	}
+
+	alphagrams := make([]string, cnt)
+	nextScheduleds := make([]pgtype.Timestamptz, cnt)
+	cards := make([][]byte, cnt)
+	for i := range cnt {
+		alphagrams[i] = postponements[i].alphagram
+		nextScheduleds[i] = toPGTimestamp(postponements[i].card.Due)
+		cards[i], err = json.Marshal(postponements[i].card)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// then update all the postponed cards in the db.
+	err = qtx.BulkUpdateCards(ctx, models.BulkUpdateCardsParams{
+		Alphagrams:     alphagrams,
+		NextScheduleds: nextScheduleds,
+		FsrsCards:      cards,
+		UserID:         int64(user.DBID),
+		LexiconName:    req.Msg.Lexicon,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return connect.NewResponse(&pb.PostponeResponse{NumPostponed: cnt}), nil
 }
