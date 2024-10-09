@@ -39,7 +39,10 @@ message ScoreCardRequest {
   string alphagram = 3;
 }
 
-message ScoreCardResponse { google.protobuf.Timestamp next_scheduled = 1; }
+message ScoreCardResponse {
+  google.protobuf.Timestamp next_scheduled = 1;
+  bytes card_json_repr = 2;
+}
 
 message AddCardsRequest {
   string lexicon = 1;
