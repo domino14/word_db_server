@@ -334,6 +334,7 @@ const postponementQuery = `-- name: PostponementQuery :many
 SELECT alphagram, next_scheduled, fsrs_card
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3
+AND jsonb_array_length(review_log) > 0
 `
 
 type PostponementQueryParams struct {

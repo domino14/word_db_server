@@ -514,7 +514,7 @@ func (s *Server) Postpone(ctx context.Context, req *connect.Request[pb.PostponeR
 		return nil, err
 	}
 	if len(duecards) == 0 {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("no cards are overdue"))
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("there are no cards to postpone"))
 	}
 
 	now := s.Nower.Now()

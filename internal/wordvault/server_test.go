@@ -751,6 +751,13 @@ func TestPostpone(t *testing.T) {
 		Alphagrams: alphaStrs,
 	}))
 
+	// Test that we can't postpone cards we just added. They haven't been reviewed.
+	ppres, err := s.Postpone(ctx, connect.NewRequest(&pb.PostponeRequest{
+		Lexicon:       "NWL23",
+		NumToPostpone: 50,
+	}))
+	is.True(err.Error() == "invalid_argument: there are no cards to postpone")
+
 	for idx, alpha := range alphaStrs {
 		score := 4 // Default rating is "easy", pushing out to the future
 		if idx%5 == 1 {
@@ -781,7 +788,7 @@ func TestPostpone(t *testing.T) {
 	is.NoErr(err)
 	is.Equal(res.Msg.Breakdown["overdue"], uint32(80)) // 400 / 5 = 80
 
-	ppres, err := s.Postpone(ctx, connect.NewRequest(&pb.PostponeRequest{
+	ppres, err = s.Postpone(ctx, connect.NewRequest(&pb.PostponeRequest{
 		Lexicon:       "NWL23",
 		NumToPostpone: 50,
 	}))
