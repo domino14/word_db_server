@@ -428,6 +428,17 @@ func TestEditCardScore(t *testing.T) {
 	}))
 	is.NoErr(err)
 
+	info, err := s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"AEGLPSU"},
+	}))
+	is.NoErr(err)
+	card := fsrs.Card{}
+	json.Unmarshal(info.Msg.Cards[0].CardJsonRepr, &card)
+	is.Equal(card.Reps, uint64(3))
+	is.Equal(card.State, fsrs.Review)
+	is.Equal(card.Lapses, uint64(1))
+
 	// Oops, let's mark it easy again 5 seconds later.
 	fakenower.fakenow = fakenower.fakenow.Add(5 * time.Second)
 	res, err = s.EditLastScore(ctx, connect.NewRequest(&pb.EditLastScoreRequest{
@@ -444,15 +455,16 @@ func TestEditCardScore(t *testing.T) {
 	is.NoErr(err)
 	is.True(res.Msg.NextScheduled.AsTime().After(threeyearsafter))
 
-	info, err := s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
+	info, err = s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
 		Lexicon:    "NWL23",
 		Alphagrams: []string{"AEGLPSU"},
 	}))
+	is.NoErr(err)
 
 	is.Equal(len(info.Msg.Cards), 1)
 	is.Equal(info.Msg.Cards[0].Alphagram.Alphagram, "AEGLPSU")
 
-	card := fsrs.Card{}
+	card = fsrs.Card{}
 	err = json.Unmarshal(info.Msg.Cards[0].CardJsonRepr, &card)
 
 	is.Equal(card.Reps, uint64(3))
@@ -747,10 +759,8 @@ func TestPostpone(t *testing.T) {
 	defer dbPool.Close()
 
 	q := models.New(dbPool)
-	config := *DefaultConfig
-	config.MaxNonmemberCards = 500
 
-	s := NewServer(&config, dbPool, q, &searchserver.Server{Config: &config})
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
 	fakenower := &FakeNower{}
 	s.Nower = fakenower
 	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
@@ -842,4 +852,207 @@ func TestPostpone(t *testing.T) {
 	is.NoErr(err)
 	is.Equal(res.Msg.Breakdown["overdue"], uint32(400))
 
+}
+
+func TestCardStats(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	// defer TeardownTestDB()
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+	fakenower := &FakeNower{}
+	s.Nower = fakenower
+
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO"},
+	}))
+	is.NoErr(err)
+
+	fakenower.fakenow, err = time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
+	is.NoErr(err)
+	// Score a few times.
+	res, err := s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+		Score:     pb.Score_SCORE_AGAIN,
+		Lexicon:   "NWL23",
+		Alphagram: "ADEEGMMO",
+	}))
+	is.NoErr(err)
+
+	info, err := s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO"},
+	}))
+	is.NoErr(err)
+	is.Equal(len(info.Msg.Cards), 2)
+
+	card := fsrs.Card{}
+	json.Unmarshal(info.Msg.Cards[0].CardJsonRepr, &card)
+
+	is.Equal(card.Reps, uint64(1))
+	is.Equal(card.State, fsrs.Review)
+	// Lapses is still 0. There was nothing to "lapse" since we never learned the card:
+	is.Equal(card.Lapses, uint64(0))
+
+	// Miss it one more time:
+	fakenower.fakenow = res.Msg.NextScheduled.AsTime()
+	res, err = s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+		Score:     pb.Score_SCORE_AGAIN,
+		Lexicon:   "NWL23",
+		Alphagram: "ADEEGMMO",
+	}))
+	is.NoErr(err)
+
+	info, _ = s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO"},
+	}))
+	is.NoErr(err)
+	card = fsrs.Card{}
+	json.Unmarshal(info.Msg.Cards[0].CardJsonRepr, &card)
+	is.Equal(card.Reps, uint64(2))
+	is.Equal(card.State, fsrs.Review)
+	// We should have learned the card since we've seen it once, I think.
+	is.Equal(card.Lapses, uint64(1))
+
+	// But let's get it right now.
+	fakenower.fakenow = res.Msg.NextScheduled.AsTime()
+	res, err = s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+		Score:     pb.Score_SCORE_EASY,
+		Lexicon:   "NWL23",
+		Alphagram: "ADEEGMMO",
+	}))
+	is.NoErr(err)
+
+	info, _ = s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO"},
+	}))
+	is.NoErr(err)
+	card = fsrs.Card{}
+	json.Unmarshal(info.Msg.Cards[0].CardJsonRepr, &card)
+	is.Equal(card.Reps, uint64(3))
+	is.Equal(card.State, fsrs.Review)
+	is.Equal(card.Lapses, uint64(1))
+
+	// And now miss it:
+	fakenower.fakenow = res.Msg.NextScheduled.AsTime()
+	res, err = s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+		Score:     pb.Score_SCORE_AGAIN,
+		Lexicon:   "NWL23",
+		Alphagram: "ADEEGMMO",
+	}))
+	is.NoErr(err)
+
+	info, _ = s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO"},
+	}))
+	is.NoErr(err)
+	card = fsrs.Card{}
+	json.Unmarshal(info.Msg.Cards[0].CardJsonRepr, &card)
+	is.Equal(card.Reps, uint64(4))
+	is.Equal(card.State, fsrs.Review)
+	// Our memory has lapsed since we last learned it:
+	is.Equal(card.Lapses, uint64(2))
+
+	// Miss it one more time:
+	fakenower.fakenow = res.Msg.NextScheduled.AsTime()
+	res, err = s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+		Score:     pb.Score_SCORE_AGAIN,
+		Lexicon:   "NWL23",
+		Alphagram: "ADEEGMMO",
+	}))
+	is.NoErr(err)
+
+	info, _ = s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO"},
+	}))
+	is.NoErr(err)
+	card = fsrs.Card{}
+	json.Unmarshal(info.Msg.Cards[0].CardJsonRepr, &card)
+	is.Equal(card.Reps, uint64(5))
+	is.Equal(card.State, fsrs.Review)
+	is.Equal(card.Lapses, uint64(3))
+
+}
+
+func TestDeleteOnlyNew(t *testing.T) {
+	is := is.New(t)
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+	fakenower := &FakeNower{}
+	s.Nower = fakenower
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
+
+	resp, _ := s.WordSearchServer.Search(ctx, connect.NewRequest(
+		searchserver.WordSearch([]*searchpb.SearchRequest_SearchParam{
+			searchserver.SearchDescLexicon("NWL23"),
+			searchserver.SearchDescLength(7, 7),
+			searchserver.SearchDescProbRange(7601, 8000),
+		}, false)))
+
+	alphaStrs := []string{}
+	for i := range resp.Msg.Alphagrams {
+		alphaStrs = append(alphaStrs, resp.Msg.Alphagrams[i].Alphagram)
+	}
+
+	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: alphaStrs,
+	}))
+
+	// Score 300 of our 400 cards.
+	for _, alpha := range alphaStrs[:300] {
+		_, err := s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+			Score:     pb.Score(3),
+			Lexicon:   "NWL23",
+			Alphagram: alpha,
+		}))
+		is.NoErr(err)
+	}
+
+	res, err := s.Delete(ctx, connect.NewRequest(&pb.DeleteRequest{
+		Lexicon:          "NWL23",
+		OnlyNewQuestions: true,
+	}))
+	is.NoErr(err)
+	is.Equal(res.Msg.NumDeleted, uint32(100))
+	// Delete new cards again, we should delete 0 this time.
+	res, err = s.Delete(ctx, connect.NewRequest(&pb.DeleteRequest{
+		Lexicon:          "NWL23",
+		OnlyNewQuestions: true,
+	}))
+	is.NoErr(err)
+	is.Equal(res.Msg.NumDeleted, uint32(0))
+
+	// Delete all cards.
+	res, err = s.Delete(ctx, connect.NewRequest(&pb.DeleteRequest{
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	is.Equal(res.Msg.NumDeleted, uint32(300))
 }

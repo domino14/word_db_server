@@ -56,6 +56,10 @@ func unauthenticated(msg string) *connect.Error {
 	return connect.NewError(connect.CodeUnauthenticated, errors.New(msg))
 }
 
+func invalidArgError(msg string) *connect.Error {
+	return connect.NewError(connect.CodeInvalidArgument, errors.New(msg))
+}
+
 func (s *Server) GetCardInformation(ctx context.Context, req *connect.Request[pb.GetCardInfoRequest]) (
 	*connect.Response[pb.Cards], error) {
 
@@ -185,10 +189,10 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 	}
 	now := s.Nower.Now()
 	if req.Msg.Score < 1 || req.Msg.Score > 4 {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid score"))
+		return nil, invalidArgError("invalid score")
 	}
 	if req.Msg.Lexicon == "" || req.Msg.Alphagram == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("no such lexicon or alphagram"))
+		return nil, invalidArgError("no such lexicon or alphagram")
 	}
 
 	tx, err := s.DBPool.Begin(ctx)
@@ -211,7 +215,7 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 		Alphagram:   req.Msg.Alphagram})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("card with your input parameters was not found"))
+			return nil, invalidArgError("card with your input parameters was not found")
 		} else {
 			return nil, err
 		}
@@ -219,7 +223,7 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 	card := cardrow.FsrsCard
 	revlog := cardrow.ReviewLog
 	if len(revlog) > 0 && s.Nower.Now().Sub(revlog[len(revlog)-1].Review) < JustReviewedInterval {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("this card was just reviewed"))
+		return nil, invalidArgError("this card was just reviewed")
 	}
 
 	// It seems from reading the code that card.ElapsedDays gets updated by
@@ -271,10 +275,10 @@ func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.Edit
 
 	now := s.Nower.Now()
 	if req.Msg.NewScore < 1 || req.Msg.NewScore > 4 {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid score"))
+		return nil, invalidArgError("invalid score")
 	}
 	if req.Msg.Lexicon == "" || req.Msg.Alphagram == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("no such lexicon or alphagram"))
+		return nil, invalidArgError("no such lexicon or alphagram")
 	}
 
 	tx, err := s.DBPool.Begin(ctx)
@@ -297,19 +301,19 @@ func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.Edit
 		Alphagram:   req.Msg.Alphagram})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("card with your input parameters was not found"))
+			return nil, invalidArgError("card with your input parameters was not found")
 		} else {
 			return nil, err
 		}
 	}
 	if len(cardrow.ReviewLog) == 0 {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("this card has no review history"))
+		return nil, invalidArgError("this card has no review history")
 	}
 
 	card := fsrs.Card{}
 	err = json.Unmarshal(req.Msg.LastCardRepr, &card)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("last card was not properly provided"))
+		return nil, invalidArgError("last card was not properly provided")
 	}
 
 	// And re-schedule the card.
@@ -436,7 +440,7 @@ func (s *Server) NextScheduledCount(ctx context.Context, req *connect.Request[pb
 	log.Info().Interface("req", req.Msg).Msg("next-scheduled-count")
 
 	if req.Msg.Lexicon == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("must provide a lexicon"))
+		return nil, invalidArgError("must provide a lexicon")
 	}
 
 	if req.Msg.OnlyOverdue {
@@ -499,7 +503,7 @@ func (s *Server) Postpone(ctx context.Context, req *connect.Request[pb.PostponeR
 		return nil, unauthenticated("user not authenticated")
 	}
 	if req.Msg.NumToPostpone == 0 {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("need at least one card to postpone"))
+		return nil, invalidArgError("need at least one card to postpone")
 	}
 	log := log.Ctx(ctx)
 
@@ -525,7 +529,7 @@ func (s *Server) Postpone(ctx context.Context, req *connect.Request[pb.PostponeR
 		return nil, err
 	}
 	if len(duecards) == 0 {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("there are no cards to postpone"))
+		return nil, invalidArgError("there are no cards to postpone")
 	}
 
 	now := s.Nower.Now()
@@ -602,4 +606,34 @@ func (s *Server) Postpone(ctx context.Context, req *connect.Request[pb.PostponeR
 	}
 
 	return connect.NewResponse(&pb.PostponeResponse{NumPostponed: cnt}), nil
+}
+
+func (s *Server) Delete(ctx context.Context, req *connect.Request[pb.DeleteRequest]) (
+	*connect.Response[pb.DeleteResponse], error) {
+
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+
+	if req.Msg.Lexicon == "" {
+		return nil, invalidArgError("need a lexicon")
+	}
+	var err error
+	var deletedRows int64
+	if req.Msg.OnlyNewQuestions {
+		deletedRows, err = s.Queries.DeleteNewCards(ctx, models.DeleteNewCardsParams{
+			UserID:      int64(user.DBID),
+			LexiconName: req.Msg.Lexicon,
+		})
+	} else {
+		deletedRows, err = s.Queries.DeleteCards(ctx, models.DeleteCardsParams{
+			UserID: int64(user.DBID), LexiconName: req.Msg.Lexicon,
+		})
+	}
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&pb.DeleteResponse{NumDeleted: uint32(deletedRows)}), nil
+
 }

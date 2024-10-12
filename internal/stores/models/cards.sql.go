@@ -86,7 +86,7 @@ func (q *Queries) BulkUpdateCards(ctx context.Context, arg BulkUpdateCardsParams
 	return err
 }
 
-const deleteCards = `-- name: DeleteCards :exec
+const deleteCards = `-- name: DeleteCards :execrows
 DELETE FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2
 `
@@ -96,9 +96,30 @@ type DeleteCardsParams struct {
 	LexiconName string
 }
 
-func (q *Queries) DeleteCards(ctx context.Context, arg DeleteCardsParams) error {
-	_, err := q.db.Exec(ctx, deleteCards, arg.UserID, arg.LexiconName)
-	return err
+func (q *Queries) DeleteCards(ctx context.Context, arg DeleteCardsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteCards, arg.UserID, arg.LexiconName)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteNewCards = `-- name: DeleteNewCards :execrows
+DELETE FROM wordvault_cards
+WHERE user_id = $1 AND lexicon_name = $2 AND jsonb_array_length(review_log) = 0
+`
+
+type DeleteNewCardsParams struct {
+	UserID      int64
+	LexiconName string
+}
+
+func (q *Queries) DeleteNewCards(ctx context.Context, arg DeleteNewCardsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteNewCards, arg.UserID, arg.LexiconName)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getCard = `-- name: GetCard :one
@@ -174,7 +195,7 @@ const getNextScheduled = `-- name: GetNextScheduled :many
 SELECT alphagram, next_scheduled, fsrs_card
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3
-ORDER BY next_scheduled ASC, random()
+ORDER BY next_scheduled ASC
 LIMIT $4
 `
 

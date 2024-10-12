@@ -81,6 +81,13 @@ message PostponeRequest {
 
 message PostponeResponse { uint32 num_postponed = 1; }
 
+message DeleteRequest {
+  string lexicon = 1;
+  bool only_new_questions = 2;
+}
+
+message DeleteResponse { uint32 num_deleted = 1; }
+
 service WordVaultService {
   rpc GetCardCount(GetCardCountRequest) returns (CardCountResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -97,4 +104,5 @@ service WordVaultService {
   rpc EditLastScore(EditLastScoreRequest) returns (ScoreCardResponse);
   rpc AddCards(AddCardsRequest) returns (AddCardsResponse);
   rpc Postpone(PostponeRequest) returns (PostponeResponse);
+  rpc Delete(DeleteRequest) returns (DeleteResponse);
 }

@@ -12,7 +12,7 @@ WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY(@alphagrams::text[]
 SELECT alphagram, next_scheduled, fsrs_card
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3
-ORDER BY next_scheduled ASC, random()
+ORDER BY next_scheduled ASC
 LIMIT $4;
 
 -- name: GetNumCardsInVault :many
@@ -88,9 +88,13 @@ FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3
 AND jsonb_array_length(review_log) > 0;
 
--- name: DeleteCards :exec
+-- name: DeleteCards :execrows
 DELETE FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2;
+
+-- name: DeleteNewCards :execrows
+DELETE FROM wordvault_cards
+WHERE user_id = $1 AND lexicon_name = $2 AND jsonb_array_length(review_log) = 0;
 
 -- name: BulkUpdateCards :exec
 WITH updated_values AS (
@@ -110,3 +114,4 @@ WHERE
   w.user_id = u.user_id AND
   w.lexicon_name = u.lexicon_name AND
   w.alphagram = u.alphagram;
+
