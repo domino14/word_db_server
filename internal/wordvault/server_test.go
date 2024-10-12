@@ -244,6 +244,27 @@ func TestScoreCard(t *testing.T) {
 	threeyearsafter, err := time.Parse(time.RFC3339, "2027-09-22T23:00:00Z")
 	is.NoErr(err)
 	is.True(res.Msg.NextScheduled.AsTime().After(threeyearsafter))
+
+	// try to score card again shortly after
+
+	fakenower.fakenow = fakenower.fakenow.Add(time.Second * 5)
+
+	res, err = s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+		Score:     pb.Score_SCORE_EASY,
+		Lexicon:   "NWL23",
+		Alphagram: "ADEEGMMO",
+	}))
+	is.Equal(err.Error(), "invalid_argument: this card was just reviewed")
+
+	fakenower.fakenow = fakenower.fakenow.Add(time.Second * 7)
+
+	res, err = s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+		Score:     pb.Score_SCORE_EASY,
+		Lexicon:   "NWL23",
+		Alphagram: "ADEEGMMO",
+	}))
+	is.NoErr(err)
+
 }
 
 func TestGetCards(t *testing.T) {

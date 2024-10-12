@@ -28,6 +28,8 @@ import (
 
 var ErrNeedMembership = errors.New("adding these cards would put you over your limit; please upgrade your account to add more cards <3")
 
+const JustReviewedInterval = time.Second * 10
+
 type nower interface {
 	Now() time.Time
 }
@@ -85,6 +87,10 @@ func (s *Server) GetCardInformation(ctx context.Context, req *connect.Request[pb
 		if err != nil {
 			return nil, err
 		}
+		revlogbts, err := json.Marshal(rows[i].ReviewLog)
+		if err != nil {
+			return nil, err
+		}
 		cards[i] = &pb.Card{
 			Lexicon: req.Msg.Lexicon,
 			// Just return the alphagram here. The purpose of this endpoint is for
@@ -92,6 +98,7 @@ func (s *Server) GetCardInformation(ctx context.Context, req *connect.Request[pb
 			Alphagram:      &searchpb.Alphagram{Alphagram: req.Msg.Alphagrams[i]},
 			CardJsonRepr:   cardbts,
 			Retrievability: f.GetRetrievability(fcard, s.Nower.Now()),
+			ReviewLog:      revlogbts,
 		}
 	}
 	return connect.NewResponse(&pb.Cards{Cards: cards}), nil
@@ -210,6 +217,10 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 		}
 	}
 	card := cardrow.FsrsCard
+	revlog := cardrow.ReviewLog
+	if len(revlog) > 0 && s.Nower.Now().Sub(revlog[len(revlog)-1].Review) < JustReviewedInterval {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("this card was just reviewed"))
+	}
 
 	// It seems from reading the code that card.ElapsedDays gets updated by
 	// the below function, so it doesn't need to be recalculated upon

@@ -4,7 +4,7 @@ FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = $3;
 
 -- name: GetCards :many
-SELECT alphagram, next_scheduled, fsrs_card
+SELECT alphagram, next_scheduled, fsrs_card, review_log
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY(@alphagrams::text[]);
 

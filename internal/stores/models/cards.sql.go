@@ -127,7 +127,7 @@ func (q *Queries) GetCard(ctx context.Context, arg GetCardParams) (GetCardRow, e
 }
 
 const getCards = `-- name: GetCards :many
-SELECT alphagram, next_scheduled, fsrs_card
+SELECT alphagram, next_scheduled, fsrs_card, review_log
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY($3::text[])
 `
@@ -142,6 +142,7 @@ type GetCardsRow struct {
 	Alphagram     string
 	NextScheduled pgtype.Timestamptz
 	FsrsCard      go_fsrs.Card
+	ReviewLog     []go_fsrs.ReviewLog
 }
 
 func (q *Queries) GetCards(ctx context.Context, arg GetCardsParams) ([]GetCardsRow, error) {
@@ -153,7 +154,12 @@ func (q *Queries) GetCards(ctx context.Context, arg GetCardsParams) ([]GetCardsR
 	var items []GetCardsRow
 	for rows.Next() {
 		var i GetCardsRow
-		if err := rows.Scan(&i.Alphagram, &i.NextScheduled, &i.FsrsCard); err != nil {
+		if err := rows.Scan(
+			&i.Alphagram,
+			&i.NextScheduled,
+			&i.FsrsCard,
+			&i.ReviewLog,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

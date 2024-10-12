@@ -19,6 +19,7 @@ message Card {
   // The retrievability of a card is not part of the json repr and is computed
   // as of the time of request.
   double retrievability = 4;
+  bytes review_log = 5;
 }
 
 message GetCardInfoRequest {
