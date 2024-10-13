@@ -20,7 +20,7 @@ func main() {
 	f := fsrs.NewFSRS(p)
 
 	schedulingCards := f.Repeat(card, now)
-	rating := fsrs.Good
+	rating := fsrs.Again
 
 	card = schedulingCards[rating].Card
 	fmt.Println("cadrd days", card.ScheduledDays)

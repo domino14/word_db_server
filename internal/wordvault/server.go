@@ -258,6 +258,12 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 	if err != nil {
 		return nil, err
 	}
+	log := log.Ctx(ctx)
+	log.Info().Str("alpha", req.Msg.Alphagram).Str("lex", req.Msg.Lexicon).
+		Int("score", int(req.Msg.Score)).
+		Interface("revlog", rlog).
+		Interface("card", card).
+		Str("next-scheduled", card.Due.String()).Msg("card-scored")
 
 	return connect.NewResponse(&pb.ScoreCardResponse{
 		NextScheduled: timestamppb.New(card.Due),
