@@ -195,14 +195,14 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 		return nil, errors.New("unexpected expand response!")
 	}
 
-	fcard := row.FsrsCard
-	cardbts, err := json.Marshal(fcard)
-
 	resp := &pb.GetSingleNextScheduledResponse{
 		Card: &pb.Card{
-			Lexicon:      req.Msg.Lexicon,
-			Alphagram:    expandResponse.Msg.Alphagrams[0],
-			CardJsonRepr: cardbts,
+			Lexicon:   req.Msg.Lexicon,
+			Alphagram: expandResponse.Msg.Alphagrams[0],
+			// sqlc can't detect that row.FsrsCard is of type fsrs.Card
+			// because of the way the query is written, so we just pass
+			// the raw bytes as they are.
+			CardJsonRepr: row.FsrsCard,
 		},
 		OverdueCount: uint32(row.TotalCount),
 	}

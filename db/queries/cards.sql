@@ -28,7 +28,7 @@ WITH matching_cards AS (
     AND next_scheduled <= $3
   ORDER BY next_scheduled ASC
 )
-SELECT * FROM matching_cards
+SELECT alphagram, next_scheduled, fsrs_card, total_count FROM matching_cards
 LIMIT 1;
 
 -- name: GetNumCardsInVault :many
