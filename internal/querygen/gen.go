@@ -245,7 +245,7 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 		if desc == nil {
 			return nil, errors.New("stringvalue not provided for not_in_lexicon request")
 		}
-		letters := desc.GetValue()
+		letters := strings.TrimSpace(strings.ToUpper(desc.GetValue()))
 
 		dawg, err := kwg.Get(qg.config, qg.lexiconName)
 		if err != nil {
