@@ -1090,5 +1090,4 @@ func TestSingleNextScheduled(t *testing.T) {
 	is.NoErr(err)
 	fmt.Println(res)
 	is.Equal(res.Msg.OverdueCount, uint32(3))
-	is.True(false)
 }
