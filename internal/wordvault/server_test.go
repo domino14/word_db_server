@@ -727,6 +727,13 @@ func TestOverdueCount(t *testing.T) {
 	is.NoErr(err)
 	is.Equal(res.Msg.Breakdown["overdue"], uint32(0))
 
+	ns, err := s.GetSingleNextScheduled(ctx, connect.NewRequest(&pb.GetSingleNextScheduledRequest{
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	is.Equal(ns.Msg.Card, nil)
+	is.Equal(ns.Msg.OverdueCount, uint32(0))
+
 	// Set the time to a couple days in the future and get a full breakdown of questions
 	// due. There should be some overdue, and some due in the future (the ones that were
 	// marked easier).

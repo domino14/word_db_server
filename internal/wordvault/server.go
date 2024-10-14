@@ -175,6 +175,10 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 		NextScheduled: toPGTimestamp(s.Nower.Now()),
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Not an error.
+			return connect.NewResponse(&pb.GetSingleNextScheduledResponse{}), nil
+		}
 		return nil, err
 	}
 	expandResponse, err := s.WordSearchServer.Search(
