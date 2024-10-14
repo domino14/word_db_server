@@ -161,7 +161,53 @@ func (s *Server) GetNextScheduled(ctx context.Context, req *connect.Request[pb.G
 		}
 	}
 	return connect.NewResponse(&pb.Cards{Cards: cards}), nil
+}
 
+func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Request[pb.GetSingleNextScheduledRequest]) (
+	*connect.Response[pb.GetSingleNextScheduledResponse], error) {
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+	row, err := s.Queries.GetSingleNextScheduled(ctx, models.GetSingleNextScheduledParams{
+		UserID:        int64(user.DBID),
+		LexiconName:   req.Msg.Lexicon,
+		NextScheduled: toPGTimestamp(s.Nower.Now()),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Not an error.
+			return connect.NewResponse(&pb.GetSingleNextScheduledResponse{}), nil
+		}
+		return nil, err
+	}
+	expandResponse, err := s.WordSearchServer.Search(
+		ctx,
+		connect.NewRequest(
+			searchserver.WordSearch([]*searchpb.SearchRequest_SearchParam{
+				searchserver.SearchDescLexicon(req.Msg.Lexicon),
+				searchserver.SearchDescAlphagramList([]string{row.Alphagram}),
+			}, true)))
+	if err != nil {
+		return nil, err
+	}
+	if len(expandResponse.Msg.Alphagrams) != 1 {
+		return nil, errors.New("unexpected expand response!")
+	}
+
+	resp := &pb.GetSingleNextScheduledResponse{
+		Card: &pb.Card{
+			Lexicon:   req.Msg.Lexicon,
+			Alphagram: expandResponse.Msg.Alphagrams[0],
+			// sqlc can't detect that row.FsrsCard is of type fsrs.Card
+			// because of the way the query is written, so we just pass
+			// the raw bytes as they are.
+			CardJsonRepr: row.FsrsCard,
+		},
+		OverdueCount: uint32(row.TotalCount),
+	}
+
+	return connect.NewResponse(resp), nil
 }
 
 func (s *Server) fsrsParams(ctx context.Context, dbid int64) (fsrs.Parameters, error) {
@@ -238,7 +284,7 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 	if err != nil {
 		return nil, err
 	}
-
+	furtherFuzzDueDate(params, &card)
 	err = qtx.UpdateCard(ctx, models.UpdateCardParams{
 		FsrsCard:      card,
 		NextScheduled: toPGTimestamp(card.Due),
@@ -331,6 +377,7 @@ func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.Edit
 	if err != nil {
 		return nil, err
 	}
+	furtherFuzzDueDate(params, &card)
 	// Overwrite last log with this new log.
 	err = qtx.UpdateCardReplaceLastLog(ctx, models.UpdateCardReplaceLastLogParams{
 		FsrsCard:      card,
@@ -642,4 +689,19 @@ func (s *Server) Delete(ctx context.Context, req *connect.Request[pb.DeleteReque
 	}
 	return connect.NewResponse(&pb.DeleteResponse{NumDeleted: uint32(deletedRows)}), nil
 
+}
+
+// The fsrs library fuzzes only by day. It tends to ask questions at the same
+// hour and minute that they were asked last. We want to add a little bit of a fuzz
+// to allow for more randomness.
+func furtherFuzzDueDate(params fsrs.Parameters, card *fsrs.Card) {
+	if !params.EnableFuzz || params.EnableShortTerm {
+		return
+	}
+	// Find a random second in a 21,600-second interval (6 hours) centered
+	// around the due date.
+	d := int64(rand.Int32N(21600))
+	d -= 10800
+
+	card.Due = card.Due.Add(time.Duration(d) * time.Second)
 }

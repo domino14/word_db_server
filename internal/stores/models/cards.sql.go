@@ -345,6 +345,48 @@ func (q *Queries) GetOverdueCount(ctx context.Context, arg GetOverdueCountParams
 	return count, err
 }
 
+const getSingleNextScheduled = `-- name: GetSingleNextScheduled :one
+WITH matching_cards AS (
+  SELECT
+    alphagram,
+    next_scheduled,
+    fsrs_card,
+    COUNT(*) OVER () AS total_count -- Window function to get the total count
+  FROM wordvault_cards
+  WHERE user_id = $1
+    AND lexicon_name = $2
+    AND next_scheduled <= $3
+  ORDER BY next_scheduled ASC
+)
+SELECT alphagram, next_scheduled, fsrs_card, total_count FROM matching_cards
+LIMIT 1
+`
+
+type GetSingleNextScheduledParams struct {
+	UserID        int64
+	LexiconName   string
+	NextScheduled pgtype.Timestamptz
+}
+
+type GetSingleNextScheduledRow struct {
+	Alphagram     string
+	NextScheduled pgtype.Timestamptz
+	FsrsCard      []byte
+	TotalCount    int64
+}
+
+func (q *Queries) GetSingleNextScheduled(ctx context.Context, arg GetSingleNextScheduledParams) (GetSingleNextScheduledRow, error) {
+	row := q.db.QueryRow(ctx, getSingleNextScheduled, arg.UserID, arg.LexiconName, arg.NextScheduled)
+	var i GetSingleNextScheduledRow
+	err := row.Scan(
+		&i.Alphagram,
+		&i.NextScheduled,
+		&i.FsrsCard,
+		&i.TotalCount,
+	)
+	return i, err
+}
+
 const loadParams = `-- name: LoadParams :one
 SELECT params FROM wordvault_params
 WHERE user_id = $1

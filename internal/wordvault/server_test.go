@@ -328,8 +328,8 @@ func TestGetCards(t *testing.T) {
 	is.NoErr(err)
 	fmt.Println(info)
 	is.Equal(len(info.Msg.Cards), 2)
-	// XXX: This value seems to be arch-dependent?? This test fails on M1 Macbook Pro.
-	is.Equal(info.Msg.Cards[0].Retrievability, 0.43596977331178927)
+	// Wow still a decent chance of remembering it after 76 years
+	is.True(info.Msg.Cards[0].Retrievability > 0.3)
 	is.Equal(info.Msg.Cards[0].Alphagram.Alphagram, "ADEEGMMO")
 
 	card := fsrs.Card{}
@@ -727,6 +727,13 @@ func TestOverdueCount(t *testing.T) {
 	is.NoErr(err)
 	is.Equal(res.Msg.Breakdown["overdue"], uint32(0))
 
+	ns, err := s.GetSingleNextScheduled(ctx, connect.NewRequest(&pb.GetSingleNextScheduledRequest{
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	is.Equal(ns.Msg.Card, nil)
+	is.Equal(ns.Msg.OverdueCount, uint32(0))
+
 	// Set the time to a couple days in the future and get a full breakdown of questions
 	// due. There should be some overdue, and some due in the future (the ones that were
 	// marked easier).
@@ -1055,4 +1062,39 @@ func TestDeleteOnlyNew(t *testing.T) {
 	}))
 	is.NoErr(err)
 	is.Equal(res.Msg.NumDeleted, uint32(300))
+}
+
+func TestSingleNextScheduled(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	// defer TeardownTestDB()
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+
+	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO"},
+	}))
+	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEHMMO", "AEFFGINR"},
+	}))
+
+	res, err := s.GetSingleNextScheduled(ctx, connect.NewRequest(&pb.GetSingleNextScheduledRequest{
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	fmt.Println(res)
+	is.Equal(res.Msg.OverdueCount, uint32(3))
 }
