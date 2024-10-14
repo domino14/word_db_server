@@ -42,6 +42,9 @@ const (
 	// WordVaultServiceGetNextScheduledProcedure is the fully-qualified name of the WordVaultService's
 	// GetNextScheduled RPC.
 	WordVaultServiceGetNextScheduledProcedure = "/wordvault.WordVaultService/GetNextScheduled"
+	// WordVaultServiceGetSingleNextScheduledProcedure is the fully-qualified name of the
+	// WordVaultService's GetSingleNextScheduled RPC.
+	WordVaultServiceGetSingleNextScheduledProcedure = "/wordvault.WordVaultService/GetSingleNextScheduled"
 	// WordVaultServiceNextScheduledCountProcedure is the fully-qualified name of the WordVaultService's
 	// NextScheduledCount RPC.
 	WordVaultServiceNextScheduledCountProcedure = "/wordvault.WordVaultService/NextScheduledCount"
@@ -63,16 +66,17 @@ const (
 
 // These variables are the protoreflect.Descriptor objects for the RPCs defined in this package.
 var (
-	wordVaultServiceServiceDescriptor                  = wordvault.File_rpc_wordvault_api_proto.Services().ByName("WordVaultService")
-	wordVaultServiceGetCardCountMethodDescriptor       = wordVaultServiceServiceDescriptor.Methods().ByName("GetCardCount")
-	wordVaultServiceGetCardInformationMethodDescriptor = wordVaultServiceServiceDescriptor.Methods().ByName("GetCardInformation")
-	wordVaultServiceGetNextScheduledMethodDescriptor   = wordVaultServiceServiceDescriptor.Methods().ByName("GetNextScheduled")
-	wordVaultServiceNextScheduledCountMethodDescriptor = wordVaultServiceServiceDescriptor.Methods().ByName("NextScheduledCount")
-	wordVaultServiceScoreCardMethodDescriptor          = wordVaultServiceServiceDescriptor.Methods().ByName("ScoreCard")
-	wordVaultServiceEditLastScoreMethodDescriptor      = wordVaultServiceServiceDescriptor.Methods().ByName("EditLastScore")
-	wordVaultServiceAddCardsMethodDescriptor           = wordVaultServiceServiceDescriptor.Methods().ByName("AddCards")
-	wordVaultServicePostponeMethodDescriptor           = wordVaultServiceServiceDescriptor.Methods().ByName("Postpone")
-	wordVaultServiceDeleteMethodDescriptor             = wordVaultServiceServiceDescriptor.Methods().ByName("Delete")
+	wordVaultServiceServiceDescriptor                      = wordvault.File_rpc_wordvault_api_proto.Services().ByName("WordVaultService")
+	wordVaultServiceGetCardCountMethodDescriptor           = wordVaultServiceServiceDescriptor.Methods().ByName("GetCardCount")
+	wordVaultServiceGetCardInformationMethodDescriptor     = wordVaultServiceServiceDescriptor.Methods().ByName("GetCardInformation")
+	wordVaultServiceGetNextScheduledMethodDescriptor       = wordVaultServiceServiceDescriptor.Methods().ByName("GetNextScheduled")
+	wordVaultServiceGetSingleNextScheduledMethodDescriptor = wordVaultServiceServiceDescriptor.Methods().ByName("GetSingleNextScheduled")
+	wordVaultServiceNextScheduledCountMethodDescriptor     = wordVaultServiceServiceDescriptor.Methods().ByName("NextScheduledCount")
+	wordVaultServiceScoreCardMethodDescriptor              = wordVaultServiceServiceDescriptor.Methods().ByName("ScoreCard")
+	wordVaultServiceEditLastScoreMethodDescriptor          = wordVaultServiceServiceDescriptor.Methods().ByName("EditLastScore")
+	wordVaultServiceAddCardsMethodDescriptor               = wordVaultServiceServiceDescriptor.Methods().ByName("AddCards")
+	wordVaultServicePostponeMethodDescriptor               = wordVaultServiceServiceDescriptor.Methods().ByName("Postpone")
+	wordVaultServiceDeleteMethodDescriptor                 = wordVaultServiceServiceDescriptor.Methods().ByName("Delete")
 )
 
 // WordVaultServiceClient is a client for the wordvault.WordVaultService service.
@@ -80,6 +84,7 @@ type WordVaultServiceClient interface {
 	GetCardCount(context.Context, *connect.Request[wordvault.GetCardCountRequest]) (*connect.Response[wordvault.CardCountResponse], error)
 	GetCardInformation(context.Context, *connect.Request[wordvault.GetCardInfoRequest]) (*connect.Response[wordvault.Cards], error)
 	GetNextScheduled(context.Context, *connect.Request[wordvault.GetNextScheduledRequest]) (*connect.Response[wordvault.Cards], error)
+	GetSingleNextScheduled(context.Context, *connect.Request[wordvault.GetSingleNextScheduledRequest]) (*connect.Response[wordvault.GetSingleNextScheduledResponse], error)
 	NextScheduledCount(context.Context, *connect.Request[wordvault.NextScheduledCountRequest]) (*connect.Response[wordvault.NextScheduledBreakdown], error)
 	ScoreCard(context.Context, *connect.Request[wordvault.ScoreCardRequest]) (*connect.Response[wordvault.ScoreCardResponse], error)
 	EditLastScore(context.Context, *connect.Request[wordvault.EditLastScoreRequest]) (*connect.Response[wordvault.ScoreCardResponse], error)
@@ -116,6 +121,13 @@ func NewWordVaultServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			httpClient,
 			baseURL+WordVaultServiceGetNextScheduledProcedure,
 			connect.WithSchema(wordVaultServiceGetNextScheduledMethodDescriptor),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		getSingleNextScheduled: connect.NewClient[wordvault.GetSingleNextScheduledRequest, wordvault.GetSingleNextScheduledResponse](
+			httpClient,
+			baseURL+WordVaultServiceGetSingleNextScheduledProcedure,
+			connect.WithSchema(wordVaultServiceGetSingleNextScheduledMethodDescriptor),
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
@@ -160,15 +172,16 @@ func NewWordVaultServiceClient(httpClient connect.HTTPClient, baseURL string, op
 
 // wordVaultServiceClient implements WordVaultServiceClient.
 type wordVaultServiceClient struct {
-	getCardCount       *connect.Client[wordvault.GetCardCountRequest, wordvault.CardCountResponse]
-	getCardInformation *connect.Client[wordvault.GetCardInfoRequest, wordvault.Cards]
-	getNextScheduled   *connect.Client[wordvault.GetNextScheduledRequest, wordvault.Cards]
-	nextScheduledCount *connect.Client[wordvault.NextScheduledCountRequest, wordvault.NextScheduledBreakdown]
-	scoreCard          *connect.Client[wordvault.ScoreCardRequest, wordvault.ScoreCardResponse]
-	editLastScore      *connect.Client[wordvault.EditLastScoreRequest, wordvault.ScoreCardResponse]
-	addCards           *connect.Client[wordvault.AddCardsRequest, wordvault.AddCardsResponse]
-	postpone           *connect.Client[wordvault.PostponeRequest, wordvault.PostponeResponse]
-	delete             *connect.Client[wordvault.DeleteRequest, wordvault.DeleteResponse]
+	getCardCount           *connect.Client[wordvault.GetCardCountRequest, wordvault.CardCountResponse]
+	getCardInformation     *connect.Client[wordvault.GetCardInfoRequest, wordvault.Cards]
+	getNextScheduled       *connect.Client[wordvault.GetNextScheduledRequest, wordvault.Cards]
+	getSingleNextScheduled *connect.Client[wordvault.GetSingleNextScheduledRequest, wordvault.GetSingleNextScheduledResponse]
+	nextScheduledCount     *connect.Client[wordvault.NextScheduledCountRequest, wordvault.NextScheduledBreakdown]
+	scoreCard              *connect.Client[wordvault.ScoreCardRequest, wordvault.ScoreCardResponse]
+	editLastScore          *connect.Client[wordvault.EditLastScoreRequest, wordvault.ScoreCardResponse]
+	addCards               *connect.Client[wordvault.AddCardsRequest, wordvault.AddCardsResponse]
+	postpone               *connect.Client[wordvault.PostponeRequest, wordvault.PostponeResponse]
+	delete                 *connect.Client[wordvault.DeleteRequest, wordvault.DeleteResponse]
 }
 
 // GetCardCount calls wordvault.WordVaultService.GetCardCount.
@@ -184,6 +197,11 @@ func (c *wordVaultServiceClient) GetCardInformation(ctx context.Context, req *co
 // GetNextScheduled calls wordvault.WordVaultService.GetNextScheduled.
 func (c *wordVaultServiceClient) GetNextScheduled(ctx context.Context, req *connect.Request[wordvault.GetNextScheduledRequest]) (*connect.Response[wordvault.Cards], error) {
 	return c.getNextScheduled.CallUnary(ctx, req)
+}
+
+// GetSingleNextScheduled calls wordvault.WordVaultService.GetSingleNextScheduled.
+func (c *wordVaultServiceClient) GetSingleNextScheduled(ctx context.Context, req *connect.Request[wordvault.GetSingleNextScheduledRequest]) (*connect.Response[wordvault.GetSingleNextScheduledResponse], error) {
+	return c.getSingleNextScheduled.CallUnary(ctx, req)
 }
 
 // NextScheduledCount calls wordvault.WordVaultService.NextScheduledCount.
@@ -221,6 +239,7 @@ type WordVaultServiceHandler interface {
 	GetCardCount(context.Context, *connect.Request[wordvault.GetCardCountRequest]) (*connect.Response[wordvault.CardCountResponse], error)
 	GetCardInformation(context.Context, *connect.Request[wordvault.GetCardInfoRequest]) (*connect.Response[wordvault.Cards], error)
 	GetNextScheduled(context.Context, *connect.Request[wordvault.GetNextScheduledRequest]) (*connect.Response[wordvault.Cards], error)
+	GetSingleNextScheduled(context.Context, *connect.Request[wordvault.GetSingleNextScheduledRequest]) (*connect.Response[wordvault.GetSingleNextScheduledResponse], error)
 	NextScheduledCount(context.Context, *connect.Request[wordvault.NextScheduledCountRequest]) (*connect.Response[wordvault.NextScheduledBreakdown], error)
 	ScoreCard(context.Context, *connect.Request[wordvault.ScoreCardRequest]) (*connect.Response[wordvault.ScoreCardResponse], error)
 	EditLastScore(context.Context, *connect.Request[wordvault.EditLastScoreRequest]) (*connect.Response[wordvault.ScoreCardResponse], error)
@@ -253,6 +272,13 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 		WordVaultServiceGetNextScheduledProcedure,
 		svc.GetNextScheduled,
 		connect.WithSchema(wordVaultServiceGetNextScheduledMethodDescriptor),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	wordVaultServiceGetSingleNextScheduledHandler := connect.NewUnaryHandler(
+		WordVaultServiceGetSingleNextScheduledProcedure,
+		svc.GetSingleNextScheduled,
+		connect.WithSchema(wordVaultServiceGetSingleNextScheduledMethodDescriptor),
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
@@ -300,6 +326,8 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 			wordVaultServiceGetCardInformationHandler.ServeHTTP(w, r)
 		case WordVaultServiceGetNextScheduledProcedure:
 			wordVaultServiceGetNextScheduledHandler.ServeHTTP(w, r)
+		case WordVaultServiceGetSingleNextScheduledProcedure:
+			wordVaultServiceGetSingleNextScheduledHandler.ServeHTTP(w, r)
 		case WordVaultServiceNextScheduledCountProcedure:
 			wordVaultServiceNextScheduledCountHandler.ServeHTTP(w, r)
 		case WordVaultServiceScoreCardProcedure:
@@ -331,6 +359,10 @@ func (UnimplementedWordVaultServiceHandler) GetCardInformation(context.Context, 
 
 func (UnimplementedWordVaultServiceHandler) GetNextScheduled(context.Context, *connect.Request[wordvault.GetNextScheduledRequest]) (*connect.Response[wordvault.Cards], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.GetNextScheduled is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) GetSingleNextScheduled(context.Context, *connect.Request[wordvault.GetSingleNextScheduledRequest]) (*connect.Response[wordvault.GetSingleNextScheduledResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.GetSingleNextScheduled is not implemented"))
 }
 
 func (UnimplementedWordVaultServiceHandler) NextScheduledCount(context.Context, *connect.Request[wordvault.NextScheduledCountRequest]) (*connect.Response[wordvault.NextScheduledBreakdown], error) {

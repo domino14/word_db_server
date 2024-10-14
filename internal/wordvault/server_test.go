@@ -1056,3 +1056,39 @@ func TestDeleteOnlyNew(t *testing.T) {
 	is.NoErr(err)
 	is.Equal(res.Msg.NumDeleted, uint32(300))
 }
+
+func TestSingleNextScheduled(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	// defer TeardownTestDB()
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+
+	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO"},
+	}))
+	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEHMMO", "AEFFGINR"},
+	}))
+
+	res, err := s.GetSingleNextScheduled(ctx, connect.NewRequest(&pb.GetSingleNextScheduledRequest{
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	fmt.Println(res)
+	is.Equal(res.Msg.OverdueCount, uint32(3))
+	is.True(false)
+}

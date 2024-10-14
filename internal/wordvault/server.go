@@ -161,7 +161,49 @@ func (s *Server) GetNextScheduled(ctx context.Context, req *connect.Request[pb.G
 		}
 	}
 	return connect.NewResponse(&pb.Cards{Cards: cards}), nil
+}
 
+func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Request[pb.GetSingleNextScheduledRequest]) (
+	*connect.Response[pb.GetSingleNextScheduledResponse], error) {
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+	row, err := s.Queries.GetSingleNextScheduled(ctx, models.GetSingleNextScheduledParams{
+		UserID:        int64(user.DBID),
+		LexiconName:   req.Msg.Lexicon,
+		NextScheduled: toPGTimestamp(s.Nower.Now()),
+	})
+	if err != nil {
+		return nil, err
+	}
+	expandResponse, err := s.WordSearchServer.Search(
+		ctx,
+		connect.NewRequest(
+			searchserver.WordSearch([]*searchpb.SearchRequest_SearchParam{
+				searchserver.SearchDescLexicon(req.Msg.Lexicon),
+				searchserver.SearchDescAlphagramList([]string{row.Alphagram}),
+			}, true)))
+	if err != nil {
+		return nil, err
+	}
+	if len(expandResponse.Msg.Alphagrams) != 1 {
+		return nil, errors.New("unexpected expand response!")
+	}
+
+	fcard := row.FsrsCard
+	cardbts, err := json.Marshal(fcard)
+
+	resp := &pb.GetSingleNextScheduledResponse{
+		Card: &pb.Card{
+			Lexicon:      req.Msg.Lexicon,
+			Alphagram:    expandResponse.Msg.Alphagrams[0],
+			CardJsonRepr: cardbts,
+		},
+		OverdueCount: uint32(row.TotalCount),
+	}
+
+	return connect.NewResponse(resp), nil
 }
 
 func (s *Server) fsrsParams(ctx context.Context, dbid int64) (fsrs.Parameters, error) {

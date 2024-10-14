@@ -15,6 +15,22 @@ WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3
 ORDER BY next_scheduled ASC
 LIMIT $4;
 
+-- name: GetSingleNextScheduled :one
+WITH matching_cards AS (
+  SELECT
+    alphagram,
+    next_scheduled,
+    fsrs_card,
+    COUNT(*) OVER () AS total_count -- Window function to get the total count
+  FROM wordvault_cards
+  WHERE user_id = $1
+    AND lexicon_name = $2
+    AND next_scheduled <= $3
+  ORDER BY next_scheduled ASC
+)
+SELECT * FROM matching_cards
+LIMIT 1;
+
 -- name: GetNumCardsInVault :many
 SELECT lexicon_name, count(*) as card_count FROM wordvault_cards
 WHERE user_id = $1

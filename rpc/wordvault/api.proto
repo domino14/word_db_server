@@ -32,6 +32,13 @@ message GetNextScheduledRequest {
   uint32 limit = 2;
 }
 
+message GetSingleNextScheduledRequest { string lexicon = 1; }
+
+message GetSingleNextScheduledResponse {
+  Card card = 1;
+  uint32 overdue_count = 2;
+}
+
 message Cards { repeated Card cards = 1; }
 
 message ScoreCardRequest {
@@ -96,6 +103,10 @@ service WordVaultService {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
   rpc GetNextScheduled(GetNextScheduledRequest) returns (Cards) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  rpc GetSingleNextScheduled(GetSingleNextScheduledRequest)
+      returns (GetSingleNextScheduledResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
   rpc NextScheduledCount(NextScheduledCountRequest)
