@@ -30,11 +30,11 @@ func (s *Server) Expand(ctx context.Context, req *connect.Request[pb.SearchRespo
 	defer db.Close()
 	alphStrToObjs, err := getInputAlphagramInfo(req.Msg, s.Config, db)
 	if err != nil {
-		return nil, err
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	outputAlphas, err := mergeInputWordInfo(req.Msg, s.Config, alphStrToObjs, db)
 	if err != nil {
-		return nil, err
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
 	return connect.NewResponse(&pb.SearchResponse{

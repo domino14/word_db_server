@@ -34,7 +34,7 @@ func (s *Server) Search(ctx context.Context, req *connect.Request[pb.SearchReque
 
 	queries, err := qgen.Generate()
 	if err != nil {
-		return nil, err
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	log.Debug().Msgf("Generated queries %v", queries)
 
