@@ -996,7 +996,7 @@ func TestCardStats(t *testing.T) {
 
 }
 
-func TestDeleteOnlyNew(t *testing.T) {
+func TestDelete(t *testing.T) {
 	is := is.New(t)
 	err := RecreateTestDB()
 	if err != nil {
@@ -1043,11 +1043,28 @@ func TestDeleteOnlyNew(t *testing.T) {
 	}
 
 	res, err := s.Delete(ctx, connect.NewRequest(&pb.DeleteRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"AVYYZZZ"},
+	}))
+	is.NoErr(err)
+	is.Equal(res.Msg.NumDeleted, uint32(0))
+
+	res, err = s.Delete(ctx, connect.NewRequest(&pb.DeleteRequest{
+		Lexicon: "NWL23",
+		// These two are 7958, 7942, 7836 by probability
+		Alphagrams: []string{"ABEGKOR", "CEIITUV", "EINNNRS"},
+	}))
+	is.NoErr(err)
+	is.Equal(res.Msg.NumDeleted, uint32(3))
+	// We deleted two new cards and 1 quizzed-on card in the above request
+	// (we only quizzed from 7601 to 7900 probability)
+
+	res, err = s.Delete(ctx, connect.NewRequest(&pb.DeleteRequest{
 		Lexicon:          "NWL23",
 		OnlyNewQuestions: true,
 	}))
 	is.NoErr(err)
-	is.Equal(res.Msg.NumDeleted, uint32(100))
+	is.Equal(res.Msg.NumDeleted, uint32(98))
 	// Delete new cards again, we should delete 0 this time.
 	res, err = s.Delete(ctx, connect.NewRequest(&pb.DeleteRequest{
 		Lexicon:          "NWL23",
@@ -1061,7 +1078,7 @@ func TestDeleteOnlyNew(t *testing.T) {
 		Lexicon: "NWL23",
 	}))
 	is.NoErr(err)
-	is.Equal(res.Msg.NumDeleted, uint32(300))
+	is.Equal(res.Msg.NumDeleted, uint32(299))
 }
 
 func TestSingleNextScheduled(t *testing.T) {

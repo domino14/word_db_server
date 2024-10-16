@@ -90,7 +90,9 @@ message PostponeResponse { uint32 num_postponed = 1; }
 
 message DeleteRequest {
   string lexicon = 1;
+  // The following two conditions are mutually exclusive.
   bool only_new_questions = 2;
+  repeated string alphagrams = 3;
 }
 
 message DeleteResponse { uint32 num_deleted = 1; }

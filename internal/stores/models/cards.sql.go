@@ -104,6 +104,25 @@ func (q *Queries) DeleteCards(ctx context.Context, arg DeleteCardsParams) (int64
 	return result.RowsAffected(), nil
 }
 
+const deleteCardsWithAlphagrams = `-- name: DeleteCardsWithAlphagrams :execrows
+DELETE FROM wordvault_cards
+WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY($3::text[])
+`
+
+type DeleteCardsWithAlphagramsParams struct {
+	UserID      int64
+	LexiconName string
+	Alphagrams  []string
+}
+
+func (q *Queries) DeleteCardsWithAlphagrams(ctx context.Context, arg DeleteCardsWithAlphagramsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteCardsWithAlphagrams, arg.UserID, arg.LexiconName, arg.Alphagrams)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteNewCards = `-- name: DeleteNewCards :execrows
 DELETE FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND jsonb_array_length(review_log) = 0
