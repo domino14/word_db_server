@@ -411,8 +411,11 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 	if user == nil {
 		return nil, unauthenticated("user not authenticated")
 	}
+	if len(req.Msg.Alphagrams) == 0 {
+		return nil, invalidArgError("need to add at least one card")
+	}
 	if len(req.Msg.Alphagrams) > s.Config.MaxCardsAdd {
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("cannot add more than %d cards at a time", s.Config.MaxCardsAdd))
+		return nil, invalidArgError(fmt.Sprintf("cannot add more than %d cards at a time", s.Config.MaxCardsAdd))
 	}
 	if !user.Member {
 		rows, err := s.Queries.GetNumCardsInVault(ctx, int64(user.DBID))

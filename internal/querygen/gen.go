@@ -168,6 +168,7 @@ type QueryGen struct {
 }
 
 // NewQueryGen generates a new query generator with the given parameters.
+// XXX: Stop allocating so much, why not re-use these?
 func NewQueryGen(lexiconName string, queryType QueryType,
 	searchParams []*wordsearcher.SearchRequest_SearchParam,
 	maxChunkSize int, cfg *config.Config) *QueryGen {
@@ -277,6 +278,23 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 			return nil, errors.New("no words matched this anagram search")
 		}
 		alphas := alphasFromWordList(words, dist)
+		newSp := &wordsearcher.SearchRequest_SearchParam{
+			Conditionparam: &wordsearcher.SearchRequest_SearchParam_Stringarray{
+				Stringarray: &wordsearcher.SearchRequest_StringArray{
+					Values: alphas}}}
+
+		return NewWhereInClause("alphagrams", "alphagram", newSp), nil
+
+	case wordsearcher.SearchRequest_UPLOADED_WORD_OR_ALPHAGRAM_LIST:
+		words := sp.GetStringarray()
+		if words == nil || len(words.Values) == 0 {
+			return nil, errors.New("stringarray not provided for uploaded list request")
+		}
+		dist, err := tilemapping.ProbableLetterDistribution(qg.config, qg.lexiconName)
+		if err != nil {
+			return nil, err
+		}
+		alphas := alphasFromWordList(words.Values, dist)
 		newSp := &wordsearcher.SearchRequest_SearchParam{
 			Conditionparam: &wordsearcher.SearchRequest_SearchParam_Stringarray{
 				Stringarray: &wordsearcher.SearchRequest_StringArray{

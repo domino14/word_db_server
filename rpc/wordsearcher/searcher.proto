@@ -60,7 +60,7 @@ message SearchRequest {
     ALPHAGRAM_LIST = 10;
     NOT_IN_LEXICON = 11;
 
-    reserved 12;
+    UPLOADED_WORD_OR_ALPHAGRAM_LIST = 12;
     WORD_LIST = 13;
 
     // These are reserved for blank challenges. They're not even actually
