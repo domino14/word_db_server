@@ -411,8 +411,11 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 	if user == nil {
 		return nil, unauthenticated("user not authenticated")
 	}
+	if len(req.Msg.Alphagrams) == 0 {
+		return nil, invalidArgError("need to add at least one card")
+	}
 	if len(req.Msg.Alphagrams) > s.Config.MaxCardsAdd {
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("cannot add more than %d cards at a time", s.Config.MaxCardsAdd))
+		return nil, invalidArgError(fmt.Sprintf("cannot add more than %d cards at a time", s.Config.MaxCardsAdd))
 	}
 	if !user.Member {
 		rows, err := s.Queries.GetNumCardsInVault(ctx, int64(user.DBID))
@@ -672,6 +675,9 @@ func (s *Server) Delete(ctx context.Context, req *connect.Request[pb.DeleteReque
 	if req.Msg.Lexicon == "" {
 		return nil, invalidArgError("need a lexicon")
 	}
+	if req.Msg.OnlyNewQuestions && len(req.Msg.Alphagrams) > 0 {
+		return nil, invalidArgError("cannot delete only new questions and a list of alphagrams")
+	}
 	var err error
 	var deletedRows int64
 	if req.Msg.OnlyNewQuestions {
@@ -679,9 +685,16 @@ func (s *Server) Delete(ctx context.Context, req *connect.Request[pb.DeleteReque
 			UserID:      int64(user.DBID),
 			LexiconName: req.Msg.Lexicon,
 		})
-	} else {
+	} else if len(req.Msg.Alphagrams) == 0 {
+		// delete them all!
 		deletedRows, err = s.Queries.DeleteCards(ctx, models.DeleteCardsParams{
 			UserID: int64(user.DBID), LexiconName: req.Msg.Lexicon,
+		})
+	} else {
+		deletedRows, err = s.Queries.DeleteCardsWithAlphagrams(ctx, models.DeleteCardsWithAlphagramsParams{
+			UserID:      int64(user.DBID),
+			LexiconName: req.Msg.Lexicon,
+			Alphagrams:  req.Msg.Alphagrams,
 		})
 	}
 	if err != nil {

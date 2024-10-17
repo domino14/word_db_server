@@ -112,6 +112,10 @@ WHERE user_id = $1 AND lexicon_name = $2;
 DELETE FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND jsonb_array_length(review_log) = 0;
 
+-- name: DeleteCardsWithAlphagrams :execrows
+DELETE FROM wordvault_cards
+WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY(@alphagrams::text[]);
+
 -- name: BulkUpdateCards :exec
 WITH updated_values AS (
   SELECT
