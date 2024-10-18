@@ -220,6 +220,7 @@ func (s *Server) fsrsParams(ctx context.Context, dbid int64) (fsrs.Parameters, e
 			params = fsrs.DefaultParam()
 			params.EnableShortTerm = false
 			params.EnableFuzz = true
+			params.MaximumInterval = 365 * 5 // Default is 100 years, which is a bit optimistic
 		} else {
 			return fsrs.Parameters{}, err
 		}
@@ -284,7 +285,7 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 	if err != nil {
 		return nil, err
 	}
-	furtherFuzzDueDate(params, &card)
+	furtherFuzzDueDate(params, now, &card)
 	err = qtx.UpdateCard(ctx, models.UpdateCardParams{
 		FsrsCard:      card,
 		NextScheduled: toPGTimestamp(card.Due),
@@ -377,7 +378,7 @@ func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.Edit
 	if err != nil {
 		return nil, err
 	}
-	furtherFuzzDueDate(params, &card)
+	furtherFuzzDueDate(params, now, &card)
 	// Overwrite last log with this new log.
 	err = qtx.UpdateCardReplaceLastLog(ctx, models.UpdateCardReplaceLastLogParams{
 		FsrsCard:      card,
@@ -707,14 +708,21 @@ func (s *Server) Delete(ctx context.Context, req *connect.Request[pb.DeleteReque
 // The fsrs library fuzzes only by day. It tends to ask questions at the same
 // hour and minute that they were asked last. We want to add a little bit of a fuzz
 // to allow for more randomness.
-func furtherFuzzDueDate(params fsrs.Parameters, card *fsrs.Card) {
+func furtherFuzzDueDate(params fsrs.Parameters, now time.Time, card *fsrs.Card) {
 	if !params.EnableFuzz || params.EnableShortTerm {
 		return
 	}
 	// Find a random second in a 21,600-second interval (6 hours) centered
 	// around the due date.
-	d := int64(rand.Int32N(21600))
-	d -= 10800
+	fuzzFactor := 21600 // 6 hours
+
+	if card.Due.Sub(now) > (time.Hour * 720) {
+		// Fuzz by 24 hours
+		fuzzFactor = 86400
+	}
+
+	d := int64(rand.Int32N(int32(fuzzFactor)))
+	d -= (int64(fuzzFactor) / 2)
 
 	card.Due = card.Due.Add(time.Duration(d) * time.Second)
 }
