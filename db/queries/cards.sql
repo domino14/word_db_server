@@ -46,7 +46,7 @@ UPDATE wordvault_cards
 SET
     fsrs_card = $1,
     next_scheduled = $2,
-    review_log = (review_log || @review_log_item::jsonb) - jsonb_array_length(review_log)
+    review_log = (review_log - (jsonb_array_length(review_log) - 1)) || @review_log_item::jsonb
 WHERE
     user_id = $3
     AND lexicon_name = $4

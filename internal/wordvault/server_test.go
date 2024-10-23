@@ -449,6 +449,19 @@ func TestEditCardScore(t *testing.T) {
 	}))
 	is.NoErr(err)
 
+	info, err = s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"AEGLPSU"},
+	}))
+	is.NoErr(err)
+	reviewLog := []fsrs.ReviewLog{}
+	err = json.Unmarshal(info.Msg.Cards[0].ReviewLog, &reviewLog)
+	is.NoErr(err)
+	is.Equal(len(reviewLog), 3)
+	is.Equal(reviewLog[0].Rating, fsrs.Easy)
+	is.Equal(reviewLog[1].Rating, fsrs.Easy)
+	is.Equal(reviewLog[2].Rating, fsrs.Easy)
+
 	// Create a time three years after the fake now time above.
 	// The card is scheduled in the far future after marking it easy just three times.
 	threeyearsafter, err := time.Parse(time.RFC3339, "2027-09-22T23:00:00Z")
