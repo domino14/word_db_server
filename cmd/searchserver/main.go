@@ -230,7 +230,19 @@ func importCardboxHandler(queries *models.Queries, searchServer *searchserver.Se
 			http.Error(w, "Error processing SQLite database.", http.StatusInternalServerError)
 			return
 		} else {
-			fmt.Fprintf(w, "Imported %d cards into your WordVault. Alphagrams not found: %v", nAdded, invalidAlphas)
+			ct := len(invalidAlphas)
+			truncated := false
+			if ct > 50 {
+				invalidAlphas = invalidAlphas[:50]
+				truncated = true
+			}
+
+			fmt.Fprintf(w, "Imported %d cards into your WordVault. Did not import %d alphagrams ", nAdded, ct)
+			if truncated {
+				fmt.Fprintf(w, "(First few: %v)", invalidAlphas)
+			} else {
+				fmt.Fprintf(w, "(%v)", invalidAlphas)
+			}
 			return
 		}
 
