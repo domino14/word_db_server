@@ -8,18 +8,28 @@ package models
 import (
 	"context"
 
+	"github.com/domino14/word_db_server/internal/stores"
 	"github.com/jackc/pgx/v5/pgtype"
 	go_fsrs "github.com/open-spaced-repetition/go-fsrs/v3"
 )
 
 const addCards = `-- name: AddCards :one
 WITH inserted_rows AS (
-    INSERT INTO wordvault_cards(alphagram, next_scheduled, fsrs_card, user_id, lexicon_name)
-    SELECT unnest($1::TEXT[]),
+    INSERT INTO wordvault_cards(
+        alphagram, next_scheduled, fsrs_card, user_id, lexicon_name, review_log
+    )
+    SELECT
+        unnest($1::TEXT[]),
         unnest($2::TIMESTAMPTZ[]),
-        unnest(array_fill($3::JSONB, array[array_length($1, 1)])),
+        unnest($3::JSONB[]),
         unnest(array_fill($4::BIGINT, array[array_length($1, 1)])),
-        unnest(array_fill($5::TEXT, array[array_length($1, 1)]))
+        unnest(array_fill($5::TEXT, array[array_length($1, 1)])),
+        unnest(
+            COALESCE(
+                $6::JSONB[],
+                array_fill('[]'::JSONB, array[array_length($1, 1)])
+            )
+        )
     ON CONFLICT(user_id, lexicon_name, alphagram) DO NOTHING
     RETURNING 1
 )
@@ -29,18 +39,20 @@ SELECT COUNT(*) FROM inserted_rows
 type AddCardsParams struct {
 	Alphagrams     []string
 	NextScheduleds []pgtype.Timestamptz
-	FsrsCard       []byte
+	FsrsCards      [][]byte
 	UserID         int64
 	LexiconName    string
+	ReviewLogs     [][]byte
 }
 
 func (q *Queries) AddCards(ctx context.Context, arg AddCardsParams) (int64, error) {
 	row := q.db.QueryRow(ctx, addCards,
 		arg.Alphagrams,
 		arg.NextScheduleds,
-		arg.FsrsCard,
+		arg.FsrsCards,
 		arg.UserID,
 		arg.LexiconName,
+		arg.ReviewLogs,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -155,8 +167,8 @@ type GetCardParams struct {
 
 type GetCardRow struct {
 	NextScheduled pgtype.Timestamptz
-	FsrsCard      go_fsrs.Card
-	ReviewLog     []go_fsrs.ReviewLog
+	FsrsCard      stores.Card
+	ReviewLog     []stores.ReviewLog
 }
 
 func (q *Queries) GetCard(ctx context.Context, arg GetCardParams) (GetCardRow, error) {
@@ -181,8 +193,8 @@ type GetCardsParams struct {
 type GetCardsRow struct {
 	Alphagram     string
 	NextScheduled pgtype.Timestamptz
-	FsrsCard      go_fsrs.Card
-	ReviewLog     []go_fsrs.ReviewLog
+	FsrsCard      stores.Card
+	ReviewLog     []stores.ReviewLog
 }
 
 func (q *Queries) GetCards(ctx context.Context, arg GetCardsParams) ([]GetCardsRow, error) {
@@ -228,7 +240,7 @@ type GetNextScheduledParams struct {
 type GetNextScheduledRow struct {
 	Alphagram     string
 	NextScheduled pgtype.Timestamptz
-	FsrsCard      go_fsrs.Card
+	FsrsCard      stores.Card
 }
 
 func (q *Queries) GetNextScheduled(ctx context.Context, arg GetNextScheduledParams) ([]GetNextScheduledRow, error) {
@@ -434,7 +446,7 @@ type PostponementQueryParams struct {
 type PostponementQueryRow struct {
 	Alphagram     string
 	NextScheduled pgtype.Timestamptz
-	FsrsCard      go_fsrs.Card
+	FsrsCard      stores.Card
 }
 
 func (q *Queries) PostponementQuery(ctx context.Context, arg PostponementQueryParams) ([]PostponementQueryRow, error) {
@@ -479,7 +491,7 @@ WHERE user_id = $3 AND lexicon_name = $4 AND alphagram = $5
 `
 
 type UpdateCardParams struct {
-	FsrsCard      go_fsrs.Card
+	FsrsCard      stores.Card
 	NextScheduled pgtype.Timestamptz
 	UserID        int64
 	LexiconName   string
@@ -512,7 +524,7 @@ WHERE
 `
 
 type UpdateCardReplaceLastLogParams struct {
-	FsrsCard      go_fsrs.Card
+	FsrsCard      stores.Card
 	NextScheduled pgtype.Timestamptz
 	UserID        int64
 	LexiconName   string

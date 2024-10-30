@@ -5,6 +5,7 @@
 package models
 
 import (
+	"github.com/domino14/word_db_server/internal/stores"
 	"github.com/jackc/pgx/v5/pgtype"
 	go_fsrs "github.com/open-spaced-repetition/go-fsrs/v3"
 )
@@ -14,8 +15,8 @@ type WordvaultCard struct {
 	LexiconName   string
 	Alphagram     string
 	NextScheduled pgtype.Timestamptz
-	FsrsCard      go_fsrs.Card
-	ReviewLog     []go_fsrs.ReviewLog
+	FsrsCard      stores.Card
+	ReviewLog     []stores.ReviewLog
 }
 
 type WordvaultParam struct {

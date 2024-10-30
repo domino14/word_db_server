@@ -46,3 +46,21 @@ func timeTrack(start time.Time, name string) {
 	elapsed := time.Since(start)
 	log.Info().Dur("elapsed-ms", elapsed).Str("name", name).Msgf("time-track")
 }
+
+func (s *Server) HasAlphagram(alpha, lexicon string) (bool, error) {
+	db, err := getDbConnection(s.Config, lexicon)
+	if err != nil {
+		return false, err
+	}
+	defer db.Close()
+	// Prepare the query
+	var count int
+	err = db.QueryRow("SELECT count(*) FROM alphagrams WHERE alphagram = ?", alpha).Scan(&count)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil // No rows found means no matching alphagram
+		}
+		return false, fmt.Errorf("failed to execute query: %w", err)
+	}
+	return count > 0, nil
+}

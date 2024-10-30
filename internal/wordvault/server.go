@@ -23,6 +23,7 @@ import (
 	"github.com/domino14/word_db_server/config"
 	"github.com/domino14/word_db_server/internal/auth"
 	"github.com/domino14/word_db_server/internal/searchserver"
+	"github.com/domino14/word_db_server/internal/stores"
 	"github.com/domino14/word_db_server/internal/stores/models"
 )
 
@@ -101,7 +102,7 @@ func (s *Server) GetCardInformation(ctx context.Context, req *connect.Request[pb
 			// its metadata, not to quiz on any of the cards.
 			Alphagram:      &searchpb.Alphagram{Alphagram: req.Msg.Alphagrams[i]},
 			CardJsonRepr:   cardbts,
-			Retrievability: f.GetRetrievability(fcard, s.Nower.Now()),
+			Retrievability: f.GetRetrievability(fcard.Card, s.Nower.Now()),
 			ReviewLog:      revlogbts,
 		}
 	}
@@ -277,15 +278,15 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 	// the below function, so it doesn't need to be recalculated upon
 	// db load. However, the db version of this variable is useless. It
 	// should be a local variable and not stored in the db.
-	schedulingCards := f.Repeat(card, now)
+	schedulingCards := f.Repeat(card.Card, now)
 	rating := fsrs.Rating(req.Msg.Score)
-	card = schedulingCards[rating].Card
+	card = stores.Card{Card: schedulingCards[rating].Card}
 	rlog := schedulingCards[rating].ReviewLog
 	rlogbts, err := json.Marshal(rlog)
 	if err != nil {
 		return nil, err
 	}
-	furtherFuzzDueDate(params, now, &card)
+	furtherFuzzDueDate(params, now, &card.Card)
 	err = qtx.UpdateCard(ctx, models.UpdateCardParams{
 		FsrsCard:      card,
 		NextScheduled: toPGTimestamp(card.Due),
@@ -381,7 +382,7 @@ func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.Edit
 	furtherFuzzDueDate(params, now, &card)
 	// Overwrite last log with this new log.
 	err = qtx.UpdateCardReplaceLastLog(ctx, models.UpdateCardReplaceLastLogParams{
-		FsrsCard:      card,
+		FsrsCard:      stores.Card{Card: card},
 		NextScheduled: toPGTimestamp(card.Due),
 		UserID:        int64(user.DBID),
 		LexiconName:   req.Msg.Lexicon,
@@ -438,21 +439,24 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 	now := s.Nower.Now()
 
 	card.Due = now
-	alphagrams := req.Msg.Alphagrams
-	nextScheduleds := make([]pgtype.Timestamptz, len(alphagrams))
-	for i := range alphagrams {
-		nextScheduleds[i] = toPGTimestamp(now)
-	}
-	bts, err := json.Marshal(card)
+	cardbts, err := json.Marshal(card)
 	if err != nil {
 		return nil, err
+	}
+
+	alphagrams := req.Msg.Alphagrams
+	nextScheduleds := make([]pgtype.Timestamptz, len(alphagrams))
+	cards := make([][]byte, len(alphagrams))
+	for i := range alphagrams {
+		nextScheduleds[i] = toPGTimestamp(now)
+		cards[i] = cardbts // This is by reference but it's ok after marshalling.
 	}
 
 	numInserted, err := s.Queries.AddCards(ctx, models.AddCardsParams{
 		UserID:      int64(user.DBID),
 		LexiconName: req.Msg.Lexicon,
 		// sqlc compiler can't detect this is a special type. It's ok.
-		FsrsCard:       bts,
+		FsrsCards:      cards,
 		Alphagrams:     alphagrams,
 		NextScheduleds: nextScheduleds,
 	})
@@ -594,7 +598,7 @@ func (s *Server) Postpone(ctx context.Context, req *connect.Request[pb.PostponeR
 	postponements := make([]postponement, len(duecards))
 	for i := range duecards {
 		card := &duecards[i].FsrsCard
-		postponements[i].card = card
+		postponements[i].card = &card.Card
 		postponements[i].alphagram = duecards[i].Alphagram
 		ivl := card.ScheduledDays
 
