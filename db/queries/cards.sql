@@ -62,12 +62,21 @@ WHERE user_id = $2;
 
 -- name: AddCards :one
 WITH inserted_rows AS (
-    INSERT INTO wordvault_cards(alphagram, next_scheduled, fsrs_card, user_id, lexicon_name)
-    SELECT unnest(@alphagrams::TEXT[]),
+    INSERT INTO wordvault_cards(
+        alphagram, next_scheduled, fsrs_card, user_id, lexicon_name, review_log
+    )
+    SELECT
+        unnest(@alphagrams::TEXT[]),
         unnest(@next_scheduleds::TIMESTAMPTZ[]),
-        unnest(array_fill(@fsrs_card::JSONB, array[array_length(@alphagrams, 1)])),
+        unnest(@fsrs_cards::JSONB[]),
         unnest(array_fill(@user_id::BIGINT, array[array_length(@alphagrams, 1)])),
-        unnest(array_fill(@lexicon_name::TEXT, array[array_length(@alphagrams, 1)]))
+        unnest(array_fill(@lexicon_name::TEXT, array[array_length(@alphagrams, 1)])),
+        unnest(
+            COALESCE(
+                @review_logs::JSONB[],
+                array_fill('[]'::JSONB, array[array_length(@alphagrams, 1)])
+            )
+        )
     ON CONFLICT(user_id, lexicon_name, alphagram) DO NOTHING
     RETURNING 1
 )

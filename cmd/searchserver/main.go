@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
@@ -24,6 +26,7 @@ import (
 	"github.com/domino14/word_db_server/api/rpc/wordvault/wordvaultconnect"
 	"github.com/domino14/word_db_server/config"
 	"github.com/domino14/word_db_server/internal/anagramserver"
+	"github.com/domino14/word_db_server/internal/auth"
 	"github.com/domino14/word_db_server/internal/searchserver"
 	"github.com/domino14/word_db_server/internal/stores/models"
 	"github.com/domino14/word_db_server/internal/wordvault"
@@ -32,6 +35,8 @@ import (
 const (
 	GracefulShutdownTimeout = 10 * time.Second
 )
+
+const maxUploadSize = 25 << 20 // 25 MB
 
 func main() {
 
@@ -110,6 +115,7 @@ func main() {
 	).Then(api)
 
 	mux.Handle("/api/", http.StripPrefix("/api", apichain))
+	mux.Handle("/import-cardbox/", http.HandlerFunc(importCardboxHandler(queries, searchServer, dbPool, []byte(cfg.SecretKey))))
 
 	srv := &http.Server{
 		Addr:    ":8180",
@@ -138,4 +144,107 @@ func main() {
 	}
 	<-idleConnsClosed
 	log.Info().Msg("server gracefully shutting down")
+}
+
+func importCardboxHandler(queries *models.Queries, searchServer *searchserver.Server, dbPool *pgxpool.Pool, secretKey []byte) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, err := authenticateJWT(r.Context(), r.Header, secretKey)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusUnauthorized)
+			return
+		}
+		u := auth.UserFromContext(ctx)
+		if u != nil {
+			log.Info().Str("username", u.Username).Msg("authenticated-user-uploading-cardbox")
+		} else {
+			http.Error(w, "unexpected-empty-user", http.StatusUnauthorized)
+			return
+		}
+
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Limit the size of the request body to prevent denial of service attacks
+		r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
+		if err := r.ParseMultipartForm(maxUploadSize); err != nil {
+			http.Error(w, "The uploaded file is too big. Please choose a file that's less than 25MB in size.", http.StatusBadRequest)
+			return
+		}
+
+		// Read the "lexicon" parameter from the form data
+		lexicon := r.FormValue("lexicon")
+		if lexicon == "" {
+			http.Error(w, "Missing 'lexicon' parameter.", http.StatusBadRequest)
+			return
+		}
+
+		file, _, err := r.FormFile("file")
+		if err != nil {
+			http.Error(w, "Unable to read uploaded file.", http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+
+		// Read the first 16 bytes to check for the SQLite magic header
+		buffer := make([]byte, 16)
+		if _, err := io.ReadFull(file, buffer); err != nil {
+			http.Error(w, "Unable to read uploaded file.", http.StatusInternalServerError)
+			return
+		}
+
+		// Verify the SQLite magic header
+		magicHeader := "SQLite format 3\x00"
+		if string(buffer[:len(magicHeader)]) != magicHeader {
+			http.Error(w, "Uploaded file is not a valid SQLite file.", http.StatusBadRequest)
+			return
+		}
+
+		// Create a temporary file to save the uploaded SQLite database
+		tempFile, err := os.CreateTemp("", "uploaded-*.sqlite")
+		if err != nil {
+			http.Error(w, "Unable to create temporary file.", http.StatusInternalServerError)
+			return
+		}
+		defer func() {
+			tempFile.Close()
+			os.Remove(tempFile.Name()) // Clean up the file after processing
+		}()
+
+		// Write the initial 16 bytes (already read) to the temp file
+		if _, err := tempFile.Write(buffer); err != nil {
+			http.Error(w, "Unable to write to temporary file.", http.StatusInternalServerError)
+			return
+		}
+
+		// Copy the rest of the file to the temp file
+		if _, err := io.Copy(tempFile, file); err != nil {
+			http.Error(w, "Unable to write to temporary file.", http.StatusInternalServerError)
+			return
+		}
+
+		// Process the SQLite database
+		if nAdded, invalidAlphas, err := wordvault.LeitnerImport(ctx, searchServer, lexicon, queries, dbPool, tempFile.Name()); err != nil {
+			log.Err(err).Msg("error-cardbox-import")
+			http.Error(w, "Error processing SQLite database.", http.StatusInternalServerError)
+			return
+		} else {
+			ct := len(invalidAlphas)
+			truncated := false
+			if ct > 50 {
+				invalidAlphas = invalidAlphas[:50]
+				truncated = true
+			}
+
+			fmt.Fprintf(w, "Imported %d cards into your WordVault. Did not import %d alphagrams ", nAdded, ct)
+			if truncated {
+				fmt.Fprintf(w, "(First few: %v)", invalidAlphas)
+			} else {
+				fmt.Fprintf(w, "(%v)", invalidAlphas)
+			}
+			return
+		}
+
+	}
 }

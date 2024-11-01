@@ -20,10 +20,11 @@ func main() {
 
 	for range 10 {
 		schedulingCards := f.Repeat(card, card.Due)
-		rating := fsrs.Easy
+		rating := fsrs.Again
 		card = schedulingCards[rating].Card
 		revlog := schedulingCards[rating].ReviewLog
 		fmt.Println("state", revlog.State)
 		fmt.Println("due", card.Due)
+		fmt.Println("stab", card.Stability)
 	}
 }

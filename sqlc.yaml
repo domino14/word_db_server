@@ -1,6 +1,8 @@
 version: "2"
 sql:
-- schema: "db/migrations"
+- schema:
+    - "db/migrations"
+    - "db/mock_schemas"
   queries: "db/queries"
   engine: "postgresql"
   gen:
@@ -16,10 +18,10 @@ sql:
           type: "Parameters"
       - column: "wordvault_cards.fsrs_card"
         go_type:
-          import: "github.com/open-spaced-repetition/go-fsrs/v3"
+          import: "github.com/domino14/word_db_server/internal/stores"
           type: "Card"
       - column: "wordvault_cards.review_log"
         go_type:
-          import: "github.com/open-spaced-repetition/go-fsrs/v3"
+          import: "github.com/domino14/word_db_server/internal/stores"
           type: "ReviewLog"
           slice: true

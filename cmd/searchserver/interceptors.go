@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -25,7 +26,7 @@ func NewAuthInterceptor(secretKey []byte) connect.UnaryInterceptorFunc {
 			header := req.Header()
 
 			if header.Get("Authorization") != "" {
-				return userJWTAuth(ctx, secretKey, req, next)
+				return jwtInterceptor(ctx, secretKey, req, next)
 			}
 			return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("no auth method"))
 		})
@@ -33,58 +34,68 @@ func NewAuthInterceptor(secretKey []byte) connect.UnaryInterceptorFunc {
 	return connect.UnaryInterceptorFunc(interceptor)
 }
 
-func userJWTAuth(ctx context.Context, secretKey []byte, req connect.AnyRequest, next connect.UnaryFunc) (
+func jwtInterceptor(ctx context.Context, secretKey []byte, req connect.AnyRequest, next connect.UnaryFunc) (
 	connect.AnyResponse, error) {
 
-	usertoken := strings.TrimPrefix(req.Header().Get("Authorization"), "Bearer ")
-	token, err := jwt.Parse(usertoken, func(token *jwt.Token) (interface{}, error) {
+	ctx, err := authenticateJWT(ctx, req.Header(), secretKey)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnauthenticated, err)
+	}
+	return next(ctx, req)
+}
+
+func authenticateJWT(ctx context.Context, reqHeader http.Header, secretKey []byte) (context.Context, error) {
+	authHeader := reqHeader.Get("Authorization")
+	if authHeader == "" {
+		return nil, errors.New("no auth method")
+	}
+
+	userToken := strings.TrimPrefix(authHeader, "Bearer ")
+	token, err := jwt.Parse(userToken, func(token *jwt.Token) (interface{}, error) {
+		// Ensure the signing method is HMAC
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return secretKey, nil
 	})
 	if err != nil {
 		log.Err(err).Msg("err-parsing-token")
-		return nil, connect.NewError(
-			connect.CodeUnauthenticated,
-			errors.New("could not parse token"),
-		)
+		return nil, errors.New("could not parse token")
 	}
 
-	if claims, ok := token.Claims.(jwt.MapClaims); ok {
-		uidstr, err := claims.GetSubject()
-		if err != nil {
-			return nil, connect.NewError(
-				connect.CodeUnauthenticated,
-				errors.New("could not parse uid claim"),
-			)
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		// Extract the subject (uid)
+		uidStr, ok := claims["sub"].(string)
+		if !ok {
+			return nil, errors.New("could not parse uid claim")
 		}
-		uid, err := strconv.Atoi(uidstr)
+		uid, err := strconv.Atoi(uidStr)
 		if err != nil {
-			return nil, connect.NewError(
-				connect.CodeUnauthenticated,
-				errors.New("could not parse uid as an integer"),
-			)
+			return nil, errors.New("could not parse uid as an integer")
 		}
+
+		// Extract the issuer
 		iss, ok := claims["iss"].(string)
 		if !ok || (iss != "aerolith.org" && iss != "aerolith.localhost") {
-			return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unexpected iss claim"))
+			return nil, errors.New("unexpected iss claim")
 		}
+
+		// Extract the username
 		usn, ok := claims["usn"].(string)
-		if usn == "" {
-			return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unexpected empty usn claim"))
+		if !ok || usn == "" {
+			return nil, errors.New("unexpected usn claim")
 		}
+
+		// Extract the mbr claim
 		mbr, ok := claims["mbr"].(bool)
 		if !ok {
-			return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unexpected mbr claim"))
+			return nil, errors.New("unexpected mbr claim")
 		}
-		ctx = auth.StoreUserInContext(ctx, uid, usn, mbr)
-	} else {
-		return nil, connect.NewError(
-			connect.CodeUnauthenticated,
-			errors.New("could not parse token claims"),
-		)
-	}
 
-	return next(ctx, req)
+		// Store user information in context
+		ctx := auth.StoreUserInContext(ctx, uid, usn, mbr)
+		return ctx, nil
+	} else {
+		return nil, errors.New("could not parse token claims")
+	}
 }

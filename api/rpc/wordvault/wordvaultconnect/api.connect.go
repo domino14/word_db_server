@@ -62,6 +62,12 @@ const (
 	WordVaultServicePostponeProcedure = "/wordvault.WordVaultService/Postpone"
 	// WordVaultServiceDeleteProcedure is the fully-qualified name of the WordVaultService's Delete RPC.
 	WordVaultServiceDeleteProcedure = "/wordvault.WordVaultService/Delete"
+	// WordVaultServiceGetDailyProgressProcedure is the fully-qualified name of the WordVaultService's
+	// GetDailyProgress RPC.
+	WordVaultServiceGetDailyProgressProcedure = "/wordvault.WordVaultService/GetDailyProgress"
+	// WordVaultServiceGetDailyLeaderboardProcedure is the fully-qualified name of the
+	// WordVaultService's GetDailyLeaderboard RPC.
+	WordVaultServiceGetDailyLeaderboardProcedure = "/wordvault.WordVaultService/GetDailyLeaderboard"
 )
 
 // These variables are the protoreflect.Descriptor objects for the RPCs defined in this package.
@@ -77,6 +83,8 @@ var (
 	wordVaultServiceAddCardsMethodDescriptor               = wordVaultServiceServiceDescriptor.Methods().ByName("AddCards")
 	wordVaultServicePostponeMethodDescriptor               = wordVaultServiceServiceDescriptor.Methods().ByName("Postpone")
 	wordVaultServiceDeleteMethodDescriptor                 = wordVaultServiceServiceDescriptor.Methods().ByName("Delete")
+	wordVaultServiceGetDailyProgressMethodDescriptor       = wordVaultServiceServiceDescriptor.Methods().ByName("GetDailyProgress")
+	wordVaultServiceGetDailyLeaderboardMethodDescriptor    = wordVaultServiceServiceDescriptor.Methods().ByName("GetDailyLeaderboard")
 )
 
 // WordVaultServiceClient is a client for the wordvault.WordVaultService service.
@@ -91,6 +99,8 @@ type WordVaultServiceClient interface {
 	AddCards(context.Context, *connect.Request[wordvault.AddCardsRequest]) (*connect.Response[wordvault.AddCardsResponse], error)
 	Postpone(context.Context, *connect.Request[wordvault.PostponeRequest]) (*connect.Response[wordvault.PostponeResponse], error)
 	Delete(context.Context, *connect.Request[wordvault.DeleteRequest]) (*connect.Response[wordvault.DeleteResponse], error)
+	GetDailyProgress(context.Context, *connect.Request[wordvault.GetDailyProgressRequest]) (*connect.Response[wordvault.GetDailyProgressResponse], error)
+	GetDailyLeaderboard(context.Context, *connect.Request[wordvault.GetDailyLeaderboardRequest]) (*connect.Response[wordvault.GetDailyLeaderboardResponse], error)
 }
 
 // NewWordVaultServiceClient constructs a client for the wordvault.WordVaultService service. By
@@ -167,6 +177,20 @@ func NewWordVaultServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(wordVaultServiceDeleteMethodDescriptor),
 			connect.WithClientOptions(opts...),
 		),
+		getDailyProgress: connect.NewClient[wordvault.GetDailyProgressRequest, wordvault.GetDailyProgressResponse](
+			httpClient,
+			baseURL+WordVaultServiceGetDailyProgressProcedure,
+			connect.WithSchema(wordVaultServiceGetDailyProgressMethodDescriptor),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		getDailyLeaderboard: connect.NewClient[wordvault.GetDailyLeaderboardRequest, wordvault.GetDailyLeaderboardResponse](
+			httpClient,
+			baseURL+WordVaultServiceGetDailyLeaderboardProcedure,
+			connect.WithSchema(wordVaultServiceGetDailyLeaderboardMethodDescriptor),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -182,6 +206,8 @@ type wordVaultServiceClient struct {
 	addCards               *connect.Client[wordvault.AddCardsRequest, wordvault.AddCardsResponse]
 	postpone               *connect.Client[wordvault.PostponeRequest, wordvault.PostponeResponse]
 	delete                 *connect.Client[wordvault.DeleteRequest, wordvault.DeleteResponse]
+	getDailyProgress       *connect.Client[wordvault.GetDailyProgressRequest, wordvault.GetDailyProgressResponse]
+	getDailyLeaderboard    *connect.Client[wordvault.GetDailyLeaderboardRequest, wordvault.GetDailyLeaderboardResponse]
 }
 
 // GetCardCount calls wordvault.WordVaultService.GetCardCount.
@@ -234,6 +260,16 @@ func (c *wordVaultServiceClient) Delete(ctx context.Context, req *connect.Reques
 	return c.delete.CallUnary(ctx, req)
 }
 
+// GetDailyProgress calls wordvault.WordVaultService.GetDailyProgress.
+func (c *wordVaultServiceClient) GetDailyProgress(ctx context.Context, req *connect.Request[wordvault.GetDailyProgressRequest]) (*connect.Response[wordvault.GetDailyProgressResponse], error) {
+	return c.getDailyProgress.CallUnary(ctx, req)
+}
+
+// GetDailyLeaderboard calls wordvault.WordVaultService.GetDailyLeaderboard.
+func (c *wordVaultServiceClient) GetDailyLeaderboard(ctx context.Context, req *connect.Request[wordvault.GetDailyLeaderboardRequest]) (*connect.Response[wordvault.GetDailyLeaderboardResponse], error) {
+	return c.getDailyLeaderboard.CallUnary(ctx, req)
+}
+
 // WordVaultServiceHandler is an implementation of the wordvault.WordVaultService service.
 type WordVaultServiceHandler interface {
 	GetCardCount(context.Context, *connect.Request[wordvault.GetCardCountRequest]) (*connect.Response[wordvault.CardCountResponse], error)
@@ -246,6 +282,8 @@ type WordVaultServiceHandler interface {
 	AddCards(context.Context, *connect.Request[wordvault.AddCardsRequest]) (*connect.Response[wordvault.AddCardsResponse], error)
 	Postpone(context.Context, *connect.Request[wordvault.PostponeRequest]) (*connect.Response[wordvault.PostponeResponse], error)
 	Delete(context.Context, *connect.Request[wordvault.DeleteRequest]) (*connect.Response[wordvault.DeleteResponse], error)
+	GetDailyProgress(context.Context, *connect.Request[wordvault.GetDailyProgressRequest]) (*connect.Response[wordvault.GetDailyProgressResponse], error)
+	GetDailyLeaderboard(context.Context, *connect.Request[wordvault.GetDailyLeaderboardRequest]) (*connect.Response[wordvault.GetDailyLeaderboardResponse], error)
 }
 
 // NewWordVaultServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -318,6 +356,20 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 		connect.WithSchema(wordVaultServiceDeleteMethodDescriptor),
 		connect.WithHandlerOptions(opts...),
 	)
+	wordVaultServiceGetDailyProgressHandler := connect.NewUnaryHandler(
+		WordVaultServiceGetDailyProgressProcedure,
+		svc.GetDailyProgress,
+		connect.WithSchema(wordVaultServiceGetDailyProgressMethodDescriptor),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	wordVaultServiceGetDailyLeaderboardHandler := connect.NewUnaryHandler(
+		WordVaultServiceGetDailyLeaderboardProcedure,
+		svc.GetDailyLeaderboard,
+		connect.WithSchema(wordVaultServiceGetDailyLeaderboardMethodDescriptor),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/wordvault.WordVaultService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case WordVaultServiceGetCardCountProcedure:
@@ -340,6 +392,10 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 			wordVaultServicePostponeHandler.ServeHTTP(w, r)
 		case WordVaultServiceDeleteProcedure:
 			wordVaultServiceDeleteHandler.ServeHTTP(w, r)
+		case WordVaultServiceGetDailyProgressProcedure:
+			wordVaultServiceGetDailyProgressHandler.ServeHTTP(w, r)
+		case WordVaultServiceGetDailyLeaderboardProcedure:
+			wordVaultServiceGetDailyLeaderboardHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -387,4 +443,12 @@ func (UnimplementedWordVaultServiceHandler) Postpone(context.Context, *connect.R
 
 func (UnimplementedWordVaultServiceHandler) Delete(context.Context, *connect.Request[wordvault.DeleteRequest]) (*connect.Response[wordvault.DeleteResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.Delete is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) GetDailyProgress(context.Context, *connect.Request[wordvault.GetDailyProgressRequest]) (*connect.Response[wordvault.GetDailyProgressResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.GetDailyProgress is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) GetDailyLeaderboard(context.Context, *connect.Request[wordvault.GetDailyLeaderboardRequest]) (*connect.Response[wordvault.GetDailyLeaderboardResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.GetDailyLeaderboard is not implemented"))
 }
