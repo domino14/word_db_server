@@ -54,7 +54,8 @@ FROM
     wordvault_cards
 WHERE
     user_id = @user_id
-    AND ((fsrs_card->>'LastReview')::timestamp AT TIME ZONE 'UTC' AT TIME ZONE sqlc.arg(timezone)::text)::date = (sqlc.arg(now)::timestamptz AT TIME ZONE sqlc.arg(timezone)::text)::date;
+    AND ((fsrs_card->>'LastReview')::timestamp AT TIME ZONE 'UTC' AT TIME ZONE sqlc.arg(timezone)::text)::date =
+        (sqlc.arg(now)::timestamptz AT TIME ZONE sqlc.arg(timezone)::text)::date;
 
 
 -- name: GetDailyLeaderboard :many
@@ -64,10 +65,13 @@ SELECT
 FROM
     wordvault_cards
 WHERE
-    -- this query needs to be made more efficient; we can add a separate last_review
-    -- column and keep it up to date.
-    ((fsrs_card->>'LastReview')::timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Los_Angeles')::date =
-        (NOW() AT TIME ZONE 'America/Los_Angeles')::date
+    fsrs_card->>'LastReview' >= to_char(
+        date_trunc('day',
+            now() at time zone 'America/Los_Angeles')
+                  at time zone 'America/Los_Angeles'
+                  at time zone 'UTC',
+        'YYYY-MM-DD"T"HH24:MI:SS'
+    )
 GROUP BY
     user_id
 ORDER BY
