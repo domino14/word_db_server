@@ -13,28 +13,33 @@ import (
 
 const getDailyLeaderboard = `-- name: GetDailyLeaderboard :many
 SELECT
-    user_id,
+    u.username,
     COUNT(*) AS cards_studied_today
 FROM
-    wordvault_cards
+    wordvault_cards wc
+JOIN
+    auth_user u ON wc.user_id = u.id
 WHERE
-    -- this query needs to be made more efficient; we can add a separate last_review
-    -- column and keep it up to date.
-    ((fsrs_card->>'LastReview')::timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Los_Angeles')::date =
-        (NOW() AT TIME ZONE 'America/Los_Angeles')::date
+    wc.fsrs_card->>'LastReview' >= to_char(
+        date_trunc('day',
+            now() AT TIME ZONE $1::text)
+                  AT TIME ZONE $1::text
+                  AT TIME ZONE 'UTC',
+        'YYYY-MM-DD"T"HH24:MI:SS'
+    )
 GROUP BY
-    user_id
+    u.username
 ORDER BY
     cards_studied_today DESC
 `
 
 type GetDailyLeaderboardRow struct {
-	UserID            int64
+	Username          pgtype.Text
 	CardsStudiedToday int64
 }
 
-func (q *Queries) GetDailyLeaderboard(ctx context.Context) ([]GetDailyLeaderboardRow, error) {
-	rows, err := q.db.Query(ctx, getDailyLeaderboard)
+func (q *Queries) GetDailyLeaderboard(ctx context.Context, timezone string) ([]GetDailyLeaderboardRow, error) {
+	rows, err := q.db.Query(ctx, getDailyLeaderboard, timezone)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +47,7 @@ func (q *Queries) GetDailyLeaderboard(ctx context.Context) ([]GetDailyLeaderboar
 	var items []GetDailyLeaderboardRow
 	for rows.Next() {
 		var i GetDailyLeaderboardRow
-		if err := rows.Scan(&i.UserID, &i.CardsStudiedToday); err != nil {
+		if err := rows.Scan(&i.Username, &i.CardsStudiedToday); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -108,7 +113,8 @@ FROM
     wordvault_cards
 WHERE
     user_id = $1
-    AND ((fsrs_card->>'LastReview')::timestamp AT TIME ZONE 'UTC' AT TIME ZONE $2::text)::date = ($3::timestamptz AT TIME ZONE $2::text)::date
+    AND ((fsrs_card->>'LastReview')::timestamp AT TIME ZONE 'UTC' AT TIME ZONE $2::text)::date =
+        ($3::timestamptz AT TIME ZONE $2::text)::date
 `
 
 type GetDailyProgressParams struct {

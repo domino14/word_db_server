@@ -97,6 +97,20 @@ message DeleteRequest {
 
 message DeleteResponse { uint32 num_deleted = 1; }
 
+message GetDailyProgressRequest { string timezone = 1; }
+
+message GetDailyProgressResponse { map<string, int32> progress_stats = 1; }
+
+message GetDailyLeaderboardRequest { string timezone = 1; }
+
+message GetDailyLeaderboardResponse {
+  message LeaderboardItem {
+    string user = 1;
+    int32 cards_studied = 2;
+  }
+  repeated LeaderboardItem items = 1;
+}
+
 service WordVaultService {
   rpc GetCardCount(GetCardCountRequest) returns (CardCountResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -118,4 +132,12 @@ service WordVaultService {
   rpc AddCards(AddCardsRequest) returns (AddCardsResponse);
   rpc Postpone(PostponeRequest) returns (PostponeResponse);
   rpc Delete(DeleteRequest) returns (DeleteResponse);
+  rpc GetDailyProgress(GetDailyProgressRequest)
+      returns (GetDailyProgressResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  };
+  rpc GetDailyLeaderboard(GetDailyLeaderboardRequest)
+      returns (GetDailyLeaderboardResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  };
 }

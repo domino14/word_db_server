@@ -706,7 +706,61 @@ func (s *Server) Delete(ctx context.Context, req *connect.Request[pb.DeleteReque
 		return nil, err
 	}
 	return connect.NewResponse(&pb.DeleteResponse{NumDeleted: uint32(deletedRows)}), nil
+}
 
+func (s *Server) GetDailyProgress(ctx context.Context, req *connect.Request[pb.GetDailyProgressRequest]) (
+	*connect.Response[pb.GetDailyProgressResponse], error) {
+
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+
+	progress, err := s.Queries.GetDailyProgress(ctx, models.GetDailyProgressParams{
+		UserID:   int64(user.DBID),
+		Timezone: req.Msg.Timezone,
+		Now:      toPGTimestamp(s.Nower.Now()),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&pb.GetDailyProgressResponse{
+		ProgressStats: map[string]int32{
+			"New":            int32(progress.NewCards),
+			"Reviewed":       int32(progress.ReviewedCards),
+			"NewMissed":      int32(progress.NewRating1),
+			"NewHard":        int32(progress.NewRating2),
+			"NewGood":        int32(progress.NewRating3),
+			"NewEasy":        int32(progress.NewRating4),
+			"ReviewedMissed": int32(progress.ReviewedRating1),
+			"ReviewedHard":   int32(progress.ReviewedRating2),
+			"ReviewedGood":   int32(progress.ReviewedRating3),
+			"ReviewedEasy":   int32(progress.ReviewedRating4),
+		},
+	}), nil
+}
+
+func (s *Server) GetDailyLeaderboard(ctx context.Context, req *connect.Request[pb.GetDailyLeaderboardRequest]) (
+	*connect.Response[pb.GetDailyLeaderboardResponse], error) {
+
+	// interceptor still requires login, but we don't check it here  🤔
+
+	leaderboardRows, err := s.Queries.GetDailyLeaderboard(ctx, req.Msg.Timezone)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &pb.GetDailyLeaderboardResponse{
+		Items: make([]*pb.GetDailyLeaderboardResponse_LeaderboardItem, len(leaderboardRows)),
+	}
+
+	for i := range leaderboardRows {
+		resp.Items[i] = &pb.GetDailyLeaderboardResponse_LeaderboardItem{
+			User:         leaderboardRows[i].Username.String,
+			CardsStudied: int32(leaderboardRows[i].CardsStudiedToday),
+		}
+	}
+	return connect.NewResponse(resp), nil
 }
 
 // The fsrs library fuzzes only by day. It tends to ask questions at the same

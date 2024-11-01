@@ -60,19 +60,21 @@ WHERE
 
 -- name: GetDailyLeaderboard :many
 SELECT
-    user_id,
+    u.username,
     COUNT(*) AS cards_studied_today
 FROM
-    wordvault_cards
+    wordvault_cards wc
+JOIN
+    auth_user u ON wc.user_id = u.id
 WHERE
-    fsrs_card->>'LastReview' >= to_char(
+    wc.fsrs_card->>'LastReview' >= to_char(
         date_trunc('day',
-            now() at time zone 'America/Los_Angeles')
-                  at time zone 'America/Los_Angeles'
-                  at time zone 'UTC',
+            now() AT TIME ZONE sqlc.arg(timezone)::text)
+                  AT TIME ZONE sqlc.arg(timezone)::text
+                  AT TIME ZONE 'UTC',
         'YYYY-MM-DD"T"HH24:MI:SS'
     )
 GROUP BY
-    user_id
+    u.username
 ORDER BY
     cards_studied_today DESC;

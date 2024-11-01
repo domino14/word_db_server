@@ -10,6 +10,11 @@ import (
 	go_fsrs "github.com/open-spaced-repetition/go-fsrs/v3"
 )
 
+type AuthUser struct {
+	ID       int64
+	Username pgtype.Text
+}
+
 type WordvaultCard struct {
 	UserID        int64
 	LexiconName   string
