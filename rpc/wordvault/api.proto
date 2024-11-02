@@ -92,7 +92,8 @@ message DeleteRequest {
   string lexicon = 1;
   // The following two conditions are mutually exclusive.
   bool only_new_questions = 2;
-  repeated string alphagrams = 3;
+  repeated string only_alphagrams = 3;
+  bool all_questions = 4;
 }
 
 message DeleteResponse { uint32 num_deleted = 1; }

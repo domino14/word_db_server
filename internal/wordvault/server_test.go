@@ -1056,8 +1056,8 @@ func TestDelete(t *testing.T) {
 	}
 
 	res, err := s.Delete(ctx, connect.NewRequest(&pb.DeleteRequest{
-		Lexicon:    "NWL23",
-		Alphagrams: []string{"AVYYZZZ"},
+		Lexicon:        "NWL23",
+		OnlyAlphagrams: []string{"AVYYZZZ"},
 	}))
 	is.NoErr(err)
 	is.Equal(res.Msg.NumDeleted, uint32(0))
@@ -1065,7 +1065,7 @@ func TestDelete(t *testing.T) {
 	res, err = s.Delete(ctx, connect.NewRequest(&pb.DeleteRequest{
 		Lexicon: "NWL23",
 		// These two are 7958, 7942, 7836 by probability
-		Alphagrams: []string{"ABEGKOR", "CEIITUV", "EINNNRS"},
+		OnlyAlphagrams: []string{"ABEGKOR", "CEIITUV", "EINNNRS"},
 	}))
 	is.NoErr(err)
 	is.Equal(res.Msg.NumDeleted, uint32(3))
@@ -1088,7 +1088,8 @@ func TestDelete(t *testing.T) {
 
 	// Delete all cards.
 	res, err = s.Delete(ctx, connect.NewRequest(&pb.DeleteRequest{
-		Lexicon: "NWL23",
+		Lexicon:      "NWL23",
+		AllQuestions: true,
 	}))
 	is.NoErr(err)
 	is.Equal(res.Msg.NumDeleted, uint32(299))

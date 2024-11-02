@@ -680,7 +680,7 @@ func (s *Server) Delete(ctx context.Context, req *connect.Request[pb.DeleteReque
 	if req.Msg.Lexicon == "" {
 		return nil, invalidArgError("need a lexicon")
 	}
-	if req.Msg.OnlyNewQuestions && len(req.Msg.Alphagrams) > 0 {
+	if req.Msg.OnlyNewQuestions && len(req.Msg.OnlyAlphagrams) > 0 {
 		return nil, invalidArgError("cannot delete only new questions and a list of alphagrams")
 	}
 	var err error
@@ -690,17 +690,19 @@ func (s *Server) Delete(ctx context.Context, req *connect.Request[pb.DeleteReque
 			UserID:      int64(user.DBID),
 			LexiconName: req.Msg.Lexicon,
 		})
-	} else if len(req.Msg.Alphagrams) == 0 {
+	} else if req.Msg.AllQuestions {
 		// delete them all!
 		deletedRows, err = s.Queries.DeleteCards(ctx, models.DeleteCardsParams{
 			UserID: int64(user.DBID), LexiconName: req.Msg.Lexicon,
 		})
-	} else {
+	} else if len(req.Msg.OnlyAlphagrams) > 0 {
 		deletedRows, err = s.Queries.DeleteCardsWithAlphagrams(ctx, models.DeleteCardsWithAlphagramsParams{
 			UserID:      int64(user.DBID),
 			LexiconName: req.Msg.Lexicon,
-			Alphagrams:  req.Msg.Alphagrams,
+			Alphagrams:  req.Msg.OnlyAlphagrams,
 		})
+	} else {
+		return nil, invalidArgError("invalid parameters for delete request")
 	}
 	if err != nil {
 		return nil, err
