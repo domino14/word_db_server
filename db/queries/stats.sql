@@ -1,62 +1,60 @@
-
 -- name: GetDailyProgress :one
 SELECT
     -- Count of new cards studied today
-    SUM(CASE
+    COALESCE(SUM(CASE
         WHEN jsonb_array_length(review_log) = 1
         THEN 1
         ELSE 0
-    END) AS new_cards,
+    END), 0)::int AS new_cards,
 
     -- Count of reviewed cards studied today
-    SUM(CASE
+    COALESCE(SUM(CASE
         WHEN jsonb_array_length(review_log) > 1
         THEN 1
         ELSE 0
-    END) AS reviewed_cards,
+    END), 0)::int AS reviewed_cards,
 
     -- Rating breakdown for new cards
-    COUNT(*) FILTER (
+    COALESCE(COUNT(*) FILTER (
         WHERE jsonb_array_length(review_log) = 1
               AND (review_log->0->>'Rating')::int = 1
-    ) AS new_rating_1,
-    COUNT(*) FILTER (
+    ), 0)::int AS new_rating_1,
+    COALESCE(COUNT(*) FILTER (
         WHERE jsonb_array_length(review_log) = 1
               AND (review_log->0->>'Rating')::int = 2
-    ) AS new_rating_2,
-    COUNT(*) FILTER (
+    ), 0)::int AS new_rating_2,
+    COALESCE(COUNT(*) FILTER (
         WHERE jsonb_array_length(review_log) = 1
               AND (review_log->0->>'Rating')::int = 3
-    ) AS new_rating_3,
-    COUNT(*) FILTER (
+    ), 0)::int AS new_rating_3,
+    COALESCE(COUNT(*) FILTER (
         WHERE jsonb_array_length(review_log) = 1
               AND (review_log->0->>'Rating')::int = 4
-    ) AS new_rating_4,
+    ), 0)::int AS new_rating_4,
 
     -- Rating breakdown for reviewed cards
-    COUNT(*) FILTER (
+    COALESCE(COUNT(*) FILTER (
         WHERE jsonb_array_length(review_log) > 1
               AND (review_log->-1->>'Rating')::int = 1
-    ) AS reviewed_rating_1,
-    COUNT(*) FILTER (
+    ), 0)::int AS reviewed_rating_1,
+    COALESCE(COUNT(*) FILTER (
         WHERE jsonb_array_length(review_log) > 1
               AND (review_log->-1->>'Rating')::int = 2
-    ) AS reviewed_rating_2,
-    COUNT(*) FILTER (
+    ), 0)::int AS reviewed_rating_2,
+    COALESCE(COUNT(*) FILTER (
         WHERE jsonb_array_length(review_log) > 1
               AND (review_log->-1->>'Rating')::int = 3
-    ) AS reviewed_rating_3,
-    COUNT(*) FILTER (
+    ), 0)::int AS reviewed_rating_3,
+    COALESCE(COUNT(*) FILTER (
         WHERE jsonb_array_length(review_log) > 1
               AND (review_log->-1->>'Rating')::int = 4
-    ) AS reviewed_rating_4
+    ), 0)::int AS reviewed_rating_4
 FROM
     wordvault_cards
 WHERE
     user_id = @user_id
     AND ((fsrs_card->>'LastReview')::timestamp AT TIME ZONE 'UTC' AT TIME ZONE sqlc.arg(timezone)::text)::date =
         (sqlc.arg(now)::timestamptz AT TIME ZONE sqlc.arg(timezone)::text)::date;
-
 
 -- name: GetDailyLeaderboard :many
 SELECT

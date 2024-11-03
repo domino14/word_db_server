@@ -61,54 +61,54 @@ func (q *Queries) GetDailyLeaderboard(ctx context.Context, timezone string) ([]G
 const getDailyProgress = `-- name: GetDailyProgress :one
 SELECT
     -- Count of new cards studied today
-    SUM(CASE
+    COALESCE(SUM(CASE
         WHEN jsonb_array_length(review_log) = 1
         THEN 1
         ELSE 0
-    END) AS new_cards,
+    END), 0)::int AS new_cards,
 
     -- Count of reviewed cards studied today
-    SUM(CASE
+    COALESCE(SUM(CASE
         WHEN jsonb_array_length(review_log) > 1
         THEN 1
         ELSE 0
-    END) AS reviewed_cards,
+    END), 0)::int AS reviewed_cards,
 
     -- Rating breakdown for new cards
-    COUNT(*) FILTER (
+    COALESCE(COUNT(*) FILTER (
         WHERE jsonb_array_length(review_log) = 1
               AND (review_log->0->>'Rating')::int = 1
-    ) AS new_rating_1,
-    COUNT(*) FILTER (
+    ), 0)::int AS new_rating_1,
+    COALESCE(COUNT(*) FILTER (
         WHERE jsonb_array_length(review_log) = 1
               AND (review_log->0->>'Rating')::int = 2
-    ) AS new_rating_2,
-    COUNT(*) FILTER (
+    ), 0)::int AS new_rating_2,
+    COALESCE(COUNT(*) FILTER (
         WHERE jsonb_array_length(review_log) = 1
               AND (review_log->0->>'Rating')::int = 3
-    ) AS new_rating_3,
-    COUNT(*) FILTER (
+    ), 0)::int AS new_rating_3,
+    COALESCE(COUNT(*) FILTER (
         WHERE jsonb_array_length(review_log) = 1
               AND (review_log->0->>'Rating')::int = 4
-    ) AS new_rating_4,
+    ), 0)::int AS new_rating_4,
 
     -- Rating breakdown for reviewed cards
-    COUNT(*) FILTER (
+    COALESCE(COUNT(*) FILTER (
         WHERE jsonb_array_length(review_log) > 1
               AND (review_log->-1->>'Rating')::int = 1
-    ) AS reviewed_rating_1,
-    COUNT(*) FILTER (
+    ), 0)::int AS reviewed_rating_1,
+    COALESCE(COUNT(*) FILTER (
         WHERE jsonb_array_length(review_log) > 1
               AND (review_log->-1->>'Rating')::int = 2
-    ) AS reviewed_rating_2,
-    COUNT(*) FILTER (
+    ), 0)::int AS reviewed_rating_2,
+    COALESCE(COUNT(*) FILTER (
         WHERE jsonb_array_length(review_log) > 1
               AND (review_log->-1->>'Rating')::int = 3
-    ) AS reviewed_rating_3,
-    COUNT(*) FILTER (
+    ), 0)::int AS reviewed_rating_3,
+    COALESCE(COUNT(*) FILTER (
         WHERE jsonb_array_length(review_log) > 1
               AND (review_log->-1->>'Rating')::int = 4
-    ) AS reviewed_rating_4
+    ), 0)::int AS reviewed_rating_4
 FROM
     wordvault_cards
 WHERE
@@ -124,16 +124,16 @@ type GetDailyProgressParams struct {
 }
 
 type GetDailyProgressRow struct {
-	NewCards        int64
-	ReviewedCards   int64
-	NewRating1      int64
-	NewRating2      int64
-	NewRating3      int64
-	NewRating4      int64
-	ReviewedRating1 int64
-	ReviewedRating2 int64
-	ReviewedRating3 int64
-	ReviewedRating4 int64
+	NewCards        int32
+	ReviewedCards   int32
+	NewRating1      int32
+	NewRating2      int32
+	NewRating3      int32
+	NewRating4      int32
+	ReviewedRating1 int32
+	ReviewedRating2 int32
+	ReviewedRating3 int32
+	ReviewedRating4 int32
 }
 
 func (q *Queries) GetDailyProgress(ctx context.Context, arg GetDailyProgressParams) (GetDailyProgressRow, error) {
