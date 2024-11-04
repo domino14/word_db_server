@@ -454,7 +454,11 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 	cards := make([][]byte, len(alphagrams))
 	for i := range alphagrams {
 		// Add a little bit of "jitter" to the time to establish a deterministic ordering.
-		nextScheduleds[i] = toPGTimestamp(now.Add(time.Duration(i) * time.Millisecond))
+		if s.Config.SmallJitterOnAddCard {
+			nextScheduleds[i] = toPGTimestamp(now.Add(time.Duration(i) * time.Millisecond))
+		} else {
+			nextScheduleds[i] = toPGTimestamp(now)
+		}
 		cards[i] = cardbts // This is by reference but it's ok after marshalling.
 	}
 
