@@ -445,10 +445,16 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 	}
 
 	alphagrams := req.Msg.Alphagrams
+	// Randomize the alphagrams to avoid any bias in how they came in.
+	rand.Shuffle(len(alphagrams), func(i, j int) {
+		alphagrams[i], alphagrams[j] = alphagrams[j], alphagrams[i]
+	})
+
 	nextScheduleds := make([]pgtype.Timestamptz, len(alphagrams))
 	cards := make([][]byte, len(alphagrams))
 	for i := range alphagrams {
-		nextScheduleds[i] = toPGTimestamp(now)
+		// Add a little bit of "jitter" to the time to establish a deterministic ordering.
+		nextScheduleds[i] = toPGTimestamp(now.Add(time.Duration(i) * time.Millisecond))
 		cards[i] = cardbts // This is by reference but it's ok after marshalling.
 	}
 
