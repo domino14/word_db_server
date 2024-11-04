@@ -446,9 +446,11 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 
 	alphagrams := req.Msg.Alphagrams
 	// Randomize the alphagrams to avoid any bias in how they came in.
-	rand.Shuffle(len(alphagrams), func(i, j int) {
-		alphagrams[i], alphagrams[j] = alphagrams[j], alphagrams[i]
-	})
+	if s.Config.SmallJitterOnAddCard {
+		rand.Shuffle(len(alphagrams), func(i, j int) {
+			alphagrams[i], alphagrams[j] = alphagrams[j], alphagrams[i]
+		})
+	}
 
 	nextScheduleds := make([]pgtype.Timestamptz, len(alphagrams))
 	cards := make([][]byte, len(alphagrams))
