@@ -193,6 +193,14 @@ func convertLeitnerToFsrs(correct, incorrect, streak int, lastCorrect, nextSched
 	var stability float64
 	if lc != 0 {
 		stability = float64(nextScheduledTime.Sub(lastCorrectTime).Hours() / 24.0)
+		if cb == 0 && correct > 0 {
+			// This card was in cardbox 0, but it has been answered correctly at some point.
+			// It's possible that if we import the card the user will answer it correctly,
+			// and then it might have a giant interval afterwards. We don't want that.
+			// We want something akin to cardbox 1
+			// Let's handwave its stability.
+			stability = 1.0
+		}
 	} else {
 		stability = float64(0.2) // It has never been correct, use some small number.
 	}
