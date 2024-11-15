@@ -208,7 +208,7 @@ func convertLeitnerToFsrs(correct, incorrect, streak int, lastCorrect, nextSched
 		Card: fsrs.Card{
 			Due:        nextScheduledTime,
 			Stability:  stability,
-			Difficulty: max(min(float64(5+incorrect)-(0.5*float64(correct)), 10), 0),
+			Difficulty: max(min(float64(5+incorrect)-(0.5*float64(correct)), 10), 1),
 			Reps:       uint64(correct) + uint64(incorrect),
 			Lapses:     uint64(incorrect), // could be this minus 1, but we don't know
 			State:      state,
