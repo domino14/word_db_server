@@ -24,7 +24,7 @@ var combinationsTests = []combinationstestpair{
 
 var spanishCombinationsTests = []combinationstestpair{
 	// This is not actually an alphagram. Testing handling of runes.
-	{"OOÑ22", 153},
+	{"OOÑ[LL][LL]", 153},
 }
 
 func TestCalcCombinations(t *testing.T) {
