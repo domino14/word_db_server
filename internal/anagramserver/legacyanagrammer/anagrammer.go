@@ -43,60 +43,56 @@ type RackWrapper struct {
 }
 
 func makeRack(letters string, alph *tilemapping.TileMapping) (*RackWrapper, error) {
-	bracketedLetters := []tilemapping.MachineLetter{}
+
+	bracketedLetters := ""
 	parsingBracket := false
 
+	regularLetters := ""
 	rack := tilemapping.NewRack(alph)
 
-	convertedLetters := []tilemapping.MachineLetter{}
 	rb := []rangeBlank{}
 	numLetters := 0
-	// XXX: Note; this doesn't work with multi-char alphabets!
-	for _, s := range letters {
-		if s == tilemapping.BlankToken {
-			convertedLetters = append(convertedLetters, 0)
-			numLetters++
-			continue
-		}
 
-		if s == '[' {
+	for _, s := range letters {
+		if s == '(' {
 			// Basically treat as a blank that can only be a subset of all
 			// letters.
 			if parsingBracket {
 				return nil, errors.New("badly formed search string")
 			}
 			parsingBracket = true
-			bracketedLetters = []tilemapping.MachineLetter{}
+			bracketedLetters = ""
 			continue
 		}
-		if s == ']' {
+		if s == ')' {
 			if !parsingBracket {
 				return nil, errors.New("badly formed search string")
 			}
 			parsingBracket = false
-			rb = append(rb, rangeBlank{1, bracketedLetters})
+			mls, err := tilemapping.ToMachineLetters(bracketedLetters, alph)
+			if err != nil {
+				return nil, err
+			}
+			rb = append(rb, rangeBlank{1, mls})
 			numLetters++
 			continue
 
 		}
-		// Otherwise it's just a letter.
-		ml, err := alph.Val(string(s))
-		if err != nil {
-			// Ignore this error, but log it.
-			log.Error().Msgf("Ignored error: %v", err)
-			continue
-		}
 		if parsingBracket {
-			bracketedLetters = append(bracketedLetters, ml)
+			bracketedLetters += string(s)
 			continue
 		}
-		numLetters++
-		convertedLetters = append(convertedLetters, ml)
+		regularLetters += string(s)
 	}
 	if parsingBracket {
 		return nil, errors.New("badly formed search string")
 	}
-	rack.Set(convertedLetters)
+	mls, err := tilemapping.ToMachineLetters(regularLetters, alph)
+	if err != nil {
+		return nil, err
+	}
+	rack.Set(mls)
+	numLetters += len(mls)
 
 	return &RackWrapper{
 		rack:        rack,

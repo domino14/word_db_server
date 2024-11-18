@@ -34,4 +34,19 @@ func TestConvertToFSRS(t *testing.T) {
 	fmt.Println("nc", newCard.Stability, newCard.Due)
 
 	is.True(newCard.Stability != math.Inf(1))
+
+	// Convert a card that was last correct after it was due. This can happen
+	// if you quiz on it outside of cardbox.
+	card, revLog, _ = convertLeitnerToFsrs(2, 2, 1,
+		sql.NullInt32{Int32: 1730935552, Valid: true},
+		sql.NullInt32{Int32: 1730330752, Valid: true},
+		sql.NullInt32{Int32: 1, Valid: true},
+		now)
+	// stability should be handwaved to a small number
+	is.Equal(card.Stability, 1.0)
+	schedulingCards = f.Repeat(card.Card, now)
+	rating = fsrs.Good
+	newCard = schedulingCards[rating].Card
+	is.True(!math.IsNaN(newCard.Stability))
+	fmt.Println("newCard", newCard.Stability, newCard.Due, newCard.Difficulty)
 }

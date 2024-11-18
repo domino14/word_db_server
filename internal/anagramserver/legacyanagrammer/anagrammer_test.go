@@ -1,6 +1,7 @@
 package anagrammer
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -54,12 +55,12 @@ var exactTests = []testpair{
 var spanishBuildTests = []testpair{
 	{"AEHILORT", 313},
 	{"CINEMATOGRAPHER", 7765},
-	{"KERYGMA", 42}, // K is not in spanish alphabet though
+	{"KERYGMA", 0}, // K is not in spanish alphabet though
 	{"LOCOFOCO", 14},
 	{"VIVIFIC", 3},
-	{"123?????", 21808},
+	{"[CH][LL][RR]?????", 21808},
 	{"ÑUBLADO", 65},
-	{"CA1AÑEA", 25},
+	{"CA[CH]AÑEA", 25},
 	{"WKWKKWKWWK", 0},
 }
 
@@ -70,10 +71,10 @@ var spanishExactTests = []testpair{
 	{"LOCOFOCO", 0},
 	{"ACENORS", 26}, //!
 	{"VIVIFIC", 0},
-	{"123?????", 3},
+	{"[CH][LL][RR]?????", 3},
 	{"ÑUBLADO", 1},
-	{"CA1AÑEA", 1},
-	{"CA1AÑEA?", 4},
+	{"CA[CH]AÑEA", 1},
+	{"CA[CH]AÑEA?", 4},
 	{"WKWKWWKWKWKW", 0},
 }
 
@@ -128,6 +129,7 @@ func TestAnagramSpanish(t *testing.T) {
 			t.Error("For", pair.rack, "expected", pair.num, "got", len(answers))
 		}
 	}
+	fmt.Println("exact tests")
 	for _, pair := range spanishExactTests {
 		answers := Anagram(pair.rack, d, ModeExact)
 		if len(answers) != pair.num {
@@ -182,7 +184,7 @@ func TestAnagramFourBlanks(t *testing.T) {
 }
 
 func TestMakeRack(t *testing.T) {
-	rack := "AE[JQXZ]NR?[KY]?"
+	rack := "AE(JQXZ)NR?(KY)?"
 	is := is.New(t)
 
 	ld, err := tilemapping.NamedLetterDistribution(DefaultConfig, "english")
@@ -202,7 +204,7 @@ func TestAnagramRangeSmall(t *testing.T) {
 	is := is.New(t)
 	d, err := kwg.Get(DefaultConfig, "CSW19")
 	is.NoErr(err)
-	answers := Anagram("[JQXZ]A", d, ModeExact)
+	answers := Anagram("(JQXZ)A", d, ModeExact)
 	log.Info().Msgf("answers: %v", answers)
 
 	is.Equal(len(answers), 3)
@@ -212,7 +214,7 @@ func TestAnagramRangeSmall2(t *testing.T) {
 	is := is.New(t)
 	d, err := kwg.Get(DefaultConfig, "CSW19")
 	is.NoErr(err)
-	answers := Anagram("[AEIOU][JQXZ]", d, ModeExact)
+	answers := Anagram("(AEIOU)(JQXZ)", d, ModeExact)
 	log.Info().Msgf("answers: %v", answers)
 
 	is.Equal(len(answers), 11)
@@ -222,7 +224,7 @@ func TestAnagramRangeSmallOrderDoesntMatter(t *testing.T) {
 	is := is.New(t)
 	d, err := kwg.Get(DefaultConfig, "CSW19")
 	is.NoErr(err)
-	answers := Anagram("[JQXZ][AEIOU]", d, ModeExact)
+	answers := Anagram("(JQXZ)(AEIOU)", d, ModeExact)
 	log.Info().Msgf("answers: %v", answers)
 
 	is.Equal(len(answers), 11)
@@ -232,7 +234,7 @@ func TestAnagramRange(t *testing.T) {
 	is := is.New(t)
 	d, err := kwg.Get(DefaultConfig, "CSW19")
 	is.NoErr(err)
-	answers := Anagram("AE[JQXZ]NR?[KY]?", d, ModeExact)
+	answers := Anagram("AE(JQXZ)NR?(KY)?", d, ModeExact)
 	log.Info().Msgf("answers: %v", answers)
 
 	is.Equal(len(answers), 8)

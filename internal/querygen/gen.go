@@ -259,7 +259,7 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 		alph := dawg.GetAlphabet()
 
 		var words []string
-		if strings.Contains(letters, "[") {
+		if strings.Contains(letters, "(") {
 			// defer to the legacy anagrammer. This is a "range" query.
 			words = anagrammer.Anagram(letters, dawg, anagrammer.ModeExact)
 		} else {
