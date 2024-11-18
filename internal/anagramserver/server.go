@@ -69,7 +69,7 @@ func (s *Server) Anagram(ctx context.Context, req *connect.Request[pb.AnagramReq
 	}
 
 	var sols []string
-	if strings.Contains(req.Msg.Letters, "[") {
+	if strings.Contains(req.Msg.Letters, "(") {
 		// defer to the legacy anagrammer. This is a "range" query.
 		if req.Msg.Mode == pb.AnagramRequest_SUPER {
 			return nil, errors.New("cannot use super-anagram mode with range queries")
