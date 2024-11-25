@@ -84,7 +84,7 @@ func anagram(anagramserver *anagramserver.Server, w http.ResponseWriter, r *http
 	}
 	lexicon, ok := r.URL.Query()["lexicon"]
 	if !ok || len(lexicon[0]) < 1 {
-		lexicon = []string{"CSW21"}
+		lexicon = []string{"CSW24"}
 	}
 	res, err := anagramserver.Anagram(r.Context(), connect.NewRequest(&wordsearcher.AnagramRequest{
 		Lexicon: lexicon[0],
@@ -105,7 +105,7 @@ func define(wsServer *searchserver.WordSearchServer, w http.ResponseWriter, r *h
 	}
 	lexicon, ok := r.URL.Query()["lexicon"]
 	if !ok || len(lexicon[0]) < 1 {
-		lexicon = []string{"CSW21"}
+		lexicon = []string{"CSW24"}
 	}
 	res, err := wsServer.GetWordInformation(r.Context(), connect.NewRequest(&wordsearcher.DefineRequest{
 		Lexicon: lexicon[0], Word: word[0],
@@ -129,7 +129,7 @@ func patternSearch(wsServer *searchserver.WordSearchServer, w http.ResponseWrite
 	}
 	lexicon, ok := r.URL.Query()["lexicon"]
 	if !ok || len(lexicon[0]) < 1 {
-		lexicon = []string{"CSW21"}
+		lexicon = []string{"CSW24"}
 	}
 	res, err := wsServer.WordSearch(r.Context(), connect.NewRequest(&wordsearcher.WordSearchRequest{
 		Lexicon: lexicon[0], Glob: pattern[0], AppliesTo: "word",
@@ -153,7 +153,7 @@ func definitionSearch(wsServer *searchserver.WordSearchServer, w http.ResponseWr
 	}
 	lexicon, ok := r.URL.Query()["lexicon"]
 	if !ok || len(lexicon[0]) < 1 {
-		lexicon = []string{"CSW21"}
+		lexicon = []string{"CSW24"}
 	}
 	res, err := wsServer.WordSearch(r.Context(), connect.NewRequest(&wordsearcher.WordSearchRequest{
 		Lexicon: lexicon[0], Glob: "*" + pattern[0] + "*", AppliesTo: "definition",

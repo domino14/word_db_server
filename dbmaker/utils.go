@@ -83,6 +83,15 @@ func LexiconMappings(dataPath string) LexiconMap {
 			LetterDistribution: englishLD,
 			Difficulties:       createDifficultyMap(lexiconPath, "CSW21"),
 		},
+		{
+			LexiconName:        "CSW24",
+			LexiconFilename:    filepath.Join(lexiconPath, "CSW24.txt"),
+			KWG:                loadKWG(dataPath, "CSW24"),
+			LexiconIndex:       25,
+			DescriptiveName:    "Collins 2024",
+			LetterDistribution: englishLD,
+			Difficulties:       createDifficultyMap(lexiconPath, "CSW24"),
+		},
 	}
 
 	fiseFamily := []*LexiconInfo{

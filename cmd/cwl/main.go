@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	BritishDict  = "CSW21"
+	BritishDict  = "CSW24"
 	AmericanDict = "NWL23"
 )
 
