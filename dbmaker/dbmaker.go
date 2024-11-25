@@ -756,8 +756,17 @@ func populateAlphsDefs(filename string, combinations func(string, bool) uint64,
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
+
 		if len(fields) > 0 {
-			word := common.InitializeWord(strings.ToUpper(fields[0]), dist)
+			rawWord := fields[0]
+			rawWord = strings.ReplaceAll(rawWord, "1", "[CH]")
+			rawWord = strings.ReplaceAll(rawWord, "2", "[LL]")
+			rawWord = strings.ReplaceAll(rawWord, "3", "[RR]")
+
+			// Spanish hack. Older versions of FISE files were given to us with
+			// 1, 2, 3 instead of [CH], [LL], [RR].
+
+			word := common.InitializeWord(strings.ToUpper(rawWord), dist)
 			definition := ""
 			if len(fields) > 1 {
 				definition = strings.Join(fields[1:], " ")
