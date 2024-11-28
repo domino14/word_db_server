@@ -22,6 +22,7 @@ type WordvaultCard struct {
 	NextScheduled pgtype.Timestamptz
 	FsrsCard      stores.Card
 	ReviewLog     []stores.ReviewLog
+	ID            int64
 }
 
 type WordvaultParam struct {

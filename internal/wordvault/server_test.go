@@ -212,7 +212,7 @@ func TestScoreCard(t *testing.T) {
 		Lexicon:   "NWL23",
 		Alphagram: "AEFFGINR",
 	}))
-	is.Equal(err.Error(), "invalid_argument: card with your input parameters was not found")
+	is.Equal(err.Error(), ErrMaybeRefreshApp.Error())
 
 	fakenower.fakenow, err = time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
 	is.NoErr(err)
