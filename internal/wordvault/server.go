@@ -12,6 +12,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/open-spaced-repetition/go-fsrs/v3"
@@ -28,6 +29,7 @@ import (
 )
 
 var ErrNeedMembership = errors.New("adding these cards would put you over your limit; please upgrade your account to add more cards <3")
+var ErrMaybeRefreshApp = invalidArgError("Card with your input parameters was not found. Please refresh this page as the app may have updated.")
 
 const JustReviewedInterval = time.Second * 10
 
@@ -229,6 +231,33 @@ func (s *Server) fsrsParams(ctx context.Context, dbid int64) (fsrs.Parameters, e
 	return params, nil
 }
 
+func (s *Server) appMaintenance(ctx context.Context) (bool, error) {
+	var exists bool
+
+	err := s.DBPool.
+		QueryRow(ctx, `
+            SELECT EXISTS (
+                SELECT 1
+                FROM waffle_switch
+                WHERE name = 'disable_games' AND active = 't'
+            )
+        `).
+		Scan(&exists)
+
+	if err != nil {
+		// Check if the error is related to the table not existing.
+		// If so, don't return an error. We want to make this app as
+		// independent as we can.
+		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "42P01" {
+			log.Info().AnErr("pg-err", pgErr).Msg("waffle-table-not-defined")
+			return false, nil
+		}
+		return false, err
+	}
+
+	return exists, nil
+}
+
 func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCardRequest]) (
 	*connect.Response[pb.ScoreCardResponse], error) {
 	user := auth.UserFromContext(ctx)
@@ -241,6 +270,15 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 	}
 	if req.Msg.Lexicon == "" || req.Msg.Alphagram == "" {
 		return nil, invalidArgError("no such lexicon or alphagram")
+	}
+
+	maintenance, err := s.appMaintenance(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if maintenance {
+		return nil, invalidArgError("WordVault App is currently undergoing maintenance. Please wait a few moments and try again.")
 	}
 
 	tx, err := s.DBPool.Begin(ctx)
@@ -263,7 +301,7 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 		Alphagram:   req.Msg.Alphagram})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, invalidArgError("card with your input parameters was not found")
+			return nil, ErrMaybeRefreshApp
 		} else {
 			return nil, err
 		}
@@ -334,7 +372,14 @@ func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.Edit
 	if req.Msg.Lexicon == "" || req.Msg.Alphagram == "" {
 		return nil, invalidArgError("no such lexicon or alphagram")
 	}
+	maintenance, err := s.appMaintenance(ctx)
+	if err != nil {
+		return nil, err
+	}
 
+	if maintenance {
+		return nil, invalidArgError("WordVault App is currently undergoing maintenance. Please wait a few moments and try again.")
+	}
 	tx, err := s.DBPool.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -355,7 +400,7 @@ func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.Edit
 		Alphagram:   req.Msg.Alphagram})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, invalidArgError("card with your input parameters was not found")
+			return nil, ErrMaybeRefreshApp
 		} else {
 			return nil, err
 		}

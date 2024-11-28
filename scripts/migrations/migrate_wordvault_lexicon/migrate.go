@@ -70,7 +70,7 @@ SET
         jsonb_set(
             fsrs_card,
             '{Due}',
-            to_jsonb(random_timestamp)
+            to_jsonb(to_char(random_timestamp, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'))
         ),
         '{Stability}',
         '1.0'::jsonb
@@ -111,6 +111,22 @@ WHERE wordvault_cards.id = subquery.id;
 		}
 		log.Info().Int("rows-affected", int(t.RowsAffected())).Msg("deleted-cards")
 	}
+
+	// Finally, reschedule cards that have deleted anagrams. Again, this will be
+	// hardcoded.
+	var deletedSharedAlphas []string
+	switch {
+	case fromLex == "CSW21" && toLex == "CSW24":
+		deletedSharedAlphas = []string{"AEMNNRST"}
+	default:
+		log.Info().Msg("no-deleted-words")
+	}
+	t, err = tx.Exec(ctx, changeCardsQuery, toLex, deletedSharedAlphas)
+	if err != nil {
+		return err
+	}
+	log.Info().Int("rows-affected", int(t.RowsAffected())).Msg("rescheduled-deleted-shared-cards")
+
 	return tx.Commit(ctx)
 }
 
