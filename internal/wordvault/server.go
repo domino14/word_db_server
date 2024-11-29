@@ -30,6 +30,7 @@ import (
 
 var ErrNeedMembership = errors.New("adding these cards would put you over your limit; please upgrade your account to add more cards <3")
 var ErrMaybeRefreshApp = invalidArgError("Card with your input parameters was not found. Please refresh this page as the app may have updated.")
+var ErrMaintenance = connect.NewError(connect.CodeUnavailable, errors.New("WordVault App is currently undergoing maintenance. Please wait a few moments and try again."))
 
 const JustReviewedInterval = time.Second * 10
 
@@ -117,6 +118,16 @@ func (s *Server) GetNextScheduled(ctx context.Context, req *connect.Request[pb.G
 	if user == nil {
 		return nil, unauthenticated("user not authenticated")
 	}
+
+	maintenance, err := s.appMaintenance(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if maintenance {
+		return nil, ErrMaintenance
+	}
+
 	rows, err := s.Queries.GetNextScheduled(ctx, models.GetNextScheduledParams{
 		UserID:        int64(user.DBID),
 		LexiconName:   req.Msg.Lexicon,
@@ -172,6 +183,16 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 	if user == nil {
 		return nil, unauthenticated("user not authenticated")
 	}
+
+	maintenance, err := s.appMaintenance(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if maintenance {
+		return nil, ErrMaintenance
+	}
+
 	row, err := s.Queries.GetSingleNextScheduled(ctx, models.GetSingleNextScheduledParams{
 		UserID:        int64(user.DBID),
 		LexiconName:   req.Msg.Lexicon,
@@ -278,7 +299,7 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 	}
 
 	if maintenance {
-		return nil, invalidArgError("WordVault App is currently undergoing maintenance. Please wait a few moments and try again.")
+		return nil, ErrMaintenance
 	}
 
 	tx, err := s.DBPool.Begin(ctx)
@@ -378,7 +399,7 @@ func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.Edit
 	}
 
 	if maintenance {
-		return nil, invalidArgError("WordVault App is currently undergoing maintenance. Please wait a few moments and try again.")
+		return nil, ErrMaintenance
 	}
 	tx, err := s.DBPool.Begin(ctx)
 	if err != nil {
