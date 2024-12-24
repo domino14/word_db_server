@@ -103,7 +103,7 @@ func (s *Server) GetCardInformation(ctx context.Context, req *connect.Request[pb
 			Lexicon: req.Msg.Lexicon,
 			// Just return the alphagram here. The purpose of this endpoint is for
 			// its metadata, not to quiz on any of the cards.
-			Alphagram:      &searchpb.Alphagram{Alphagram: req.Msg.Alphagrams[i]},
+			Alphagram:      &searchpb.Alphagram{Alphagram: rows[i].Alphagram},
 			CardJsonRepr:   cardbts,
 			Retrievability: f.GetRetrievability(fcard.Card, s.Nower.Now()),
 			ReviewLog:      revlogbts,

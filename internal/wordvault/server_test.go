@@ -328,20 +328,27 @@ func TestGetCards(t *testing.T) {
 	is.NoErr(err)
 	fmt.Println(info)
 	is.Equal(len(info.Msg.Cards), 2)
+
+	cardIndex := make(map[string]int)
+	for i, card := range info.Msg.Cards {
+		cardIndex[card.Alphagram.Alphagram] = i
+	}
+
+	is.Equal(info.Msg.Cards[cardIndex["ADEEGMMO"]].Alphagram.Alphagram, "ADEEGMMO")
 	// Wow still a decent chance of remembering it after 76 years
-	is.True(info.Msg.Cards[0].Retrievability > 0.3)
-	is.Equal(info.Msg.Cards[0].Alphagram.Alphagram, "ADEEGMMO")
+
+	is.True(info.Msg.Cards[cardIndex["ADEEGMMO"]].Retrievability > 0.3)
 
 	card := fsrs.Card{}
-	err = json.Unmarshal(info.Msg.Cards[0].CardJsonRepr, &card)
+	err = json.Unmarshal(info.Msg.Cards[cardIndex["ADEEGMMO"]].CardJsonRepr, &card)
 
 	is.Equal(card.Reps, uint64(3))
 	is.Equal(card.Difficulty, float64(1))
 	is.Equal(card.State, fsrs.Review)
 
-	err = json.Unmarshal(info.Msg.Cards[1].CardJsonRepr, &card)
+	err = json.Unmarshal(info.Msg.Cards[cardIndex["ADEEHMMO"]].CardJsonRepr, &card)
 
-	is.Equal(info.Msg.Cards[1].Alphagram.Alphagram, "ADEEHMMO")
+	is.Equal(info.Msg.Cards[cardIndex["ADEEHMMO"]].Alphagram.Alphagram, "ADEEHMMO")
 	is.Equal(card.State, fsrs.New)
 
 }
