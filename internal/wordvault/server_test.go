@@ -924,8 +924,13 @@ func TestCardStats(t *testing.T) {
 	is.NoErr(err)
 	is.Equal(len(info.Msg.Cards), 2)
 
+	cardIndex := make(map[string]int)
+	for i, card := range info.Msg.Cards {
+		cardIndex[card.Alphagram.Alphagram] = i
+	}
+
 	card := fsrs.Card{}
-	json.Unmarshal(info.Msg.Cards[0].CardJsonRepr, &card)
+	json.Unmarshal(info.Msg.Cards[cardIndex["ADEEGMMO"]].CardJsonRepr, &card)
 
 	is.Equal(card.Reps, uint64(1))
 	is.Equal(card.State, fsrs.Review)
@@ -947,7 +952,7 @@ func TestCardStats(t *testing.T) {
 	}))
 	is.NoErr(err)
 	card = fsrs.Card{}
-	json.Unmarshal(info.Msg.Cards[0].CardJsonRepr, &card)
+	json.Unmarshal(info.Msg.Cards[cardIndex["ADEEGMMO"]].CardJsonRepr, &card)
 	is.Equal(card.Reps, uint64(2))
 	is.Equal(card.State, fsrs.Review)
 	// We should have learned the card since we've seen it once, I think.
@@ -968,7 +973,7 @@ func TestCardStats(t *testing.T) {
 	}))
 	is.NoErr(err)
 	card = fsrs.Card{}
-	json.Unmarshal(info.Msg.Cards[0].CardJsonRepr, &card)
+	json.Unmarshal(info.Msg.Cards[cardIndex["ADEEGMMO"]].CardJsonRepr, &card)
 	is.Equal(card.Reps, uint64(3))
 	is.Equal(card.State, fsrs.Review)
 	is.Equal(card.Lapses, uint64(1))
@@ -988,7 +993,7 @@ func TestCardStats(t *testing.T) {
 	}))
 	is.NoErr(err)
 	card = fsrs.Card{}
-	json.Unmarshal(info.Msg.Cards[0].CardJsonRepr, &card)
+	json.Unmarshal(info.Msg.Cards[cardIndex["ADEEGMMO"]].CardJsonRepr, &card)
 	is.Equal(card.Reps, uint64(4))
 	is.Equal(card.State, fsrs.Review)
 	// Our memory has lapsed since we last learned it:
@@ -1009,7 +1014,7 @@ func TestCardStats(t *testing.T) {
 	}))
 	is.NoErr(err)
 	card = fsrs.Card{}
-	json.Unmarshal(info.Msg.Cards[0].CardJsonRepr, &card)
+	json.Unmarshal(info.Msg.Cards[cardIndex["ADEEGMMO"]].CardJsonRepr, &card)
 	is.Equal(card.Reps, uint64(5))
 	is.Equal(card.State, fsrs.Review)
 	is.Equal(card.Lapses, uint64(3))
