@@ -86,6 +86,12 @@ func SearchDescNotInLexicon(n pb.SearchRequest_NotInLexCondition) *pb.SearchRequ
 	}
 }
 
+func SearchDescDeleted() *pb.SearchRequest_SearchParam {
+	return &pb.SearchRequest_SearchParam{
+		Condition: pb.SearchRequest_DELETED_WORD,
+	}
+}
+
 func stringArrayParam(sa []string) *pb.SearchRequest_SearchParam_Stringarray {
 	return &pb.SearchRequest_SearchParam_Stringarray{
 		Stringarray: &pb.SearchRequest_StringArray{

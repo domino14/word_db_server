@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 
@@ -11,8 +10,11 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	wglconfig "github.com/domino14/word-golib/config"
+	"github.com/domino14/word-golib/tilemapping"
 	pb "github.com/domino14/word_db_server/api/rpc/wordsearcher"
 	"github.com/domino14/word_db_server/config"
+	"github.com/domino14/word_db_server/internal/common"
 	"github.com/domino14/word_db_server/internal/searchserver"
 )
 
@@ -44,7 +46,6 @@ func migrate(cfg *config.Config, pool *pgxpool.Pool, fromLex, toLex string) erro
 	for i := 0; i < len(alphagramsStrs); i++ {
 		alphagramsStrs[i] = sr.Msg.Alphagrams[i].Alphagram
 	}
-	fmt.Println(alphagramsStrs)
 	log.Info().Int("num-alphagrams", len(alphagramsStrs)).Msg("max-affected-alphagrams")
 
 	tx, err := pool.Begin(ctx)
@@ -53,9 +54,33 @@ func migrate(cfg *config.Config, pool *pgxpool.Pool, fromLex, toLex string) erro
 	}
 	defer tx.Rollback(ctx)
 
-	changeLexQuery := `UPDATE wordvault_cards SET lexicon_name = $1 WHERE lexicon_name = $2`
+	// Some people jumped the gun already and added cards again. Delete old
+	// cards that would conflict.
+	deleteReaddedCards := `
+		-- 1) DELETE all rows that *would* conflict.
+		DELETE FROM wordvault_cards c
+		WHERE c.lexicon_name = $2
+		AND EXISTS (
+			SELECT 1
+				FROM wordvault_cards c2
+				WHERE c2.user_id       = c.user_id
+				AND c2.lexicon_name  = $1
+				AND c2.alphagram     = c.alphagram
+		);`
 
-	t, err := tx.Exec(ctx, changeLexQuery, toLex, fromLex)
+	t, err := tx.Exec(ctx, deleteReaddedCards, toLex, fromLex)
+	if err != nil {
+		return err
+	}
+	log.Info().Int("rows-affected", int(t.RowsAffected())).Msg("delete-added-conflict-cards")
+
+	changeLexQuery := `
+		UPDATE wordvault_cards
+		SET lexicon_name = $1
+		WHERE lexicon_name = $2;
+	`
+
+	t, err = tx.Exec(ctx, changeLexQuery, toLex, fromLex)
 	if err != nil {
 		return err
 	}
@@ -90,17 +115,7 @@ WHERE wordvault_cards.id = subquery.id;
 	log.Info().Int("rows-affected", int(t.RowsAffected())).Msg("rescheduled-new-cards")
 
 	// Delete cards that have deleted words.
-	// This is enough of a pain that I'm just going to hardcode these here,
-	// and words get deleted very rarely.
-	var deletedUniqueAlphas []string
-	switch {
-	case fromLex == "CSW21" && toLex == "CSW24":
-		deletedUniqueAlphas = []string{"AAMNNORSTW", "AEMNNORSTW", "AAMNNRST", "AFL", "AFLS"}
-		// TRANSMEN has two valid anagrams so it is not included in the delete list.
-	default:
-		log.Info().Msg("no-deleted-words")
-	}
-
+	deletedUniqueAlphas, err := deletedUniqueAlphagrams(cfg, toLex)
 	deleteCardsQuery := `
 		DELETE FROM wordvault_cards WHERE lexicon_name = $1 AND alphagram = ANY($2)`
 
@@ -112,21 +127,18 @@ WHERE wordvault_cards.id = subquery.id;
 		log.Info().Int("rows-affected", int(t.RowsAffected())).Msg("deleted-cards")
 	}
 
-	// Finally, reschedule cards that have deleted anagrams. Again, this will be
-	// hardcoded.
-	var deletedSharedAlphas []string
-	switch {
-	case fromLex == "CSW21" && toLex == "CSW24":
-		deletedSharedAlphas = []string{"AEMNNRST"}
-	default:
-		log.Info().Msg("no-deleted-words")
-	}
-	t, err = tx.Exec(ctx, changeCardsQuery, toLex, deletedSharedAlphas)
+	// Finally, reschedule cards that have deleted anagrams.
+	deletedSharedAlphas, err := deletedSharedAlphagrams(cfg, toLex)
 	if err != nil {
 		return err
 	}
-	log.Info().Int("rows-affected", int(t.RowsAffected())).Msg("rescheduled-deleted-shared-cards")
-
+	if len(deletedSharedAlphas) > 0 {
+		t, err = tx.Exec(ctx, changeCardsQuery, toLex, deletedSharedAlphas)
+		if err != nil {
+			return err
+		}
+		log.Info().Int("rows-affected", int(t.RowsAffected())).Msg("rescheduled-deleted-shared-cards")
+	}
 	return tx.Commit(ctx)
 }
 
@@ -154,5 +166,119 @@ func main() {
 		panic(err)
 	}
 	log.Info().Msg("done migrating")
+
+}
+
+func getPotentiallyDeletedAlphagrams(cfg *config.Config, toLex string) (map[string]bool, error) {
+	ctx := context.Background()
+
+	// Return all words that were deleted from `toLex`.
+	deletedWordsReq := searchserver.WordSearch([]*pb.SearchRequest_SearchParam{
+		searchserver.SearchDescLexicon(toLex),
+		searchserver.SearchDescDeleted(),
+	}, false)
+	s := &searchserver.Server{
+		Config: cfg,
+	}
+	sr, err := s.Search(ctx, connect.NewRequest(deletedWordsReq))
+	if err != nil {
+		return nil, err
+	}
+	// For the DELETED request, Msg.Alphagrams actually contains the words, and
+	// not the alphagrams. So we must alphagrammize them and determine if they're
+	// still in the lexicon.
+	words := []common.Word{}
+
+	wglconfig := &wglconfig.Config{DataPath: cfg.DataPath}
+	dist, err := tilemapping.ProbableLetterDistribution(wglconfig, toLex)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, alpha := range sr.Msg.Alphagrams {
+		word := common.InitializeWord(alpha.Alphagram, dist)
+		words = append(words, word)
+	}
+
+	potentiallyDeletedAlphas := map[string]bool{}
+	for idx := range words {
+		potentiallyDeletedAlphas[words[idx].MakeAlphagram()] = true
+	}
+	return potentiallyDeletedAlphas, nil
+}
+
+func deletedUniqueAlphagrams(cfg *config.Config, toLex string) ([]string, error) {
+	ctx := context.Background()
+	s := &searchserver.Server{
+		Config: cfg,
+	}
+
+	potentiallyDeletedAlphas, err := getPotentiallyDeletedAlphagrams(cfg, toLex)
+	if err != nil {
+		return nil, err
+	}
+	alphasList := []string{}
+	for k := range potentiallyDeletedAlphas {
+		alphasList = append(alphasList, k)
+	}
+
+	deletedAlphasReq := searchserver.WordSearch([]*pb.SearchRequest_SearchParam{
+		searchserver.SearchDescLexicon(toLex),
+		searchserver.SearchDescAlphagramList(alphasList),
+	}, false)
+
+	sr, err := s.Search(ctx, connect.NewRequest(deletedAlphasReq))
+	if err != nil {
+		return nil, err
+	}
+
+	for _, alpha := range sr.Msg.Alphagrams {
+		delete(potentiallyDeletedAlphas, alpha.Alphagram)
+	}
+	// all the alphagrams that remain are actual ones that were totally deleted.
+	finalAlphasList := []string{}
+	for k := range potentiallyDeletedAlphas {
+		finalAlphasList = append(finalAlphasList, k)
+	}
+	return finalAlphasList, nil
+
+}
+
+func deletedSharedAlphagrams(cfg *config.Config, toLex string) ([]string, error) {
+	// Return all alphagrams that had a word that was deleted from `toLex`,
+	// but where valid words remain.
+	// this function is almost the same as the one above.
+
+	ctx := context.Background()
+	s := &searchserver.Server{
+		Config: cfg,
+	}
+
+	potentiallyDeletedAlphas, err := getPotentiallyDeletedAlphagrams(cfg, toLex)
+	if err != nil {
+		return nil, err
+	}
+	alphasList := []string{}
+	for k := range potentiallyDeletedAlphas {
+		alphasList = append(alphasList, k)
+	}
+
+	deletedAlphasReq := searchserver.WordSearch([]*pb.SearchRequest_SearchParam{
+		searchserver.SearchDescLexicon(toLex),
+		searchserver.SearchDescAlphagramList(alphasList),
+	}, false)
+	// Alphagrams that are still in the lexicon were not fully deleted. Only
+	// some of their words were deleted.
+	sr, err := s.Search(ctx, connect.NewRequest(deletedAlphasReq))
+	if err != nil {
+		return nil, err
+	}
+	finalAlphasList := []string{}
+
+	for _, alpha := range sr.Msg.Alphagrams {
+		finalAlphasList = append(finalAlphasList, alpha.Alphagram)
+	}
+
+	return finalAlphasList, nil
 
 }
