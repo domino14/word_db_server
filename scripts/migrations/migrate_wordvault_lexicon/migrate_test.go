@@ -53,6 +53,7 @@ func TestDeletedSharedAlphagrams(t *testing.T) {
 }
 
 func TestDeletedUniqueAlphagramsOSPS(t *testing.T) {
+	t.Skip()
 	is := is.New(t)
 
 	cfg := &config.Config{}

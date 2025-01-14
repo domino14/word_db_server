@@ -65,7 +65,7 @@ jobs:
 
       - name: Generate databases
         run: |
-          ./cmd/dbmaker/dbmaker -outputdir $WDB_DATA_PATH/lexica/db -dbs NWL18,NWL23
+          ./cmd/dbmaker/dbmaker -outputdir $WDB_DATA_PATH/lexica/db -dbs NWL18,NWL23,CSW24
 
       - name: Run tests
         run: |
