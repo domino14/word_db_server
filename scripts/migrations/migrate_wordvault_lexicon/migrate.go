@@ -54,7 +54,9 @@ func migrate(cfg *config.Config, pool *pgxpool.Pool, fromLex, toLex string) erro
 	}
 	defer tx.Rollback(ctx)
 
-	changeLexQuery := `
+	// Some people jumped the gun already and added cards again. Delete old
+	// cards that would conflict.
+	deleteReaddedCards := `
 		-- 1) DELETE all rows that *would* conflict.
 		DELETE FROM wordvault_cards c
 		WHERE c.lexicon_name = $2
@@ -64,15 +66,21 @@ func migrate(cfg *config.Config, pool *pgxpool.Pool, fromLex, toLex string) erro
 				WHERE c2.user_id       = c.user_id
 				AND c2.lexicon_name  = $1
 				AND c2.alphagram     = c.alphagram
-		);
+		);`
 
-		-- 2) UPDATE the remaining rows
+	t, err := tx.Exec(ctx, deleteReaddedCards, toLex, fromLex)
+	if err != nil {
+		return err
+	}
+	log.Info().Int("rows-affected", int(t.RowsAffected())).Msg("delete-added-conflict-cards")
+
+	changeLexQuery := `
 		UPDATE wordvault_cards
 		SET lexicon_name = $1
 		WHERE lexicon_name = $2;
 	`
 
-	t, err := tx.Exec(ctx, changeLexQuery, toLex, fromLex)
+	t, err = tx.Exec(ctx, changeLexQuery, toLex, fromLex)
 	if err != nil {
 		return err
 	}
