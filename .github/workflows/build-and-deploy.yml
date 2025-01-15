@@ -90,7 +90,7 @@ jobs:
     name: Build and Push Docker Image
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master' && github.repository_owner == 'domino14'
     env:
       REPO: ${{ github.workspace }}
     steps:
@@ -134,7 +134,7 @@ jobs:
     name: Deploy to Kubernetes
     needs: build_docker
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master' && github.repository_owner == 'domino14'
     env:
       KUBECONFIG: /opt/kubeadmin.conf
     steps:
