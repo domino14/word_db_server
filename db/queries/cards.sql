@@ -52,13 +52,15 @@ WHERE
     AND lexicon_name = $4
     AND alphagram = $5;
 
--- name: LoadParams :one
+-- name: LoadFsrsParams :one
 SELECT params FROM wordvault_params
 WHERE user_id = $1;
 
--- name: SetParams :exec
-UPDATE wordvault_params SET params = $1
-WHERE user_id = $2;
+-- name: SetFsrsParams :exec
+INSERT INTO wordvault_params(user_id, params)
+VALUES ($1, $2)
+ON CONFLICT(user_id) DO UPDATE
+SET params = $2;
 
 -- name: AddCards :one
 WITH inserted_rows AS (
@@ -143,4 +145,3 @@ WHERE
   w.user_id = u.user_id AND
   w.lexicon_name = u.lexicon_name AND
   w.alphagram = u.alphagram;
-

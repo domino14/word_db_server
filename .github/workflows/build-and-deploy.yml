@@ -70,9 +70,8 @@ jobs:
       - name: Run tests
         run: |
           go test -v ./...
-
       - name: Discord notification
-        if: ${{ success() }}
+        if: ${{ success() && github.repository_owner == 'domino14' }}
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         uses: Ilshidur/action-discord@master
@@ -80,7 +79,7 @@ jobs:
           args: "word_db_server backend built successfully for branch {{GITHUB_REF_NAME}}."
 
       - name: Discord notification
-        if: ${{ failure() }}
+        if: ${{ failure() && github.repository_owner == 'domino14' }}
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         uses: Ilshidur/action-discord@master
@@ -91,7 +90,7 @@ jobs:
     name: Build and Push Docker Image
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master' && github.repository_owner == 'domino14'
     env:
       REPO: ${{ github.workspace }}
     steps:
@@ -135,7 +134,7 @@ jobs:
     name: Deploy to Kubernetes
     needs: build_docker
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master' && github.repository_owner == 'domino14'
     env:
       KUBECONFIG: /opt/kubeadmin.conf
     steps:

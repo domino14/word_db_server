@@ -1141,3 +1141,66 @@ func TestSingleNextScheduled(t *testing.T) {
 	fmt.Println(res)
 	is.Equal(res.Msg.OverdueCount, uint32(3))
 }
+
+func TestGetAndSetFsrsParams(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+
+	// Get default params first
+	getres, err := s.GetFsrsParameters(ctx, connect.NewRequest(&pb.GetFsrsParametersRequest{}))
+
+	is.NoErr(err)
+	is.Equal(getres.Msg.Parameters.RequestRetention, float64(0.9))
+	is.Equal(getres.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM)
+
+	editres, err := s.EditFsrsParameters(ctx, connect.NewRequest(&pb.EditFsrsParametersRequest{
+		Parameters: &pb.FsrsParameters{
+			RequestRetention: 0.85,
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM,
+		},
+	}))
+	_ = editres
+	is.NoErr(err)
+
+	getres, err = s.GetFsrsParameters(ctx, connect.NewRequest(&pb.GetFsrsParametersRequest{}))
+	is.NoErr(err)
+	is.Equal(getres.Msg.Parameters.RequestRetention, float64(0.85))
+	is.Equal(getres.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM)
+
+	editres, err = s.EditFsrsParameters(ctx, connect.NewRequest(&pb.EditFsrsParametersRequest{
+		Parameters: &pb.FsrsParameters{
+			RequestRetention: 1.1,
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM,
+		},
+	}))
+	_ = editres
+	is.Equal(err.Error(), "invalid_argument: invalid retention value")
+
+	editres, err = s.EditFsrsParameters(ctx, connect.NewRequest(&pb.EditFsrsParametersRequest{
+		Parameters: &pb.FsrsParameters{
+			RequestRetention: 0.8,
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_NONE,
+		},
+	}))
+	_ = editres
+	is.Equal(err.Error(), "invalid_argument: invalid scheduler value")
+
+	// Test params are unchanged
+	getres, err = s.GetFsrsParameters(ctx, connect.NewRequest(&pb.GetFsrsParametersRequest{}))
+	is.NoErr(err)
+	is.Equal(getres.Msg.Parameters.RequestRetention, float64(0.85))
+	is.Equal(getres.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM)
+}
