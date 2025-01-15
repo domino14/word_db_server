@@ -1149,8 +1149,9 @@ func TestGetAndSetFsrsParams(t *testing.T) {
 
 	// Get default params first
 	getres, err := s.GetFsrsParameters(ctx, connect.NewRequest(&pb.GetFsrsParametersRequest{}))
+
 	is.NoErr(err)
-	is.Equal(getres.Msg.Parameters.RequestRetention, float32(0.9))
+	is.Equal(getres.Msg.Parameters.RequestRetention, float64(0.9))
 	is.Equal(getres.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM)
 
 	editres, err := s.EditFsrsParameters(ctx, connect.NewRequest(&pb.EditFsrsParametersRequest{
@@ -1164,7 +1165,7 @@ func TestGetAndSetFsrsParams(t *testing.T) {
 
 	getres, err = s.GetFsrsParameters(ctx, connect.NewRequest(&pb.GetFsrsParametersRequest{}))
 	is.NoErr(err)
-	is.Equal(getres.Msg.Parameters.RequestRetention, float32(0.85))
+	is.Equal(getres.Msg.Parameters.RequestRetention, float64(0.85))
 	is.Equal(getres.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM)
 
 	editres, err = s.EditFsrsParameters(ctx, connect.NewRequest(&pb.EditFsrsParametersRequest{
@@ -1174,7 +1175,7 @@ func TestGetAndSetFsrsParams(t *testing.T) {
 		},
 	}))
 	_ = editres
-	is.Equal(err.Error(), "invalid_argument: no changes made")
+	is.Equal(err.Error(), "invalid_argument: invalid retention value")
 
 	editres, err = s.EditFsrsParameters(ctx, connect.NewRequest(&pb.EditFsrsParametersRequest{
 		Parameters: &pb.FsrsParameters{
@@ -1183,11 +1184,11 @@ func TestGetAndSetFsrsParams(t *testing.T) {
 		},
 	}))
 	_ = editres
-	is.Equal(err.Error(), "invalid_argument: request retention must be between 0 and 1")
+	is.Equal(err.Error(), "invalid_argument: invalid scheduler value")
 
 	// Test params are unchanged
 	getres, err = s.GetFsrsParameters(ctx, connect.NewRequest(&pb.GetFsrsParametersRequest{}))
 	is.NoErr(err)
-	is.Equal(getres.Msg.Parameters.RequestRetention, float32(0.85))
+	is.Equal(getres.Msg.Parameters.RequestRetention, float64(0.85))
 	is.Equal(getres.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM)
 }
