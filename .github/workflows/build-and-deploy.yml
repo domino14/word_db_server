@@ -70,9 +70,8 @@ jobs:
       - name: Run tests
         run: |
           go test -v ./...
-
       - name: Discord notification
-        if: ${{ success() }}
+        if: ${{ success() && github.repository_owner == 'domino14' }}
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         uses: Ilshidur/action-discord@master
@@ -80,7 +79,7 @@ jobs:
           args: "word_db_server backend built successfully for branch {{GITHUB_REF_NAME}}."
 
       - name: Discord notification
-        if: ${{ failure() }}
+        if: ${{ failure() && github.repository_owner == 'domino14' }}
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         uses: Ilshidur/action-discord@master
