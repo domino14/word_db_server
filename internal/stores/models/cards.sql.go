@@ -418,13 +418,13 @@ func (q *Queries) GetSingleNextScheduled(ctx context.Context, arg GetSingleNextS
 	return i, err
 }
 
-const loadParams = `-- name: LoadParams :one
+const loadFsrsParams = `-- name: LoadFsrsParams :one
 SELECT params FROM wordvault_params
 WHERE user_id = $1
 `
 
-func (q *Queries) LoadParams(ctx context.Context, userID int64) (go_fsrs.Parameters, error) {
-	row := q.db.QueryRow(ctx, loadParams, userID)
+func (q *Queries) LoadFsrsParams(ctx context.Context, userID int64) (go_fsrs.Parameters, error) {
+	row := q.db.QueryRow(ctx, loadFsrsParams, userID)
 	var params go_fsrs.Parameters
 	err := row.Scan(&params)
 	return params, err
@@ -469,20 +469,20 @@ func (q *Queries) PostponementQuery(ctx context.Context, arg PostponementQueryPa
 	return items, nil
 }
 
-const setParams = `-- name: SetParams :exec
+const setFsrsParams = `-- name: SetFsrsParams :exec
 INSERT INTO wordvault_params(user_id, params)
 VALUES ($1, $2)
 ON CONFLICT(user_id) DO UPDATE
 SET params = $2
 `
 
-type SetParamsParams struct {
+type SetFsrsParamsParams struct {
 	UserID int64
 	Params go_fsrs.Parameters
 }
 
-func (q *Queries) SetParams(ctx context.Context, arg SetParamsParams) error {
-	_, err := q.db.Exec(ctx, setParams, arg.UserID, arg.Params)
+func (q *Queries) SetFsrsParams(ctx context.Context, arg SetFsrsParamsParams) error {
+	_, err := q.db.Exec(ctx, setFsrsParams, arg.UserID, arg.Params)
 	return err
 }
 

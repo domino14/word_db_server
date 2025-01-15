@@ -218,7 +218,7 @@ func (s *Server) fsrsParams(ctx context.Context, dbid int64, maybeQ *models.Quer
 		log.Debug().Int64("userID", dbid).Msg("querying-params-with-tx")
 		q = maybeQ
 	}
-	params, err := q.LoadParams(ctx, dbid)
+	params, err := q.LoadFsrsParams(ctx, dbid)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// No params exist for this user
@@ -789,39 +789,23 @@ func (s *Server) GetFsrsParameters(ctx context.Context, req *connect.Request[pb.
 		return nil, unauthenticated("user not authenticated")
 	}
 
-	rawFsrsParams, err := s.fsrsParams(ctx, int64(user.DBID), nil)
+	dbparams, err := s.fsrsParams(ctx, int64(user.DBID), nil)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Debug().
-		Interface("raw_fsrs_params", rawFsrsParams).
-		Float64("request_retention", rawFsrsParams.RequestRetention).
-		Bool("enable_short_term", rawFsrsParams.EnableShortTerm).
-		Msg("raw parameters received")
-
 	params := &pb.FsrsParameters{
 		Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM,
-		RequestRetention: rawFsrsParams.RequestRetention,
+		RequestRetention: dbparams.RequestRetention,
 	}
 
-	if rawFsrsParams.EnableShortTerm {
+	if dbparams.EnableShortTerm {
 		params.Scheduler = pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM
 	}
-
-	log.Debug().
-		Int32("scheduler_value", int32(params.Scheduler)).
-		Float64("retention_percent", params.RequestRetention).
-		Msg("parameter values before response creation")
 
 	resp := &pb.GetFsrsParametersResponse{
 		Parameters: params,
 	}
-
-	log.Debug().
-		Interface("parameters", resp.Parameters).
-		Interface("full_response", resp).
-		Msg("get-params")
 
 	return connect.NewResponse(resp), nil
 }
@@ -843,7 +827,6 @@ func (s *Server) EditFsrsParameters(ctx context.Context, req *connect.Request[pb
 
 	tx, err := s.DBPool.Begin(ctx)
 	if err != nil {
-		log.Log().Err(err).Msg("error-initting-pool")
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
@@ -851,7 +834,6 @@ func (s *Server) EditFsrsParameters(ctx context.Context, req *connect.Request[pb
 
 	params, err := s.fsrsParams(ctx, int64(user.DBID), qtx)
 	if err != nil {
-		log.Log().Err(err).Msg("error-getting-params")
 		return nil, err
 	}
 
@@ -862,18 +844,18 @@ func (s *Server) EditFsrsParameters(ctx context.Context, req *connect.Request[pb
 	}
 	params.RequestRetention = req.Msg.Parameters.RequestRetention
 
-	err = qtx.SetParams(ctx, models.SetParamsParams{
+	err = qtx.SetFsrsParams(ctx, models.SetFsrsParamsParams{
 		Params: params,
 		UserID: int64(user.DBID),
 	})
-
-	log.Debug().Interface("params", params).Msg("set-params")
-
 	if err != nil {
-		log.Log().Err(err).Msg("error-setting-params")
 		return nil, err
 	}
 
+	err = tx.Commit(ctx)
+	if err != nil {
+		return nil, err
+	}
 	return connect.NewResponse(&pb.EditFsrsParametersResponse{}), nil
 }
 
