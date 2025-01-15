@@ -113,13 +113,14 @@ message GetDailyLeaderboardResponse {
 }
 
 enum FsrsScheduler {
-    FSRS_SCHEDULER_LONG_TERM = 0;
-    FSRS_SCHEDULER_SHORT_TERM = 1;
+    FSRS_SCHEDULER_NONE = 0;
+    FSRS_SCHEDULER_LONG_TERM = 1;
+    FSRS_SCHEDULER_SHORT_TERM = 2;
 }
 
 message FsrsParameters {
     FsrsScheduler scheduler = 1;
-    int32 retention_percent = 2;
+    double request_retention = 2;
 }
 
 message GetFsrsParametersRequest {}
@@ -132,9 +133,7 @@ message EditFsrsParametersRequest {
     FsrsParameters parameters = 1;
 }
 
-message EditFsrsParametersResponse {
-    FsrsParameters parameters = 1;
-}
+message EditFsrsParametersResponse {}
 
 service WordVaultService {
   rpc GetCardCount(GetCardCountRequest) returns (CardCountResponse) {

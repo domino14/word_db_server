@@ -802,7 +802,7 @@ func (s *Server) GetFsrsParameters(ctx context.Context, req *connect.Request[pb.
 
 	params := &pb.FsrsParameters{
 		Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM,
-		RetentionPercent: int32(rawFsrsParams.RequestRetention),
+		RequestRetention: rawFsrsParams.RequestRetention,
 	}
 
 	if rawFsrsParams.EnableShortTerm {
@@ -811,7 +811,7 @@ func (s *Server) GetFsrsParameters(ctx context.Context, req *connect.Request[pb.
 
 	log.Debug().
 		Int32("scheduler_value", int32(params.Scheduler)).
-		Int32("retention_percent", params.RetentionPercent).
+		Float64("retention_percent", params.RequestRetention).
 		Msg("parameter values before response creation")
 
 	resp := &pb.GetFsrsParametersResponse{
@@ -833,6 +833,14 @@ func (s *Server) EditFsrsParameters(ctx context.Context, req *connect.Request[pb
 		return nil, unauthenticated("user not authenticated")
 	}
 
+	if req.Msg.Parameters.RequestRetention < 0 || req.Msg.Parameters.RequestRetention > 1 {
+		return nil, invalidArgError("invalid retention value")
+	}
+
+	if req.Msg.Parameters.Scheduler != pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM && req.Msg.Parameters.Scheduler != pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM {
+		return nil, invalidArgError("invalid scheduler value")
+	}
+
 	tx, err := s.DBPool.Begin(ctx)
 	if err != nil {
 		log.Log().Err(err).Msg("error-initting-pool")
@@ -841,17 +849,18 @@ func (s *Server) EditFsrsParameters(ctx context.Context, req *connect.Request[pb
 	defer tx.Rollback(ctx)
 	qtx := s.Queries.WithTx(tx)
 
-	// TODO: better mashalling in/out of fsrs.Parameters
 	params, err := s.fsrsParams(ctx, int64(user.DBID), qtx)
 	if err != nil {
 		log.Log().Err(err).Msg("error-getting-params")
 		return nil, err
 	}
+
 	if req.Msg.Parameters.Scheduler == pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM {
 		params.EnableShortTerm = true
 	} else {
 		params.EnableShortTerm = false
 	}
+	params.RequestRetention = req.Msg.Parameters.RequestRetention
 
 	err = qtx.SetParams(ctx, models.SetParamsParams{
 		Params: params,

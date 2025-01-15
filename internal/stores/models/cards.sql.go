@@ -470,17 +470,19 @@ func (q *Queries) PostponementQuery(ctx context.Context, arg PostponementQueryPa
 }
 
 const setParams = `-- name: SetParams :exec
-UPDATE wordvault_params SET params = $1
-WHERE user_id = $2
+INSERT INTO wordvault_params(user_id, params)
+VALUES ($1, $2)
+ON CONFLICT(user_id) DO UPDATE
+SET params = $2
 `
 
 type SetParamsParams struct {
-	Params go_fsrs.Parameters
 	UserID int64
+	Params go_fsrs.Parameters
 }
 
 func (q *Queries) SetParams(ctx context.Context, arg SetParamsParams) error {
-	_, err := q.db.Exec(ctx, setParams, arg.Params, arg.UserID)
+	_, err := q.db.Exec(ctx, setParams, arg.UserID, arg.Params)
 	return err
 }
 
