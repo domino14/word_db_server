@@ -12,11 +12,6 @@ enum Score {
   SCORE_EASY = 4;
 }
 
-enum FsrsScheduler {
-    FSRS_SCHEDULER_LONG_TERM = 0;
-    FSRS_SCHEDULER_SHORT_TERM = 1;
-}
-
 message Card {
   string lexicon = 1;
   wordsearcher.Alphagram alphagram = 2;
@@ -117,17 +112,29 @@ message GetDailyLeaderboardResponse {
   repeated LeaderboardItem items = 1;
 }
 
+enum FsrsScheduler {
+    FSRS_SCHEDULER_LONG_TERM = 0;
+    FSRS_SCHEDULER_SHORT_TERM = 1;
+}
+
+message FsrsParameters {
+    FsrsScheduler scheduler = 1;
+    int32 retention_percent = 2;
+}
+
 message GetFsrsParametersRequest {}
 
 message GetFsrsParametersResponse {
-    FsrsScheduler scheduler = 1;
+    FsrsParameters parameters = 1;
 }
 
 message EditFsrsParametersRequest {
-    FsrsScheduler scheduler = 1;
+    FsrsParameters parameters = 1;
 }
 
-message EditFsrsParametersResponse {}
+message EditFsrsParametersResponse {
+    FsrsParameters parameters = 1;
+}
 
 service WordVaultService {
   rpc GetCardCount(GetCardCountRequest) returns (CardCountResponse) {

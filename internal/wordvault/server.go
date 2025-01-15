@@ -794,15 +794,34 @@ func (s *Server) GetFsrsParameters(ctx context.Context, req *connect.Request[pb.
 		return nil, err
 	}
 
-	resp := &pb.GetFsrsParametersResponse{
-		Scheduler: pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM,
+	log.Debug().
+		Interface("raw_fsrs_params", rawFsrsParams).
+		Float64("request_retention", rawFsrsParams.RequestRetention).
+		Bool("enable_short_term", rawFsrsParams.EnableShortTerm).
+		Msg("raw parameters received")
+
+	params := &pb.FsrsParameters{
+		Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM,
+		RetentionPercent: int32(rawFsrsParams.RequestRetention),
 	}
+
 	if rawFsrsParams.EnableShortTerm {
-		log.Debug().Msg("enable-short-term")
-		resp.Scheduler = pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM
-	} else {
-		log.Debug().Msg("long-term")
+		params.Scheduler = pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM
 	}
+
+	log.Debug().
+		Int32("scheduler_value", int32(params.Scheduler)).
+		Int32("retention_percent", params.RetentionPercent).
+		Msg("parameter values before response creation")
+
+	resp := &pb.GetFsrsParametersResponse{
+		Parameters: params,
+	}
+
+	log.Debug().
+		Interface("parameters", resp.Parameters).
+		Interface("full_response", resp).
+		Msg("get-params")
 
 	return connect.NewResponse(resp), nil
 }
@@ -816,6 +835,7 @@ func (s *Server) EditFsrsParameters(ctx context.Context, req *connect.Request[pb
 
 	tx, err := s.DBPool.Begin(ctx)
 	if err != nil {
+		log.Log().Err(err).Msg("error-initting-pool")
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
@@ -824,9 +844,10 @@ func (s *Server) EditFsrsParameters(ctx context.Context, req *connect.Request[pb
 	// TODO: better mashalling in/out of fsrs.Parameters
 	params, err := s.fsrsParams(ctx, int64(user.DBID), qtx)
 	if err != nil {
+		log.Log().Err(err).Msg("error-getting-params")
 		return nil, err
 	}
-	if req.Msg.Scheduler == pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM {
+	if req.Msg.Parameters.Scheduler == pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM {
 		params.EnableShortTerm = true
 	} else {
 		params.EnableShortTerm = false
@@ -840,6 +861,7 @@ func (s *Server) EditFsrsParameters(ctx context.Context, req *connect.Request[pb
 	log.Debug().Interface("params", params).Msg("set-params")
 
 	if err != nil {
+		log.Log().Err(err).Msg("error-setting-params")
 		return nil, err
 	}
 
