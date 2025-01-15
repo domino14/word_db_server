@@ -70,7 +70,7 @@ func (s *Server) GetCardInformation(ctx context.Context, req *connect.Request[pb
 	}
 
 	// Load from user params
-	params, err := s.fsrsParams(ctx, int64(user.DBID))
+	params, err := s.fsrsParams(ctx, int64(user.DBID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -211,9 +211,14 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 	return connect.NewResponse(resp), nil
 }
 
-func (s *Server) fsrsParams(ctx context.Context, dbid int64) (fsrs.Parameters, error) {
+func (s *Server) fsrsParams(ctx context.Context, dbid int64, maybeQ *models.Queries) (fsrs.Parameters, error) {
 	// Load from user params
-	params, err := s.Queries.LoadParams(ctx, dbid)
+	q := s.Queries
+	if maybeQ != nil {
+		log.Debug().Int64("userID", dbid).Msg("querying-params-with-tx")
+		q = maybeQ
+	}
+	params, err := q.LoadParams(ctx, dbid)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// No params exist for this user
@@ -250,7 +255,7 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 	defer tx.Rollback(ctx)
 	qtx := s.Queries.WithTx(tx)
 
-	params, err := s.fsrsParams(ctx, int64(user.DBID))
+	params, err := s.fsrsParams(ctx, int64(user.DBID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -343,7 +348,7 @@ func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.Edit
 	qtx := s.Queries.WithTx(tx)
 
 	// Load from user params
-	params, err := s.fsrsParams(ctx, int64(user.DBID))
+	params, err := s.fsrsParams(ctx, int64(user.DBID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -580,7 +585,7 @@ func (s *Server) Postpone(ctx context.Context, req *connect.Request[pb.PostponeR
 	}
 	log := log.Ctx(ctx)
 
-	params, err := s.fsrsParams(ctx, int64(user.DBID))
+	params, err := s.fsrsParams(ctx, int64(user.DBID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -775,6 +780,70 @@ func (s *Server) GetDailyLeaderboard(ctx context.Context, req *connect.Request[p
 		}
 	}
 	return connect.NewResponse(resp), nil
+}
+
+func (s *Server) GetFsrsParameters(ctx context.Context, req *connect.Request[pb.GetFsrsParametersRequest]) (
+	*connect.Response[pb.GetFsrsParametersResponse], error) {
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+
+	rawFsrsParams, err := s.fsrsParams(ctx, int64(user.DBID), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &pb.GetFsrsParametersResponse{
+		Scheduler: pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM,
+	}
+	if rawFsrsParams.EnableShortTerm {
+		log.Debug().Msg("enable-short-term")
+		resp.Scheduler = pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM
+	} else {
+		log.Debug().Msg("long-term")
+	}
+
+	return connect.NewResponse(resp), nil
+}
+
+func (s *Server) EditFsrsParameters(ctx context.Context, req *connect.Request[pb.EditFsrsParametersRequest]) (
+	*connect.Response[pb.EditFsrsParametersResponse], error) {
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+
+	tx, err := s.DBPool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	qtx := s.Queries.WithTx(tx)
+
+	// TODO: better mashalling in/out of fsrs.Parameters
+	params, err := s.fsrsParams(ctx, int64(user.DBID), qtx)
+	if err != nil {
+		return nil, err
+	}
+	if req.Msg.Scheduler == pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM {
+		params.EnableShortTerm = true
+	} else {
+		params.EnableShortTerm = false
+	}
+
+	err = qtx.SetParams(ctx, models.SetParamsParams{
+		Params: params,
+		UserID: int64(user.DBID),
+	})
+
+	log.Debug().Interface("params", params).Msg("set-params")
+
+	if err != nil {
+		return nil, err
+	}
+
+	return connect.NewResponse(&pb.EditFsrsParametersResponse{}), nil
 }
 
 // The fsrs library fuzzes only by day. It tends to ask questions at the same
