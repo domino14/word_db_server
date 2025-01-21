@@ -817,7 +817,7 @@ func (s *Server) EditFsrsParameters(ctx context.Context, req *connect.Request[pb
 		return nil, unauthenticated("user not authenticated")
 	}
 
-	if req.Msg.Parameters.RequestRetention < 0 || req.Msg.Parameters.RequestRetention > 1 {
+	if req.Msg.Parameters.RequestRetention < 0.7 || req.Msg.Parameters.RequestRetention > 0.97 {
 		return nil, invalidArgError("invalid retention value")
 	}
 
