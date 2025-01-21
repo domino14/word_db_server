@@ -68,6 +68,12 @@ const (
 	// WordVaultServiceGetDailyLeaderboardProcedure is the fully-qualified name of the
 	// WordVaultService's GetDailyLeaderboard RPC.
 	WordVaultServiceGetDailyLeaderboardProcedure = "/wordvault.WordVaultService/GetDailyLeaderboard"
+	// WordVaultServiceGetFsrsParametersProcedure is the fully-qualified name of the WordVaultService's
+	// GetFsrsParameters RPC.
+	WordVaultServiceGetFsrsParametersProcedure = "/wordvault.WordVaultService/GetFsrsParameters"
+	// WordVaultServiceEditFsrsParametersProcedure is the fully-qualified name of the WordVaultService's
+	// EditFsrsParameters RPC.
+	WordVaultServiceEditFsrsParametersProcedure = "/wordvault.WordVaultService/EditFsrsParameters"
 )
 
 // These variables are the protoreflect.Descriptor objects for the RPCs defined in this package.
@@ -85,6 +91,8 @@ var (
 	wordVaultServiceDeleteMethodDescriptor                 = wordVaultServiceServiceDescriptor.Methods().ByName("Delete")
 	wordVaultServiceGetDailyProgressMethodDescriptor       = wordVaultServiceServiceDescriptor.Methods().ByName("GetDailyProgress")
 	wordVaultServiceGetDailyLeaderboardMethodDescriptor    = wordVaultServiceServiceDescriptor.Methods().ByName("GetDailyLeaderboard")
+	wordVaultServiceGetFsrsParametersMethodDescriptor      = wordVaultServiceServiceDescriptor.Methods().ByName("GetFsrsParameters")
+	wordVaultServiceEditFsrsParametersMethodDescriptor     = wordVaultServiceServiceDescriptor.Methods().ByName("EditFsrsParameters")
 )
 
 // WordVaultServiceClient is a client for the wordvault.WordVaultService service.
@@ -101,6 +109,8 @@ type WordVaultServiceClient interface {
 	Delete(context.Context, *connect.Request[wordvault.DeleteRequest]) (*connect.Response[wordvault.DeleteResponse], error)
 	GetDailyProgress(context.Context, *connect.Request[wordvault.GetDailyProgressRequest]) (*connect.Response[wordvault.GetDailyProgressResponse], error)
 	GetDailyLeaderboard(context.Context, *connect.Request[wordvault.GetDailyLeaderboardRequest]) (*connect.Response[wordvault.GetDailyLeaderboardResponse], error)
+	GetFsrsParameters(context.Context, *connect.Request[wordvault.GetFsrsParametersRequest]) (*connect.Response[wordvault.GetFsrsParametersResponse], error)
+	EditFsrsParameters(context.Context, *connect.Request[wordvault.EditFsrsParametersRequest]) (*connect.Response[wordvault.EditFsrsParametersResponse], error)
 }
 
 // NewWordVaultServiceClient constructs a client for the wordvault.WordVaultService service. By
@@ -191,6 +201,19 @@ func NewWordVaultServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		getFsrsParameters: connect.NewClient[wordvault.GetFsrsParametersRequest, wordvault.GetFsrsParametersResponse](
+			httpClient,
+			baseURL+WordVaultServiceGetFsrsParametersProcedure,
+			connect.WithSchema(wordVaultServiceGetFsrsParametersMethodDescriptor),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		editFsrsParameters: connect.NewClient[wordvault.EditFsrsParametersRequest, wordvault.EditFsrsParametersResponse](
+			httpClient,
+			baseURL+WordVaultServiceEditFsrsParametersProcedure,
+			connect.WithSchema(wordVaultServiceEditFsrsParametersMethodDescriptor),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -208,6 +231,8 @@ type wordVaultServiceClient struct {
 	delete                 *connect.Client[wordvault.DeleteRequest, wordvault.DeleteResponse]
 	getDailyProgress       *connect.Client[wordvault.GetDailyProgressRequest, wordvault.GetDailyProgressResponse]
 	getDailyLeaderboard    *connect.Client[wordvault.GetDailyLeaderboardRequest, wordvault.GetDailyLeaderboardResponse]
+	getFsrsParameters      *connect.Client[wordvault.GetFsrsParametersRequest, wordvault.GetFsrsParametersResponse]
+	editFsrsParameters     *connect.Client[wordvault.EditFsrsParametersRequest, wordvault.EditFsrsParametersResponse]
 }
 
 // GetCardCount calls wordvault.WordVaultService.GetCardCount.
@@ -270,6 +295,16 @@ func (c *wordVaultServiceClient) GetDailyLeaderboard(ctx context.Context, req *c
 	return c.getDailyLeaderboard.CallUnary(ctx, req)
 }
 
+// GetFsrsParameters calls wordvault.WordVaultService.GetFsrsParameters.
+func (c *wordVaultServiceClient) GetFsrsParameters(ctx context.Context, req *connect.Request[wordvault.GetFsrsParametersRequest]) (*connect.Response[wordvault.GetFsrsParametersResponse], error) {
+	return c.getFsrsParameters.CallUnary(ctx, req)
+}
+
+// EditFsrsParameters calls wordvault.WordVaultService.EditFsrsParameters.
+func (c *wordVaultServiceClient) EditFsrsParameters(ctx context.Context, req *connect.Request[wordvault.EditFsrsParametersRequest]) (*connect.Response[wordvault.EditFsrsParametersResponse], error) {
+	return c.editFsrsParameters.CallUnary(ctx, req)
+}
+
 // WordVaultServiceHandler is an implementation of the wordvault.WordVaultService service.
 type WordVaultServiceHandler interface {
 	GetCardCount(context.Context, *connect.Request[wordvault.GetCardCountRequest]) (*connect.Response[wordvault.CardCountResponse], error)
@@ -284,6 +319,8 @@ type WordVaultServiceHandler interface {
 	Delete(context.Context, *connect.Request[wordvault.DeleteRequest]) (*connect.Response[wordvault.DeleteResponse], error)
 	GetDailyProgress(context.Context, *connect.Request[wordvault.GetDailyProgressRequest]) (*connect.Response[wordvault.GetDailyProgressResponse], error)
 	GetDailyLeaderboard(context.Context, *connect.Request[wordvault.GetDailyLeaderboardRequest]) (*connect.Response[wordvault.GetDailyLeaderboardResponse], error)
+	GetFsrsParameters(context.Context, *connect.Request[wordvault.GetFsrsParametersRequest]) (*connect.Response[wordvault.GetFsrsParametersResponse], error)
+	EditFsrsParameters(context.Context, *connect.Request[wordvault.EditFsrsParametersRequest]) (*connect.Response[wordvault.EditFsrsParametersResponse], error)
 }
 
 // NewWordVaultServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -370,6 +407,19 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	wordVaultServiceGetFsrsParametersHandler := connect.NewUnaryHandler(
+		WordVaultServiceGetFsrsParametersProcedure,
+		svc.GetFsrsParameters,
+		connect.WithSchema(wordVaultServiceGetFsrsParametersMethodDescriptor),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	wordVaultServiceEditFsrsParametersHandler := connect.NewUnaryHandler(
+		WordVaultServiceEditFsrsParametersProcedure,
+		svc.EditFsrsParameters,
+		connect.WithSchema(wordVaultServiceEditFsrsParametersMethodDescriptor),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/wordvault.WordVaultService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case WordVaultServiceGetCardCountProcedure:
@@ -396,6 +446,10 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 			wordVaultServiceGetDailyProgressHandler.ServeHTTP(w, r)
 		case WordVaultServiceGetDailyLeaderboardProcedure:
 			wordVaultServiceGetDailyLeaderboardHandler.ServeHTTP(w, r)
+		case WordVaultServiceGetFsrsParametersProcedure:
+			wordVaultServiceGetFsrsParametersHandler.ServeHTTP(w, r)
+		case WordVaultServiceEditFsrsParametersProcedure:
+			wordVaultServiceEditFsrsParametersHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -451,4 +505,12 @@ func (UnimplementedWordVaultServiceHandler) GetDailyProgress(context.Context, *c
 
 func (UnimplementedWordVaultServiceHandler) GetDailyLeaderboard(context.Context, *connect.Request[wordvault.GetDailyLeaderboardRequest]) (*connect.Response[wordvault.GetDailyLeaderboardResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.GetDailyLeaderboard is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) GetFsrsParameters(context.Context, *connect.Request[wordvault.GetFsrsParametersRequest]) (*connect.Response[wordvault.GetFsrsParametersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.GetFsrsParameters is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) EditFsrsParameters(context.Context, *connect.Request[wordvault.EditFsrsParametersRequest]) (*connect.Response[wordvault.EditFsrsParametersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.EditFsrsParameters is not implemented"))
 }

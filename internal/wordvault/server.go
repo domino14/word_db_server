@@ -73,7 +73,7 @@ func (s *Server) GetCardInformation(ctx context.Context, req *connect.Request[pb
 	}
 
 	// Load from user params
-	params, err := s.fsrsParams(ctx, int64(user.DBID))
+	params, err := s.fsrsParams(ctx, int64(user.DBID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -234,9 +234,14 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 	return connect.NewResponse(resp), nil
 }
 
-func (s *Server) fsrsParams(ctx context.Context, dbid int64) (fsrs.Parameters, error) {
+func (s *Server) fsrsParams(ctx context.Context, dbid int64, maybeQ *models.Queries) (fsrs.Parameters, error) {
 	// Load from user params
-	params, err := s.Queries.LoadParams(ctx, dbid)
+	q := s.Queries
+	if maybeQ != nil {
+		log.Debug().Int64("userID", dbid).Msg("querying-params-with-tx")
+		q = maybeQ
+	}
+	params, err := q.LoadFsrsParams(ctx, dbid)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// No params exist for this user
@@ -309,7 +314,7 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 	defer tx.Rollback(ctx)
 	qtx := s.Queries.WithTx(tx)
 
-	params, err := s.fsrsParams(ctx, int64(user.DBID))
+	params, err := s.fsrsParams(ctx, int64(user.DBID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -409,7 +414,7 @@ func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.Edit
 	qtx := s.Queries.WithTx(tx)
 
 	// Load from user params
-	params, err := s.fsrsParams(ctx, int64(user.DBID))
+	params, err := s.fsrsParams(ctx, int64(user.DBID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -646,7 +651,7 @@ func (s *Server) Postpone(ctx context.Context, req *connect.Request[pb.PostponeR
 	}
 	log := log.Ctx(ctx)
 
-	params, err := s.fsrsParams(ctx, int64(user.DBID))
+	params, err := s.fsrsParams(ctx, int64(user.DBID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -841,6 +846,83 @@ func (s *Server) GetDailyLeaderboard(ctx context.Context, req *connect.Request[p
 		}
 	}
 	return connect.NewResponse(resp), nil
+}
+
+func (s *Server) GetFsrsParameters(ctx context.Context, req *connect.Request[pb.GetFsrsParametersRequest]) (
+	*connect.Response[pb.GetFsrsParametersResponse], error) {
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+
+	dbparams, err := s.fsrsParams(ctx, int64(user.DBID), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	params := &pb.FsrsParameters{
+		Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM,
+		RequestRetention: dbparams.RequestRetention,
+	}
+
+	if dbparams.EnableShortTerm {
+		params.Scheduler = pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM
+	}
+
+	resp := &pb.GetFsrsParametersResponse{
+		Parameters: params,
+	}
+
+	return connect.NewResponse(resp), nil
+}
+
+func (s *Server) EditFsrsParameters(ctx context.Context, req *connect.Request[pb.EditFsrsParametersRequest]) (
+	*connect.Response[pb.EditFsrsParametersResponse], error) {
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+
+	if req.Msg.Parameters.RequestRetention < 0.7 || req.Msg.Parameters.RequestRetention > 0.97 {
+		return nil, invalidArgError("invalid retention value")
+	}
+
+	if req.Msg.Parameters.Scheduler != pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM && req.Msg.Parameters.Scheduler != pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM {
+		return nil, invalidArgError("invalid scheduler value")
+	}
+
+	tx, err := s.DBPool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	qtx := s.Queries.WithTx(tx)
+
+	params, err := s.fsrsParams(ctx, int64(user.DBID), qtx)
+	if err != nil {
+		return nil, err
+	}
+
+	if req.Msg.Parameters.Scheduler == pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM {
+		params.EnableShortTerm = true
+	} else {
+		params.EnableShortTerm = false
+	}
+	params.RequestRetention = req.Msg.Parameters.RequestRetention
+
+	err = qtx.SetFsrsParams(ctx, models.SetFsrsParamsParams{
+		Params: params,
+		UserID: int64(user.DBID),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&pb.EditFsrsParametersResponse{}), nil
 }
 
 // The fsrs library fuzzes only by day. It tends to ask questions at the same
