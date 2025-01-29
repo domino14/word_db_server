@@ -8,6 +8,21 @@ SELECT alphagram, next_scheduled, fsrs_card, review_log
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY(@alphagrams::text[]);
 
+-- name: GetDecks :many
+SELECT id, user_id, lexicon_name, fsrs_params_override, name
+FROM wordvault_decks
+WHERE user_id = $1;
+
+-- name: AddDeck :one
+INSERT INTO wordvault_decks(user_id, lexicon_name, name)
+VALUES ($1, $2, $3)
+RETURNING 1;
+
+-- name: EditDeck :exec
+UPDATE wordvault_decks
+SET name = $2
+WHERE id = $1;
+
 -- name: GetNextScheduled :many
 SELECT alphagram, next_scheduled, fsrs_card
 FROM wordvault_cards

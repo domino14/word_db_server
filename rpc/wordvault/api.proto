@@ -139,6 +139,18 @@ message EditFsrsParametersRequest {
     FsrsParameters parameters = 1;
 }
 
+message AddDeckRequest {
+  Deck deck = 1;
+}
+
+message AddDeckResponse {}
+
+message GetDecksRequest {}
+
+message GetDecksResponse {
+  repeated Deck decks = 1;
+}
+
 message EditFsrsParametersResponse {}
 
 service WordVaultService {
@@ -175,4 +187,6 @@ service WordVaultService {
     option idempotency_level = NO_SIDE_EFFECTS;
   };
   rpc EditFsrsParameters(EditFsrsParametersRequest) returns (EditFsrsParametersResponse);
+  rpc AddDeck(AddDeckRequest) returns (AddDeckResponse);
+  rpc GetDecks(GetDecksRequest) returns (GetDecksResponse);
 }
