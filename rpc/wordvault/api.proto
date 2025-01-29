@@ -12,6 +12,12 @@ enum Score {
   SCORE_EASY = 4;
 }
 
+message Deck {
+  string lexicon = 1;
+  string name = 2;
+  string description = 3;
+}
+
 message Card {
   string lexicon = 1;
   wordsearcher.Alphagram alphagram = 2;
