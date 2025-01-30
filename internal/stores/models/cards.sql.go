@@ -62,7 +62,7 @@ func (q *Queries) AddCards(ctx context.Context, arg AddCardsParams) (int64, erro
 const addDeck = `-- name: AddDeck :one
 INSERT INTO wordvault_decks(user_id, lexicon_name, name)
 VALUES ($1, $2, $3)
-RETURNING 1
+RETURNING id, user_id, lexicon_name, fsrs_params_override, name
 `
 
 type AddDeckParams struct {
@@ -71,11 +71,17 @@ type AddDeckParams struct {
 	Name        string
 }
 
-func (q *Queries) AddDeck(ctx context.Context, arg AddDeckParams) (int32, error) {
+func (q *Queries) AddDeck(ctx context.Context, arg AddDeckParams) (WordvaultDeck, error) {
 	row := q.db.QueryRow(ctx, addDeck, arg.UserID, arg.LexiconName, arg.Name)
-	var column_1 int32
-	err := row.Scan(&column_1)
-	return column_1, err
+	var i WordvaultDeck
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.LexiconName,
+		&i.FsrsParamsOverride,
+		&i.Name,
+	)
+	return i, err
 }
 
 const bulkUpdateCards = `-- name: BulkUpdateCards :exec
@@ -154,6 +160,16 @@ func (q *Queries) DeleteCardsWithAlphagrams(ctx context.Context, arg DeleteCards
 	return result.RowsAffected(), nil
 }
 
+const deleteDeck = `-- name: DeleteDeck :exec
+DELETE FROM wordvault_decks
+WHERE id = $1
+`
+
+func (q *Queries) DeleteDeck(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, deleteDeck, id)
+	return err
+}
+
 const deleteNewCards = `-- name: DeleteNewCards :execrows
 DELETE FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND jsonb_array_length(review_log) = 0
@@ -172,20 +188,30 @@ func (q *Queries) DeleteNewCards(ctx context.Context, arg DeleteNewCardsParams) 
 	return result.RowsAffected(), nil
 }
 
-const editDeck = `-- name: EditDeck :exec
+const editDeck = `-- name: EditDeck :one
 UPDATE wordvault_decks
 SET name = $2
-WHERE id = $1
+WHERE id = $1 AND user_id = $3
+RETURNING id, user_id, lexicon_name, fsrs_params_override, name
 `
 
 type EditDeckParams struct {
-	ID   int64
-	Name string
+	ID     int64
+	Name   string
+	UserID int64
 }
 
-func (q *Queries) EditDeck(ctx context.Context, arg EditDeckParams) error {
-	_, err := q.db.Exec(ctx, editDeck, arg.ID, arg.Name)
-	return err
+func (q *Queries) EditDeck(ctx context.Context, arg EditDeckParams) (WordvaultDeck, error) {
+	row := q.db.QueryRow(ctx, editDeck, arg.ID, arg.Name, arg.UserID)
+	var i WordvaultDeck
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.LexiconName,
+		&i.FsrsParamsOverride,
+		&i.Name,
+	)
+	return i, err
 }
 
 const getCard = `-- name: GetCard :one

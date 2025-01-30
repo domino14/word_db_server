@@ -16,11 +16,16 @@ WHERE user_id = $1;
 -- name: AddDeck :one
 INSERT INTO wordvault_decks(user_id, lexicon_name, name)
 VALUES ($1, $2, $3)
-RETURNING 1;
+RETURNING *;
 
--- name: EditDeck :exec
+-- name: EditDeck :one
 UPDATE wordvault_decks
 SET name = $2
+WHERE id = $1 AND user_id = $3
+RETURNING *;
+
+-- name: DeleteDeck :exec
+DELETE FROM wordvault_decks
 WHERE id = $1;
 
 -- name: GetNextScheduled :many

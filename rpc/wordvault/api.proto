@@ -12,12 +12,6 @@ enum Score {
   SCORE_EASY = 4;
 }
 
-message Deck {
-  string lexicon = 1;
-  string name = 2;
-  string description = 3;
-}
-
 message Card {
   string lexicon = 1;
   wordsearcher.Alphagram alphagram = 2;
@@ -139,16 +133,34 @@ message EditFsrsParametersRequest {
     FsrsParameters parameters = 1;
 }
 
-message AddDeckRequest {
-  Deck deck = 1;
+message Deck {
+  int64 id = 1;
+  string lexicon = 2;
+  string name = 3;
 }
 
-message AddDeckResponse {}
+message AddDeckRequest {
+  string name = 1;
+  string lexicon = 2;
+}
+
+message AddDeckResponse {
+    Deck deck = 1;
+}
 
 message GetDecksRequest {}
 
 message GetDecksResponse {
   repeated Deck decks = 1;
+}
+
+message EditDeckRequest {
+  int64 id = 1;
+  string name = 2;
+}
+
+message EditDeckResponse {
+  Deck deck = 1;
 }
 
 message EditFsrsParametersResponse {}
@@ -189,4 +201,5 @@ service WordVaultService {
   rpc EditFsrsParameters(EditFsrsParametersRequest) returns (EditFsrsParametersResponse);
   rpc AddDeck(AddDeckRequest) returns (AddDeckResponse);
   rpc GetDecks(GetDecksRequest) returns (GetDecksResponse);
+  rpc EditDeck(EditDeckRequest) returns (EditDeckResponse);
 }
