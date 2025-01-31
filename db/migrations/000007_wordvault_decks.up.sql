@@ -9,9 +9,8 @@ CREATE TABLE wordvault_decks (
     name TEXT NOT NULL
 );
 
--- Postgres unique constraints are bad with `null`, so we use 0 to represent the default deck
 ALTER TABLE wordvault_cards
-ADD COLUMN deck_id BIGINT NOT NULL DEFAULT 0;
+ADD COLUMN deck_id BIGINT REFERENCES wordvault_decks(id);
 
 -- Indexes for Decks
 CREATE INDEX decks_userid_idx ON wordvault_decks USING btree (user_id);

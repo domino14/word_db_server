@@ -16,7 +16,7 @@ import (
 const addCards = `-- name: AddCards :one
 WITH inserted_rows AS (
     INSERT INTO wordvault_cards(
-        alphagram, next_scheduled, fsrs_card, user_id, lexicon_name, review_log, deck_id
+        alphagram, next_scheduled, fsrs_card, user_id, lexicon_name, review_log
     )
     SELECT
         unnest($1::TEXT[]),
