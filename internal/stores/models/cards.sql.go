@@ -16,7 +16,7 @@ import (
 const addCards = `-- name: AddCards :one
 WITH inserted_rows AS (
     INSERT INTO wordvault_cards(
-        alphagram, next_scheduled, fsrs_card, user_id, lexicon_name, review_log
+        alphagram, next_scheduled, fsrs_card, user_id, lexicon_name, review_log, deck_id
     )
     SELECT
         unnest($1::TEXT[]),
@@ -30,7 +30,7 @@ WITH inserted_rows AS (
                 array_fill('[]'::JSONB, array[array_length($1, 1)])
             )
         )
-    ON CONFLICT(user_id, lexicon_name, alphagram, deck_id) DO NOTHING
+    ON CONFLICT(user_id, lexicon_name, alphagram) DO NOTHING
     RETURNING 1
 )
 SELECT COUNT(*) FROM inserted_rows

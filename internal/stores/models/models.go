@@ -23,7 +23,7 @@ type WordvaultCard struct {
 	FsrsCard      stores.Card
 	ReviewLog     []stores.ReviewLog
 	ID            int64
-	DeckID        pgtype.Int8
+	DeckID        int64
 }
 
 type WordvaultDeck struct {
