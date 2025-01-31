@@ -9,8 +9,9 @@ CREATE TABLE wordvault_decks (
     name TEXT NOT NULL
 );
 
+-- Postgres unique constraints are bad with `null`, so we use 0 to represent the default deck
 ALTER TABLE wordvault_cards
-ADD COLUMN deck_id BIGINT REFERENCES wordvault_decks(id);
+ADD COLUMN deck_id BIGINT NOT NULL DEFAULT 0;
 
 -- Indexes for Decks
 CREATE INDEX decks_userid_idx ON wordvault_decks USING btree (user_id);
@@ -26,7 +27,8 @@ CREATE INDEX wordvault_cards_deckid_last_review_idx on wordvault_cards (deck_id,
 
 -- Replace the (user/lexicon/alphagram) unique index with (user/lexicon/deck/alphagram)
 -- So that users can have the same card in multiple decks
-ALTER TABLE wordvault_cards ADD CONSTRAINT wordvault_cards_userid_lexicon_deck_alphagram_key UNIQUE (user_id, lexicon_name, deck_id, alphagram);
+ALTER TABLE wordvault_cards ADD CONSTRAINT wordvault_cards_userid_lexicon_deck_alphagram_key
+UNIQUE (user_id, lexicon_name, deck_id, alphagram);
 
 -- remove old unique constraint and its underlying index
 ALTER TABLE wordvault_cards DROP CONSTRAINT IF EXISTS wordvault_cards_user_id_lexicon_name_alphagram_key;

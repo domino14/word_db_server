@@ -199,6 +199,8 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 		return nil, err
 	}
 
+	log := log.Ctx(ctx)
+	log.Info().Interface("params", params).Msg("params")
 	row, err := s.Queries.GetSingleNextScheduled(ctx, models.GetSingleNextScheduledParams{
 		UserID:               int64(user.DBID),
 		LexiconName:          req.Msg.Lexicon,
