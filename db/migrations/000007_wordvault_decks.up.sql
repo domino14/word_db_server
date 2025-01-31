@@ -29,6 +29,6 @@ CREATE INDEX wordvault_cards_deckid_last_review_idx on wordvault_cards (deck_id,
 ALTER TABLE wordvault_cards ADD CONSTRAINT wordvault_cards_userid_lexicon_deck_alphagram_key UNIQUE (user_id, lexicon_name, deck_id, alphagram);
 
 -- remove old unique constraint and its underlying index
-ALTER TABLE wordvault_cards DROP CONSTRAINT wordvault_cards_user_id_lexicon_name_alphagram_key;
+ALTER TABLE wordvault_cards DROP CONSTRAINT IF EXISTS wordvault_cards_user_id_lexicon_name_alphagram_key;
 
 COMMIT;

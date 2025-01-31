@@ -30,7 +30,7 @@ WITH inserted_rows AS (
                 array_fill('[]'::JSONB, array[array_length($1, 1)])
             )
         )
-    ON CONFLICT(user_id, lexicon_name, alphagram) DO NOTHING
+    ON CONFLICT(user_id, lexicon_name, alphagram, deck_id) DO NOTHING
     RETURNING 1
 )
 SELECT COUNT(*) FROM inserted_rows
@@ -481,9 +481,9 @@ WITH matching_cards AS (
     AND lexicon_name = $2
     AND next_scheduled <= $3
   ORDER BY
-    -- When short-term scheduling is enabled, we want to prioritize review cards
-    -- over all other states (` + "`" + `1` + "`" + ` === Review in the FSRS card state)
-    CASE WHEN CAST(fsrs_card->'State' AS INTEGER) = 1 THEN $4::bool ELSE FALSE END DESC,
+    -- When short-term scheduling is enabled, we want to de-prioritize
+    -- new cards so that you clear your backlog of reviewed cards first.
+    CASE WHEN CAST(fsrs_card->'State' AS INTEGER) = 0 THEN FALSE ELSE $4::bool END DESC,
     next_scheduled ASC
 )
 SELECT alphagram, next_scheduled, fsrs_card, total_count FROM matching_cards

@@ -103,7 +103,7 @@ WITH inserted_rows AS (
                 array_fill('[]'::JSONB, array[array_length(@alphagrams, 1)])
             )
         )
-    ON CONFLICT(user_id, lexicon_name, alphagram) DO NOTHING
+    ON CONFLICT(user_id, lexicon_name, alphagram, deck_id) DO NOTHING
     RETURNING 1
 )
 SELECT COUNT(*) FROM inserted_rows;
