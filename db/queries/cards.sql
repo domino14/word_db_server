@@ -26,7 +26,11 @@ WITH matching_cards AS (
   WHERE user_id = $1
     AND lexicon_name = $2
     AND next_scheduled <= $3
-  ORDER BY next_scheduled ASC
+  ORDER BY
+    -- When short-term scheduling is enabled, we want to prioritize review cards
+    -- over all other states (`1` === Review in the FSRS card state)
+    CASE WHEN CAST(fsrs_card->'State' AS INTEGER) = 1 THEN sqlc.arg(is_short_term_scheduler)::bool ELSE 0 END DESC,
+    next_scheduled ASC
 )
 SELECT alphagram, next_scheduled, fsrs_card, total_count FROM matching_cards
 LIMIT 1;

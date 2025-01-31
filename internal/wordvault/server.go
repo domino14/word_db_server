@@ -32,7 +32,7 @@ var ErrNeedMembership = errors.New("adding these cards would put you over your l
 var ErrMaybeRefreshApp = invalidArgError("Card with your input parameters was not found. Please refresh this page as the app may have updated.")
 var ErrMaintenance = connect.NewError(connect.CodeUnavailable, errors.New("WordVault App is currently undergoing maintenance. Please wait a few moments and try again."))
 
-const JustReviewedInterval = time.Second * 10
+const JustReviewedInterval = time.Second * 5
 
 type nower interface {
 	Now() time.Time
@@ -193,11 +193,19 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 		return nil, ErrMaintenance
 	}
 
+	params, err := s.fsrsParams(ctx, int64(user.DBID), nil)
+
+	if err != nil {
+		return nil, err
+	}
+
 	row, err := s.Queries.GetSingleNextScheduled(ctx, models.GetSingleNextScheduledParams{
-		UserID:        int64(user.DBID),
-		LexiconName:   req.Msg.Lexicon,
-		NextScheduled: toPGTimestamp(s.Nower.Now()),
+		UserID:               int64(user.DBID),
+		LexiconName:          req.Msg.Lexicon,
+		NextScheduled:        toPGTimestamp(s.Nower.Now()),
+		IsShortTermScheduler: params.EnableShortTerm,
 	})
+
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// Not an error.
