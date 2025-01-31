@@ -32,7 +32,7 @@ var ErrNeedMembership = errors.New("adding these cards would put you over your l
 var ErrMaybeRefreshApp = invalidArgError("Card with your input parameters was not found. Please refresh this page as the app may have updated.")
 var ErrMaintenance = connect.NewError(connect.CodeUnavailable, errors.New("WordVault App is currently undergoing maintenance. Please wait a few moments and try again."))
 
-const JustReviewedInterval = time.Second * 5
+const JustReviewedInterval = time.Second * 10
 
 type nower interface {
 	Now() time.Time

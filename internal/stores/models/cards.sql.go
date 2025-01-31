@@ -388,7 +388,9 @@ WITH matching_cards AS (
     AND lexicon_name = $2
     AND next_scheduled <= $3
   ORDER BY
-    CASE WHEN CAST(fsrs_card->'State' AS INTEGER) = 1 THEN $4::bool ELSE 0 END DESC,
+    -- When short-term scheduling is enabled, we want to prioritize review cards
+    -- over all other states (` + "`" + `1` + "`" + ` === Review in the FSRS card state)
+    CASE WHEN CAST(fsrs_card->'State' AS INTEGER) = 1 THEN $4::bool ELSE FALSE END DESC,
     next_scheduled ASC
 )
 SELECT alphagram, next_scheduled, fsrs_card, total_count FROM matching_cards
