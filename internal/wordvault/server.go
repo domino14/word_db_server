@@ -193,11 +193,19 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 		return nil, ErrMaintenance
 	}
 
+	params, err := s.fsrsParams(ctx, int64(user.DBID), nil)
+
+	if err != nil {
+		return nil, err
+	}
+
 	row, err := s.Queries.GetSingleNextScheduled(ctx, models.GetSingleNextScheduledParams{
-		UserID:        int64(user.DBID),
-		LexiconName:   req.Msg.Lexicon,
-		NextScheduled: toPGTimestamp(s.Nower.Now()),
+		UserID:               int64(user.DBID),
+		LexiconName:          req.Msg.Lexicon,
+		NextScheduled:        toPGTimestamp(s.Nower.Now()),
+		IsShortTermScheduler: params.EnableShortTerm,
 	})
+
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// Not an error.
