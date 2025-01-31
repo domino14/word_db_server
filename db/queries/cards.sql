@@ -31,7 +31,7 @@ WHERE id = $1;
 -- name: GetNextScheduled :many
 SELECT alphagram, next_scheduled, fsrs_card
 FROM wordvault_cards
-WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3
+WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3 AND (($4 IS NULL AND deck_id IS NULL) OR deck_id = $4)
 ORDER BY next_scheduled ASC
 LIMIT $4;
 
@@ -46,6 +46,7 @@ WITH matching_cards AS (
   WHERE user_id = $1
     AND lexicon_name = $2
     AND next_scheduled <= $3
+    AND (($4 IS NULL AND deck_id IS NULL) OR deck_id = $4)
   ORDER BY
     -- When short-term scheduling is enabled, we want to de-prioritize
     -- new cards so that you clear your backlog of reviewed cards first.
@@ -89,7 +90,7 @@ SET params = $2;
 -- name: AddCards :one
 WITH inserted_rows AS (
     INSERT INTO wordvault_cards(
-        alphagram, next_scheduled, fsrs_card, user_id, lexicon_name, review_log
+        alphagram, next_scheduled, fsrs_card, user_id, lexicon_name, review_log, deck_id
     )
     SELECT
         unnest(@alphagrams::TEXT[]),
@@ -101,6 +102,12 @@ WITH inserted_rows AS (
             COALESCE(
                 @review_logs::JSONB[],
                 array_fill('[]'::JSONB, array[array_length(@alphagrams, 1)])
+            )
+        ),
+        unnest(
+            COALESCE(
+                @deck_id::BIGINT,
+                array_fill(NULL::BIGINT, array[array_length(@alphagrams, 1)])
             )
         )
     ON CONFLICT(user_id, lexicon_name, alphagram) DO NOTHING
