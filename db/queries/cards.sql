@@ -46,7 +46,11 @@ WITH matching_cards AS (
   WHERE user_id = $1
     AND lexicon_name = $2
     AND next_scheduled <= $3
-  ORDER BY next_scheduled ASC
+  ORDER BY
+    -- When short-term scheduling is enabled, we want to de-prioritize
+    -- new cards so that you clear your backlog of reviewed cards first.
+    CASE WHEN CAST(fsrs_card->'State' AS INTEGER) = 0 THEN FALSE ELSE sqlc.arg(is_short_term_scheduler)::bool END DESC,
+    next_scheduled ASC
 )
 SELECT alphagram, next_scheduled, fsrs_card, total_count FROM matching_cards
 LIMIT 1;
