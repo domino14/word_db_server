@@ -89,6 +89,25 @@ VALUES ($1, $2)
 ON CONFLICT(user_id) DO UPDATE
 SET params = $2;
 
+-- name: GetCardsInOtherDecksCount :one
+SELECT COUNT(*)
+FROM wordvault_cards
+WHERE user_id = $1
+    AND lexicon_name = $2
+    AND alphagram = ANY(@alphagrams::text[])
+    AND ((deck_id IS NULL AND sqlc.narg(deck_id)::BIGINT IS NOT NULL)
+        OR (deck_id IS NOT NULL AND != sqlc.narg(deck_id)::BIGINT));
+
+-- name: GetCardsInOtherDecksAlphagrams :many
+SELECT id, alphagram, deck_id
+FROM wordvault_cards
+WHERE user_id = $1
+    AND lexicon_name = $2
+    AND alphagram = ANY(@alphagrams::text[])
+    AND ((deck_id IS NULL AND sqlc.narg(deck_id)::BIGINT IS NOT NULL)
+        OR (deck_id IS NOT NULL AND != sqlc.narg(deck_id)::BIGINT))
+LIMIT $3;
+
 -- name: AddCards :one
 WITH inserted_rows AS (
     INSERT INTO wordvault_cards(
