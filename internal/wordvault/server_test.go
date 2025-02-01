@@ -1352,3 +1352,66 @@ func TestAddingCardsToDeck(t *testing.T) {
 	is.Equal(res.Msg.OverdueCount, uint32(0))
 	is.True(res.Msg.Card == nil)
 }
+
+func TestAddingCardsWithOverlap(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+
+	// Create a new deck
+	added, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Test Deck",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	deckID := added.Msg.Deck.Id
+	deckIDUint := uint64(deckID)
+
+	// Add card to default deck
+	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO"},
+	}))
+	// Add a different card to the other deck
+	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEHMMO"},
+	}))
+
+	// Add two cards to the test deck: one overlapping and one new
+	addResp, err := s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "AIELRNO"},
+		DeckId:     &deckIDUint,
+	}))
+	is.NoErr(err)
+
+	is.Equal(len(addResp.Msg.CardsInOtherDecksPreview), 1)
+	is.Equal(addResp.Msg.CardsInOtherDecksPreview[0].Alphagram, "ADEEGMMO")
+	is.Equal(addResp.Msg.NumCardsInOtherDecks, 1)
+	is.Equal(addResp.Msg.NumCardsAdded, 1)
+
+	// Add two cards to the default deck: one overlapping and one new
+	addResp, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEHMMO", "AEINSTU"},
+	}))
+	is.NoErr(err)
+
+	is.Equal(len(addResp.Msg.CardsInOtherDecksPreview), 1)
+	is.Equal(addResp.Msg.CardsInOtherDecksPreview[0].Alphagram, "ADEEHMMO")
+	is.Equal(addResp.Msg.NumCardsInOtherDecks, 1)
+	is.Equal(addResp.Msg.NumCardsAdded, 1)
+}
