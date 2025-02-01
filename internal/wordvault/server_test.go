@@ -1388,6 +1388,7 @@ func TestAddingCardsWithOverlap(t *testing.T) {
 	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
 		Lexicon:    "NWL23",
 		Alphagrams: []string{"ADEEHMMO"},
+		DeckId:     &deckIDUint,
 	}))
 
 	// Add two cards to the test deck: one overlapping and one new
@@ -1400,8 +1401,8 @@ func TestAddingCardsWithOverlap(t *testing.T) {
 
 	is.Equal(len(addResp.Msg.CardsInOtherDecksPreview), 1)
 	is.Equal(addResp.Msg.CardsInOtherDecksPreview[0].Alphagram, "ADEEGMMO")
-	is.Equal(addResp.Msg.NumCardsInOtherDecks, 1)
-	is.Equal(addResp.Msg.NumCardsAdded, 1)
+	is.Equal(addResp.Msg.NumCardsInOtherDecks, uint32(1))
+	is.Equal(addResp.Msg.NumCardsAdded, uint32(1))
 
 	// Add two cards to the default deck: one overlapping and one new
 	addResp, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
@@ -1412,6 +1413,6 @@ func TestAddingCardsWithOverlap(t *testing.T) {
 
 	is.Equal(len(addResp.Msg.CardsInOtherDecksPreview), 1)
 	is.Equal(addResp.Msg.CardsInOtherDecksPreview[0].Alphagram, "ADEEHMMO")
-	is.Equal(addResp.Msg.NumCardsInOtherDecks, 1)
-	is.Equal(addResp.Msg.NumCardsAdded, 1)
+	is.Equal(addResp.Msg.NumCardsInOtherDecks, uint32(1))
+	is.Equal(addResp.Msg.NumCardsAdded, uint32(1))
 }

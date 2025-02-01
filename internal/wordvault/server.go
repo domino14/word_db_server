@@ -640,6 +640,10 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
+	tx.Commit(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	return connect.NewResponse(&pb.AddCardsResponse{
 		NumCardsAdded:            uint32(numInserted),
