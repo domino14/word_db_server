@@ -288,6 +288,86 @@ func (q *Queries) GetCards(ctx context.Context, arg GetCardsParams) ([]GetCardsR
 	return items, nil
 }
 
+const getCardsInOtherDecksAlphagrams = `-- name: GetCardsInOtherDecksAlphagrams :many
+SELECT id, alphagram, deck_id
+FROM wordvault_cards
+WHERE user_id = $1
+    AND lexicon_name = $2
+    AND alphagram = ANY($4::text[])
+    AND ((deck_id IS NULL AND $5::BIGINT IS NOT NULL)
+        OR (deck_id IS NOT NULL AND deck_id != $5::BIGINT))
+LIMIT $3
+`
+
+type GetCardsInOtherDecksAlphagramsParams struct {
+	UserID      int64
+	LexiconName string
+	Limit       int32
+	Alphagrams  []string
+	DeckID      pgtype.Int8
+}
+
+type GetCardsInOtherDecksAlphagramsRow struct {
+	ID        int64
+	Alphagram string
+	DeckID    pgtype.Int8
+}
+
+func (q *Queries) GetCardsInOtherDecksAlphagrams(ctx context.Context, arg GetCardsInOtherDecksAlphagramsParams) ([]GetCardsInOtherDecksAlphagramsRow, error) {
+	rows, err := q.db.Query(ctx, getCardsInOtherDecksAlphagrams,
+		arg.UserID,
+		arg.LexiconName,
+		arg.Limit,
+		arg.Alphagrams,
+		arg.DeckID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetCardsInOtherDecksAlphagramsRow
+	for rows.Next() {
+		var i GetCardsInOtherDecksAlphagramsRow
+		if err := rows.Scan(&i.ID, &i.Alphagram, &i.DeckID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getCardsInOtherDecksCount = `-- name: GetCardsInOtherDecksCount :one
+SELECT COUNT(*)
+FROM wordvault_cards
+WHERE user_id = $1
+    AND lexicon_name = $2
+    AND alphagram = ANY($3::text[])
+    AND ((deck_id IS NULL AND $4::BIGINT IS NOT NULL)
+        OR (deck_id IS NOT NULL AND deck_id != $4::BIGINT))
+`
+
+type GetCardsInOtherDecksCountParams struct {
+	UserID      int64
+	LexiconName string
+	Alphagrams  []string
+	DeckID      pgtype.Int8
+}
+
+func (q *Queries) GetCardsInOtherDecksCount(ctx context.Context, arg GetCardsInOtherDecksCountParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getCardsInOtherDecksCount,
+		arg.UserID,
+		arg.LexiconName,
+		arg.Alphagrams,
+		arg.DeckID,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getDecks = `-- name: GetDecks :many
 SELECT id, user_id, lexicon_name, fsrs_params_override, name
 FROM wordvault_decks
