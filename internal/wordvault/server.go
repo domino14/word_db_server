@@ -138,9 +138,13 @@ func (s *Server) GetNextScheduled(ctx context.Context, req *connect.Request[pb.G
 		LexiconName:   req.Msg.Lexicon,
 		Limit:         int32(req.Msg.Limit),
 		NextScheduled: toPGTimestamp(s.Nower.Now()),
+		DeckID: pgtype.Int8{
+			Valid: req.Msg.DeckId != nil,
+			Int64: 0,
+		},
 	}
 	if req.Msg.DeckId != nil {
-		params.DeckID = int64(*req.Msg.DeckId)
+		params.DeckID.Int64 = int64(*req.Msg.DeckId)
 	}
 	rows, err := s.Queries.GetNextScheduled(ctx, params)
 	if err != nil {
@@ -214,10 +218,17 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 		LexiconName:          req.Msg.Lexicon,
 		NextScheduled:        toPGTimestamp(s.Nower.Now()),
 		IsShortTermScheduler: params.EnableShortTerm,
+		DeckID: pgtype.Int8{
+			Valid: req.Msg.DeckId != nil,
+			Int64: 0,
+		},
 	}
 	if req.Msg.DeckId != nil {
-		sqlParams.DeckID = int64(*req.Msg.DeckId)
+		sqlParams.DeckID.Int64 = int64(*req.Msg.DeckId)
 	}
+
+	log := log.Ctx(ctx)
+	log.Info().Interface("params", sqlParams).Msg("get-single-next-scheduled")
 
 	row, err := s.Queries.GetSingleNextScheduled(ctx, sqlParams)
 

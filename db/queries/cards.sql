@@ -32,7 +32,7 @@ WHERE id = $1;
 SELECT alphagram, next_scheduled, fsrs_card, deck_id
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3
-    AND ((sqlc.arg(deck_id)::bigint = 0 AND deck_id IS NULL) OR deck_id = sqlc.arg(deck_id)::bigint)
+    AND ((sqlc.narg(deck_id)::bigint IS NULL AND deck_id IS NULL) OR deck_id = sqlc.narg(deck_id)::bigint)
 ORDER BY next_scheduled ASC
 LIMIT $4;
 
@@ -48,7 +48,7 @@ WITH matching_cards AS (
   WHERE user_id = $1
     AND lexicon_name = $2
     AND next_scheduled <= $3
-    AND ((sqlc.arg(deck_id)::bigint = 0 AND deck_id IS NULL) OR sqlc.arg(deck_id)::bigint = $4)
+    AND ((sqlc.narg(deck_id)::BIGINT IS NULL AND deck_id IS NULL) OR sqlc.narg(deck_id)::BIGINT = deck_id)
   ORDER BY
     -- When short-term scheduling is enabled, we want to de-prioritize
     -- new cards so that you clear your backlog of reviewed cards first.

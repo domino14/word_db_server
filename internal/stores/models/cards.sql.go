@@ -324,7 +324,7 @@ const getNextScheduled = `-- name: GetNextScheduled :many
 SELECT alphagram, next_scheduled, fsrs_card, deck_id
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3
-    AND (($5::bigint = 0 AND deck_id IS NULL) OR deck_id = $5::bigint)
+    AND (($5::bigint IS NULL AND deck_id IS NULL) OR deck_id = $5::bigint)
 ORDER BY next_scheduled ASC
 LIMIT $4
 `
@@ -334,7 +334,7 @@ type GetNextScheduledParams struct {
 	LexiconName   string
 	NextScheduled pgtype.Timestamptz
 	Limit         int32
-	DeckID        int64
+	DeckID        pgtype.Int8
 }
 
 type GetNextScheduledRow struct {
@@ -495,11 +495,11 @@ WITH matching_cards AS (
   WHERE user_id = $1
     AND lexicon_name = $2
     AND next_scheduled <= $3
-    AND (($5::bigint = 0 AND deck_id IS NULL) OR $5::bigint = $4)
+    AND (($4::BIGINT IS NULL AND deck_id IS NULL) OR $4::BIGINT = deck_id)
   ORDER BY
     -- When short-term scheduling is enabled, we want to de-prioritize
     -- new cards so that you clear your backlog of reviewed cards first.
-    CASE WHEN CAST(fsrs_card->'State' AS INTEGER) = 0 THEN FALSE ELSE $6::bool END DESC,
+    CASE WHEN CAST(fsrs_card->'State' AS INTEGER) = 0 THEN FALSE ELSE $5::bool END DESC,
     next_scheduled ASC
 )
 SELECT alphagram, next_scheduled, fsrs_card, deck_id, total_count FROM matching_cards
@@ -510,8 +510,7 @@ type GetSingleNextScheduledParams struct {
 	UserID               int64
 	LexiconName          string
 	NextScheduled        pgtype.Timestamptz
-	Column4              interface{}
-	DeckID               int64
+	DeckID               pgtype.Int8
 	IsShortTermScheduler bool
 }
 
@@ -528,7 +527,6 @@ func (q *Queries) GetSingleNextScheduled(ctx context.Context, arg GetSingleNextS
 		arg.UserID,
 		arg.LexiconName,
 		arg.NextScheduled,
-		arg.Column4,
 		arg.DeckID,
 		arg.IsShortTermScheduler,
 	)

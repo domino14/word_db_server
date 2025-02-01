@@ -1302,3 +1302,53 @@ func TestDecks(t *testing.T) {
 	is.Equal(deckMap[secondDeckID].Name, "My Second Deck")
 	is.Equal(deckMap[secondDeckID].Lexicon, "CSW21")
 }
+
+func TestAddingCardsToDeck(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+
+	added, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Test Deck",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	deckID := added.Msg.Deck.Id
+	deckIDUint := uint64(deckID)
+
+	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO"},
+		DeckId:     &deckIDUint,
+	}))
+
+	res, err := s.GetSingleNextScheduled(ctx, connect.NewRequest(&pb.GetSingleNextScheduledRequest{
+		Lexicon: "NWL23",
+		DeckId:  &deckIDUint,
+	}))
+
+	is.NoErr(err)
+	is.Equal(res.Msg.OverdueCount, uint32(1))
+	is.True(res.Msg.Card != nil)
+	is.Equal(res.Msg.Card.Alphagram.Alphagram, "ADEEGMMO")
+
+	// Check that the default deck has no schedled card
+	res, err = s.GetSingleNextScheduled(ctx, connect.NewRequest(&pb.GetSingleNextScheduledRequest{
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	is.Equal(res.Msg.OverdueCount, uint32(0))
+	is.True(res.Msg.Card == nil)
+}
