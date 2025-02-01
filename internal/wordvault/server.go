@@ -107,6 +107,7 @@ func (s *Server) GetCardInformation(ctx context.Context, req *connect.Request[pb
 			CardJsonRepr:   cardbts,
 			Retrievability: f.GetRetrievability(fcard.Card, s.Nower.Now()),
 			ReviewLog:      revlogbts,
+			DeckId:         uint64(rows[i].DeckID.Int64),
 		}
 	}
 	return connect.NewResponse(&pb.Cards{Cards: cards}), nil
@@ -133,6 +134,7 @@ func (s *Server) GetNextScheduled(ctx context.Context, req *connect.Request[pb.G
 		LexiconName:   req.Msg.Lexicon,
 		Limit:         int32(req.Msg.Limit),
 		NextScheduled: toPGTimestamp(s.Nower.Now()),
+		DeckID:        int64(req.Msg.DeckId),
 	})
 	if err != nil {
 		return nil, err
@@ -206,6 +208,7 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 		LexiconName:          req.Msg.Lexicon,
 		NextScheduled:        toPGTimestamp(s.Nower.Now()),
 		IsShortTermScheduler: params.EnableShortTerm,
+		DeckID:               int64(req.Msg.DeckId),
 	})
 
 	if err != nil {
@@ -237,6 +240,7 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 			// because of the way the query is written, so we just pass
 			// the raw bytes as they are.
 			CardJsonRepr: row.FsrsCard,
+			DeckId:       uint64(row.DeckID.Int64),
 		},
 		OverdueCount: uint32(row.TotalCount),
 	}
@@ -546,6 +550,7 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 	}
 
 	numInserted, err := s.Queries.AddCards(ctx, models.AddCardsParams{
+		DeckID:      int64(req.Msg.DeckId),
 		UserID:      int64(user.DBID),
 		LexiconName: req.Msg.Lexicon,
 		// sqlc compiler can't detect this is a special type. It's ok.

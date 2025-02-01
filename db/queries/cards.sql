@@ -4,7 +4,7 @@ FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = $3;
 
 -- name: GetCards :many
-SELECT alphagram, next_scheduled, fsrs_card, review_log
+SELECT alphagram, next_scheduled, fsrs_card, review_log, deck_id
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY(@alphagrams::text[]);
 
@@ -31,7 +31,8 @@ WHERE id = $1;
 -- name: GetNextScheduled :many
 SELECT alphagram, next_scheduled, fsrs_card
 FROM wordvault_cards
-WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3 AND (($4 IS NULL AND deck_id IS NULL) OR deck_id = $4)
+WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3
+    AND ((sqlc.arg(deck_id)::bigint IS NULL AND deck_id IS NULL) OR deck_id = sqlc.arg(deck_id)::bigint)
 ORDER BY next_scheduled ASC
 LIMIT $4;
 
@@ -41,19 +42,20 @@ WITH matching_cards AS (
     alphagram,
     next_scheduled,
     fsrs_card,
+    deck_id,
     COUNT(*) OVER () AS total_count -- Window function to get the total count
   FROM wordvault_cards
   WHERE user_id = $1
     AND lexicon_name = $2
     AND next_scheduled <= $3
-    AND (($4 IS NULL AND deck_id IS NULL) OR deck_id = $4)
+    AND ((sqlc.arg(deck_id)::bigint IS NULL AND deck_id IS NULL) OR sqlc.arg(deck_id)::bigint = $4)
   ORDER BY
     -- When short-term scheduling is enabled, we want to de-prioritize
     -- new cards so that you clear your backlog of reviewed cards first.
     CASE WHEN CAST(fsrs_card->'State' AS INTEGER) = 0 THEN FALSE ELSE sqlc.arg(is_short_term_scheduler)::bool END DESC,
     next_scheduled ASC
 )
-SELECT alphagram, next_scheduled, fsrs_card, total_count FROM matching_cards
+SELECT alphagram, next_scheduled, fsrs_card, deck_id, total_count FROM matching_cards
 LIMIT 1;
 
 -- name: GetNumCardsInVault :many
@@ -114,6 +116,15 @@ WITH inserted_rows AS (
     RETURNING 1
 )
 SELECT COUNT(*) FROM inserted_rows;
+
+-- name: MoveCards :one
+WITH moved_rows AS (
+    UPDATE wordvault_cards
+    SET deck_id = $3
+    WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY(@alphagrams::text[])
+    RETURNING 1
+)
+SELECT COUNT(*) from moved_rows;
 
 -- name: GetNextScheduledBreakdown :many
 WITH scheduled_cards AS (
