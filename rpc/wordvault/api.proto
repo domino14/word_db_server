@@ -23,6 +23,12 @@ message Card {
   optional uint64 deck_id = 6;
 }
 
+message CardPreview {
+    string lexicon = 1;
+    wordsearcher.Alphagram alphagram = 2;
+    optional uint64 deck_id = 5;
+}
+
 message GetCardInfoRequest {
   string lexicon = 1;
   repeated string alphagrams = 2;
@@ -63,7 +69,11 @@ message AddCardsRequest {
   optional uint64 deck_id = 3;
 }
 
-message AddCardsResponse { uint32 num_cards_added = 1; }
+message AddCardsResponse {
+    uint32 num_cards_added = 1;
+    uint32 num_cards_in_other_decks = 2;
+    repeated CardPreview cards_in_other_decks_preview = 3;
+}
 
 message EditLastScoreRequest {
   string lexicon = 1;
