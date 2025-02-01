@@ -29,10 +29,10 @@ DELETE FROM wordvault_decks
 WHERE id = $1;
 
 -- name: GetNextScheduled :many
-SELECT alphagram, next_scheduled, fsrs_card
+SELECT alphagram, next_scheduled, fsrs_card, deck_id
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3
-    AND ((sqlc.arg(deck_id)::bigint IS NULL AND deck_id IS NULL) OR deck_id = sqlc.arg(deck_id)::bigint)
+    AND ((sqlc.arg(deck_id)::bigint = 0 AND deck_id IS NULL) OR deck_id = sqlc.arg(deck_id)::bigint)
 ORDER BY next_scheduled ASC
 LIMIT $4;
 
@@ -48,7 +48,7 @@ WITH matching_cards AS (
   WHERE user_id = $1
     AND lexicon_name = $2
     AND next_scheduled <= $3
-    AND ((sqlc.arg(deck_id)::bigint IS NULL AND deck_id IS NULL) OR sqlc.arg(deck_id)::bigint = $4)
+    AND ((sqlc.arg(deck_id)::bigint = 0 AND deck_id IS NULL) OR sqlc.arg(deck_id)::bigint = $4)
   ORDER BY
     -- When short-term scheduling is enabled, we want to de-prioritize
     -- new cards so that you clear your backlog of reviewed cards first.
@@ -106,12 +106,7 @@ WITH inserted_rows AS (
                 array_fill('[]'::JSONB, array[array_length(@alphagrams, 1)])
             )
         ),
-        unnest(
-            COALESCE(
-                @deck_id::BIGINT,
-                array_fill(NULL::BIGINT, array[array_length(@alphagrams, 1)])
-            )
-        )
+        sqlc.narg(deck_id)::BIGINT
     ON CONFLICT(user_id, lexicon_name, alphagram) DO NOTHING
     RETURNING 1
 )

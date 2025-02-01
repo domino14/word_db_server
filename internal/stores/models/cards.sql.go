@@ -30,12 +30,7 @@ WITH inserted_rows AS (
                 array_fill('[]'::JSONB, array[array_length($1, 1)])
             )
         ),
-        unnest(
-            COALESCE(
-                $7::BIGINT,
-                array_fill(NULL::BIGINT, array[array_length($1, 1)])
-            )
-        )
+        $7::BIGINT
     ON CONFLICT(user_id, lexicon_name, alphagram) DO NOTHING
     RETURNING 1
 )
@@ -49,7 +44,7 @@ type AddCardsParams struct {
 	UserID         int64
 	LexiconName    string
 	ReviewLogs     [][]byte
-	DeckID         int64
+	DeckID         pgtype.Int8
 }
 
 func (q *Queries) AddCards(ctx context.Context, arg AddCardsParams) (int64, error) {
@@ -326,10 +321,10 @@ func (q *Queries) GetDecks(ctx context.Context, userID int64) ([]WordvaultDeck, 
 }
 
 const getNextScheduled = `-- name: GetNextScheduled :many
-SELECT alphagram, next_scheduled, fsrs_card
+SELECT alphagram, next_scheduled, fsrs_card, deck_id
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3
-    AND (($5::bigint IS NULL AND deck_id IS NULL) OR deck_id = $5::bigint)
+    AND (($5::bigint = 0 AND deck_id IS NULL) OR deck_id = $5::bigint)
 ORDER BY next_scheduled ASC
 LIMIT $4
 `
@@ -346,6 +341,7 @@ type GetNextScheduledRow struct {
 	Alphagram     string
 	NextScheduled pgtype.Timestamptz
 	FsrsCard      stores.Card
+	DeckID        pgtype.Int8
 }
 
 func (q *Queries) GetNextScheduled(ctx context.Context, arg GetNextScheduledParams) ([]GetNextScheduledRow, error) {
@@ -363,7 +359,12 @@ func (q *Queries) GetNextScheduled(ctx context.Context, arg GetNextScheduledPara
 	var items []GetNextScheduledRow
 	for rows.Next() {
 		var i GetNextScheduledRow
-		if err := rows.Scan(&i.Alphagram, &i.NextScheduled, &i.FsrsCard); err != nil {
+		if err := rows.Scan(
+			&i.Alphagram,
+			&i.NextScheduled,
+			&i.FsrsCard,
+			&i.DeckID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -494,7 +495,7 @@ WITH matching_cards AS (
   WHERE user_id = $1
     AND lexicon_name = $2
     AND next_scheduled <= $3
-    AND (($5::bigint IS NULL AND deck_id IS NULL) OR $5::bigint = $4)
+    AND (($5::bigint = 0 AND deck_id IS NULL) OR $5::bigint = $4)
   ORDER BY
     -- When short-term scheduling is enabled, we want to de-prioritize
     -- new cards so that you clear your backlog of reviewed cards first.
