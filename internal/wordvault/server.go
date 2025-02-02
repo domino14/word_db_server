@@ -992,12 +992,38 @@ func (s *Server) AddDeck(ctx context.Context, req *connect.Request[pb.AddDeckReq
 		return nil, invalidArgError("need a name")
 	}
 
-	deck, err := s.Queries.AddDeck(ctx, models.AddDeckParams{
+	tx, err := s.DBPool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	qtx := s.Queries.WithTx(tx)
+
+	sameNameCount, err := qtx.CountDecksWithSameName(ctx, models.CountDecksWithSameNameParams{
 		UserID:      int64(user.DBID),
 		LexiconName: req.Msg.Lexicon,
 		Name:        req.Msg.Name,
 	})
 
+	if err != nil {
+		return nil, err
+	}
+
+	if sameNameCount > 0 {
+		return nil, invalidArgError("deck with this name already exists")
+	}
+
+	deck, err := qtx.AddDeck(ctx, models.AddDeckParams{
+		UserID:      int64(user.DBID),
+		LexiconName: req.Msg.Lexicon,
+		Name:        req.Msg.Name,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = tx.Commit(ctx)
 	if err != nil {
 		return nil, err
 	}
