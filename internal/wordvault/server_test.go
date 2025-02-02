@@ -1246,7 +1246,7 @@ func TestDecks(t *testing.T) {
 		Name:    "my first deck",
 		Lexicon: "NWL23",
 	}))
-	is.True(err.Error() == "invalid_argument: please choose a unique deck name for the lexicon")
+	is.True(err.Error() == "invalid_argument: deck with this name already exists")
 
 	added, err = s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
 		Name:    "My Second Deck",
