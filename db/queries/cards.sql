@@ -100,7 +100,7 @@ WHERE user_id = $1
     AND lexicon_name = $2
     AND alphagram = ANY(@alphagrams::text[])
     AND ((deck_id IS NULL AND sqlc.narg(deck_id)::BIGINT IS NOT NULL)
-        OR (deck_id IS NOT NULL AND deck_id != sqlc.narg(deck_id)::BIGINT));
+        OR (deck_id IS NOT NULL AND deck_id != COALESCE(sqlc.narg(deck_id)::BIGINT, -1)));
 
 -- name: GetCardsInOtherDecksAlphagrams :many
 SELECT id, alphagram, deck_id
@@ -109,7 +109,7 @@ WHERE user_id = $1
     AND lexicon_name = $2
     AND alphagram = ANY(@alphagrams::text[])
     AND ((deck_id IS NULL AND sqlc.narg(deck_id)::BIGINT IS NOT NULL)
-        OR (deck_id IS NOT NULL AND deck_id != sqlc.narg(deck_id)::BIGINT))
+        OR (deck_id IS NOT NULL AND deck_id != COALESCE(sqlc.narg(deck_id)::BIGINT, -1)))
 LIMIT $3;
 
 -- name: AddCards :one

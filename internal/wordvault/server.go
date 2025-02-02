@@ -592,6 +592,9 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 		deckIdParam.Int64 = int64(*req.Msg.DeckId)
 	}
 
+	log := log.Ctx(ctx)
+	log.Info().Interface("deckId", deckIdParam).Msg("add-cards-deck-id")
+
 	countParams := models.CountCardsInOtherDecksParams{
 		UserID:      int64(user.DBID),
 		LexiconName: req.Msg.Lexicon,
