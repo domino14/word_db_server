@@ -1359,7 +1359,7 @@ func TestAddingCardsToDeck(t *testing.T) {
 	is.True(res.Msg.Card == nil)
 }
 
-func TestAddingCardsWithOverlap(t *testing.T) {
+func TestAddingAndMovingCardsWithOverlap(t *testing.T) {
 	is := is.New(t)
 
 	err := RecreateTestDB()
@@ -1421,4 +1421,36 @@ func TestAddingCardsWithOverlap(t *testing.T) {
 	is.Equal(addResp.Msg.CardsInOtherDecksPreview[0].Alphagram, "ADEEHMMO")
 	is.Equal(addResp.Msg.NumCardsInOtherDecks, uint32(1))
 	is.Equal(addResp.Msg.NumCardsAdded, uint32(1))
+
+	moveResp, err := s.MoveCards(ctx, connect.NewRequest(&pb.MoveCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO"},
+		DeckId:     &deckIDUint,
+	}))
+
+	is.NoErr(err)
+	is.Equal(moveResp.Msg.NumCardsMoved, uint32(1))
+
+	moveResp, err = s.MoveCards(ctx, connect.NewRequest(&pb.MoveCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEHMMO"},
+	}))
+
+	is.NoErr(err)
+	is.Equal(moveResp.Msg.NumCardsMoved, uint32(1))
+
+	info, err := s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO"},
+	}))
+
+	is.NoErr(err)
+	is.Equal(len(info.Msg.Cards), 2)
+	deckMap := make(map[string]*uint64)
+	for _, card := range info.Msg.Cards {
+		deckMap[card.Alphagram.Alphagram] = card.DeckId
+	}
+
+	is.Equal(*deckMap["ADEEGMMO"], deckIDUint)
+	is.Equal(deckMap["ADEEHMMO"], nil)
 }

@@ -75,6 +75,16 @@ message AddCardsResponse {
     repeated CardPreview cards_in_other_decks_preview = 3;
 }
 
+message MoveCardsRequest {
+  string lexicon = 1;
+  repeated string alphagrams = 2;
+  optional uint64 deck_id = 3;
+}
+
+message MoveCardsResponse {
+  uint32 num_cards_moved = 1;
+}
+
 message EditLastScoreRequest {
   string lexicon = 1;
   string alphagram = 2;
@@ -203,6 +213,7 @@ service WordVaultService {
   rpc ScoreCard(ScoreCardRequest) returns (ScoreCardResponse);
   rpc EditLastScore(EditLastScoreRequest) returns (ScoreCardResponse);
   rpc AddCards(AddCardsRequest) returns (AddCardsResponse);
+  rpc MoveCards(MoveCardsRequest) returns (MoveCardsResponse);
   rpc Postpone(PostponeRequest) returns (PostponeResponse);
   rpc Delete(DeleteRequest) returns (DeleteResponse);
   rpc GetDailyProgress(GetDailyProgressRequest)

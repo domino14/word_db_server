@@ -592,9 +592,6 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 		deckIdParam.Int64 = int64(*req.Msg.DeckId)
 	}
 
-	log := log.Ctx(ctx)
-	log.Info().Interface("deckId", deckIdParam).Msg("add-cards-deck-id")
-
 	countParams := models.CountCardsInOtherDecksParams{
 		UserID:      int64(user.DBID),
 		LexiconName: req.Msg.Lexicon,
@@ -653,6 +650,40 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 		NumCardsInOtherDecks:     uint32(numInOtherDeck),
 		CardsInOtherDecksPreview: previewRows,
 	}), nil
+}
+
+func (s *Server) MoveCards(ctx context.Context, req *connect.Request[pb.MoveCardsRequest]) (
+	*connect.Response[pb.MoveCardsResponse], error) {
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+	if req.Msg.Lexicon == "" {
+		return nil, invalidArgError("need a lexicon")
+	}
+	if len(req.Msg.Alphagrams) == 0 {
+		return nil, invalidArgError("need at least one card to move")
+	}
+
+	deckId := pgtype.Int8{
+		Valid: req.Msg.DeckId != nil,
+		Int64: 0,
+	}
+	if req.Msg.DeckId != nil {
+		deckId.Int64 = int64(*req.Msg.DeckId)
+	}
+
+	params := models.MoveCardsParams{
+		UserID:      int64(user.DBID),
+		LexiconName: req.Msg.Lexicon,
+		Alphagrams:  req.Msg.Alphagrams,
+		DeckID:      deckId,
+	}
+	numMoved, err := s.Queries.MoveCards(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&pb.MoveCardsResponse{NumCardsMoved: uint32(numMoved)}), nil
 }
 
 func (s *Server) GetCardCount(ctx context.Context, req *connect.Request[pb.GetCardCountRequest]) (
