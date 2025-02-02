@@ -13,6 +13,10 @@ SELECT id, user_id, lexicon_name, fsrs_params_override, name
 FROM wordvault_decks
 WHERE user_id = $1;
 
+-- name: CountDecksWithSameName :one
+SELECT count(*) FROM wordvault_decks
+WHERE user_id = $1 AND LOWER(name) = LOWER(sqlc.arg(name)::TEXT) AND lexicon_name = $2;
+
 -- name: AddDeck :one
 INSERT INTO wordvault_decks(user_id, lexicon_name, name)
 VALUES ($1, $2, $3)
