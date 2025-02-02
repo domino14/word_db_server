@@ -1242,6 +1242,12 @@ func TestDecks(t *testing.T) {
 	is.Equal(added.Msg.Deck.Lexicon, "NWL23")
 	firstDeckID := added.Msg.Deck.Id
 
+	_, err = s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "my first deck",
+		Lexicon: "NWL23",
+	}))
+	is.True(err.Error() == "invalid_argument: deck with this name already exists")
+
 	added, err = s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
 		Name:    "My Second Deck",
 		Lexicon: "CSW21",
