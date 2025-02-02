@@ -592,13 +592,13 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 		deckIdParam.Int64 = int64(*req.Msg.DeckId)
 	}
 
-	countParams := models.GetCardsInOtherDecksCountParams{
+	countParams := models.CountCardsInOtherDecksParams{
 		UserID:      int64(user.DBID),
 		LexiconName: req.Msg.Lexicon,
 		Alphagrams:  alphagrams,
 		DeckID:      deckIdParam,
 	}
-	numInOtherDeck, err := qtx.GetCardsInOtherDecksCount(ctx, countParams)
+	numInOtherDeck, err := qtx.CountCardsInOtherDecks(ctx, countParams)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
@@ -640,7 +640,7 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
-	tx.Commit(ctx)
+	err = tx.Commit(ctx)
 	if err != nil {
 		return nil, err
 	}

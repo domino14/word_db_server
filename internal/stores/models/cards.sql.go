@@ -126,6 +126,35 @@ func (q *Queries) BulkUpdateCards(ctx context.Context, arg BulkUpdateCardsParams
 	return err
 }
 
+const countCardsInOtherDecks = `-- name: CountCardsInOtherDecks :one
+SELECT COUNT(*)
+FROM wordvault_cards
+WHERE user_id = $1
+    AND lexicon_name = $2
+    AND alphagram = ANY($3::text[])
+    AND ((deck_id IS NULL AND $4::BIGINT IS NOT NULL)
+        OR (deck_id IS NOT NULL AND deck_id != COALESCE($4::BIGINT), -1))
+`
+
+type CountCardsInOtherDecksParams struct {
+	UserID      int64
+	LexiconName string
+	Alphagrams  []string
+	DeckID      pgtype.Int8
+}
+
+func (q *Queries) CountCardsInOtherDecks(ctx context.Context, arg CountCardsInOtherDecksParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countCardsInOtherDecks,
+		arg.UserID,
+		arg.LexiconName,
+		arg.Alphagrams,
+		arg.DeckID,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countDecksWithSameName = `-- name: CountDecksWithSameName :one
 SELECT count(*) FROM wordvault_decks
 WHERE user_id = $1 AND LOWER(name) = LOWER($3::TEXT) AND lexicon_name = $2
@@ -313,7 +342,7 @@ WHERE user_id = $1
     AND lexicon_name = $2
     AND alphagram = ANY($4::text[])
     AND ((deck_id IS NULL AND $5::BIGINT IS NOT NULL)
-        OR (deck_id IS NOT NULL AND deck_id != $5::BIGINT))
+        OR (deck_id IS NOT NULL AND deck_id != COALESCE($5::BIGINT), -1))
 LIMIT $3
 `
 
@@ -355,35 +384,6 @@ func (q *Queries) GetCardsInOtherDecksAlphagrams(ctx context.Context, arg GetCar
 		return nil, err
 	}
 	return items, nil
-}
-
-const getCardsInOtherDecksCount = `-- name: GetCardsInOtherDecksCount :one
-SELECT COUNT(*)
-FROM wordvault_cards
-WHERE user_id = $1
-    AND lexicon_name = $2
-    AND alphagram = ANY($3::text[])
-    AND ((deck_id IS NULL AND $4::BIGINT IS NOT NULL)
-        OR (deck_id IS NOT NULL AND deck_id != $4::BIGINT))
-`
-
-type GetCardsInOtherDecksCountParams struct {
-	UserID      int64
-	LexiconName string
-	Alphagrams  []string
-	DeckID      pgtype.Int8
-}
-
-func (q *Queries) GetCardsInOtherDecksCount(ctx context.Context, arg GetCardsInOtherDecksCountParams) (int64, error) {
-	row := q.db.QueryRow(ctx, getCardsInOtherDecksCount,
-		arg.UserID,
-		arg.LexiconName,
-		arg.Alphagrams,
-		arg.DeckID,
-	)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
 }
 
 const getDecks = `-- name: GetDecks :many

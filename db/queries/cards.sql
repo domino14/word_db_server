@@ -93,7 +93,7 @@ VALUES ($1, $2)
 ON CONFLICT(user_id) DO UPDATE
 SET params = $2;
 
--- name: GetCardsInOtherDecksCount :one
+-- name: CountCardsInOtherDecks :one
 SELECT COUNT(*)
 FROM wordvault_cards
 WHERE user_id = $1
