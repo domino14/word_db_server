@@ -789,15 +789,14 @@ func (s *Server) NextScheduledCountByDeck(ctx context.Context, req *connect.Requ
 			return nil, err
 		}
 
-		for i := range ocCounts {
-			ocCount := ocCounts[i]
+		for _, ocCount := range ocCounts {
 			var deckId *uint64
 
 			breakdown := map[string]uint32{}
 			breakdown["overdue"] = uint32(ocCount.Count)
 
-			if ocCounts[i].DeckID.Valid {
-				id := uint64(ocCounts[i].DeckID.Int64)
+			if ocCount.DeckID.Valid {
+				id := uint64(ocCount.DeckID.Int64)
 				deckId = &id
 			}
 
@@ -823,25 +822,25 @@ func (s *Server) NextScheduledCountByDeck(ctx context.Context, req *connect.Requ
 		defaultDeck := make(map[string]uint32)
 		perDeckBreakdown := make(map[uint64]map[string]uint32)
 
-		for i := range rows {
+		for _, row := range rows {
 			var s string
-			switch rows[i].ScheduledDate.InfinityModifier {
+			switch row.ScheduledDate.InfinityModifier {
 			case pgtype.Finite:
-				s = rows[i].ScheduledDate.Time.Format("2006-01-02")
+				s = row.ScheduledDate.Time.Format("2006-01-02")
 			case pgtype.Infinity:
 				s = "infinity"
 			case pgtype.NegativeInfinity:
 				s = "overdue"
 			}
 
-			if rows[i].DeckID.Valid {
-				deckId := uint64(rows[i].DeckID.Int64)
+			if row.DeckID.Valid {
+				deckId := uint64(row.DeckID.Int64)
 				if _, ok := perDeckBreakdown[deckId]; !ok {
 					perDeckBreakdown[deckId] = make(map[string]uint32)
 				}
-				perDeckBreakdown[deckId][s] = uint32(rows[i].QuestionCount)
+				perDeckBreakdown[deckId][s] = uint32(row.QuestionCount)
 			} else {
-				defaultDeck[s] = uint32(rows[i].QuestionCount)
+				defaultDeck[s] = uint32(row.QuestionCount)
 			}
 		}
 

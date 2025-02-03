@@ -654,7 +654,63 @@ func TestCardMemberLimits(t *testing.T) {
 		Alphagrams: alphaStrs,
 	}))
 	is.Equal(err.Error(), "invalid_argument: "+ErrNeedMembership.Error())
+}
 
+func TestOverdueCountByDeck(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+
+	addedDeck, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Test Deck",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	deckId := addedDeck.Msg.Deck.Id
+	deckIdUint := uint64(deckId)
+
+	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO", "AEILNOR"},
+	}))
+	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"AEINSTU", "AELNSTW"},
+		DeckId:     &deckIdUint,
+	}))
+
+	res, err := s.NextScheduledCountByDeck(ctx, connect.NewRequest(&pb.NextScheduledCountByDeckRequest{
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+
+	defaultCount := uint32(0)
+	testDeckCount := uint32(0)
+
+	for _, deckBreakdown := range res.Msg.Breakdowns {
+		if deckBreakdown.DeckId == nil {
+			defaultCount = deckBreakdown.Breakdown["overdue"]
+		} else if int64(*deckBreakdown.DeckId) == deckId {
+			testDeckCount = deckBreakdown.Breakdown["overdue"]
+		} else {
+			is.Fail()
+		}
+	}
+
+	is.Equal(defaultCount, uint32(3))
+	is.Equal(testDeckCount, uint32(2))
 }
 
 func TestOverdueCount(t *testing.T) {
