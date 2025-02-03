@@ -336,7 +336,7 @@ func (q *Queries) GetCards(ctx context.Context, arg GetCardsParams) ([]GetCardsR
 }
 
 const getCardsInOtherDecksAlphagrams = `-- name: GetCardsInOtherDecksAlphagrams :many
-SELECT id, alphagram, deck_id
+SELECT alphagram, deck_id
 FROM wordvault_cards
 WHERE user_id = $1
     AND lexicon_name = $2
@@ -355,7 +355,6 @@ type GetCardsInOtherDecksAlphagramsParams struct {
 }
 
 type GetCardsInOtherDecksAlphagramsRow struct {
-	ID        int64
 	Alphagram string
 	DeckID    pgtype.Int8
 }
@@ -375,7 +374,7 @@ func (q *Queries) GetCardsInOtherDecksAlphagrams(ctx context.Context, arg GetCar
 	var items []GetCardsInOtherDecksAlphagramsRow
 	for rows.Next() {
 		var i GetCardsInOtherDecksAlphagramsRow
-		if err := rows.Scan(&i.ID, &i.Alphagram, &i.DeckID); err != nil {
+		if err := rows.Scan(&i.Alphagram, &i.DeckID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

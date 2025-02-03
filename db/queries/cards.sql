@@ -103,7 +103,7 @@ WHERE user_id = $1
         OR (deck_id IS NOT NULL AND deck_id != COALESCE(sqlc.narg(deck_id)::BIGINT, -1)));
 
 -- name: GetCardsInOtherDecksAlphagrams :many
-SELECT id, alphagram, deck_id
+SELECT alphagram, deck_id
 FROM wordvault_cards
 WHERE user_id = $1
     AND lexicon_name = $2
