@@ -765,22 +765,22 @@ func (s *Server) NextScheduledCount(ctx context.Context, req *connect.Request[pb
 	return connect.NewResponse(&pb.NextScheduledBreakdown{Breakdown: breakdown}), nil
 }
 
-func (s *Server) NextScheduledCount(ctx context.Context, req *connect.Request[pb.NextScheduledCountByDeckRequest]) (
+func (s *Server) NextScheduledCountByDeck(ctx context.Context, req *connect.Request[pb.NextScheduledCountByDeckRequest]) (
 	*connect.Response[pb.NextScheduledCountByDeckResponse], error) {
 	user := auth.UserFromContext(ctx)
 	if user == nil {
 		return nil, unauthenticated("user not authenticated")
 	}
 	log := log.Ctx(ctx)
-	breakdown := map[string]uint32{}
 	log.Info().Interface("req", req.Msg).Msg("next-scheduled-count")
 
 	if req.Msg.Lexicon == "" {
 		return nil, invalidArgError("must provide a lexicon")
 	}
+	var breakdowns []*pb.DeckBreakdown
 
 	if req.Msg.OnlyOverdue {
-		ocCount, err := s.Queries.GetOverdueCount(ctx, models.GetOverdueCountParams{
+		ocCounts, err := s.Queries.GetOverdueCountByDeck(ctx, models.GetOverdueCountByDeckParams{
 			UserID:      int64(user.DBID),
 			Now:         toPGTimestamp(s.Nower.Now()),
 			LexiconName: req.Msg.Lexicon,
@@ -788,13 +788,30 @@ func (s *Server) NextScheduledCount(ctx context.Context, req *connect.Request[pb
 		if err != nil {
 			return nil, err
 		}
-		breakdown["overdue"] = uint32(ocCount)
+
+		for i := range ocCounts {
+			ocCount := ocCounts[i]
+			var deckId *uint64
+
+			breakdown := map[string]uint32{}
+			breakdown["overdue"] = uint32(ocCount.Count)
+
+			if ocCounts[i].DeckID.Valid {
+				id := uint64(ocCounts[i].DeckID.Int64)
+				deckId = &id
+			}
+
+			breakdowns = append(breakdowns, &pb.DeckBreakdown{
+				DeckId:    deckId,
+				Breakdown: breakdown,
+			})
+		}
 	} else {
 		tz := "UTC"
 		if req.Msg.Timezone != "" {
 			tz = req.Msg.Timezone
 		}
-		rows, err := s.Queries.GetNextScheduledBreakdown(ctx, models.GetNextScheduledBreakdownParams{
+		rows, err := s.Queries.GetNextScheduledBreakdownByDeck(ctx, models.GetNextScheduledBreakdownByDeckParams{
 			UserID:      int64(user.DBID),
 			Now:         toPGTimestamp(s.Nower.Now()),
 			Tz:          tz,
@@ -803,6 +820,9 @@ func (s *Server) NextScheduledCount(ctx context.Context, req *connect.Request[pb
 		if err != nil {
 			return nil, err
 		}
+		defaultDeck := make(map[string]uint32)
+		perDeckBreakdown := make(map[uint64]map[string]uint32)
+
 		for i := range rows {
 			var s string
 			switch rows[i].ScheduledDate.InfinityModifier {
@@ -813,11 +833,32 @@ func (s *Server) NextScheduledCount(ctx context.Context, req *connect.Request[pb
 			case pgtype.NegativeInfinity:
 				s = "overdue"
 			}
-			breakdown[s] = uint32(rows[i].QuestionCount)
+
+			if rows[i].DeckID.Valid {
+				deckId := uint64(rows[i].DeckID.Int64)
+				if _, ok := perDeckBreakdown[deckId]; !ok {
+					perDeckBreakdown[deckId] = make(map[string]uint32)
+				}
+				perDeckBreakdown[deckId][s] = uint32(rows[i].QuestionCount)
+			} else {
+				defaultDeck[s] = uint32(rows[i].QuestionCount)
+			}
+		}
+
+		breakdowns = append(breakdowns, &pb.DeckBreakdown{
+			DeckId:    nil,
+			Breakdown: defaultDeck,
+		})
+
+		for deckId, breakdown := range perDeckBreakdown {
+			breakdowns = append(breakdowns, &pb.DeckBreakdown{
+				DeckId:    &deckId,
+				Breakdown: breakdown,
+			})
 		}
 	}
 
-	return connect.NewResponse(&pb.NextScheduledBreakdown{Breakdown: breakdown}), nil
+	return connect.NewResponse(&pb.NextScheduledCountByDeckResponse{Breakdowns: breakdowns}), nil
 }
 
 type postponement struct {
