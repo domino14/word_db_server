@@ -765,6 +765,61 @@ func (s *Server) NextScheduledCount(ctx context.Context, req *connect.Request[pb
 	return connect.NewResponse(&pb.NextScheduledBreakdown{Breakdown: breakdown}), nil
 }
 
+func (s *Server) NextScheduledCount(ctx context.Context, req *connect.Request[pb.NextScheduledCountByDeckRequest]) (
+	*connect.Response[pb.NextScheduledCountByDeckResponse], error) {
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+	log := log.Ctx(ctx)
+	breakdown := map[string]uint32{}
+	log.Info().Interface("req", req.Msg).Msg("next-scheduled-count")
+
+	if req.Msg.Lexicon == "" {
+		return nil, invalidArgError("must provide a lexicon")
+	}
+
+	if req.Msg.OnlyOverdue {
+		ocCount, err := s.Queries.GetOverdueCount(ctx, models.GetOverdueCountParams{
+			UserID:      int64(user.DBID),
+			Now:         toPGTimestamp(s.Nower.Now()),
+			LexiconName: req.Msg.Lexicon,
+		})
+		if err != nil {
+			return nil, err
+		}
+		breakdown["overdue"] = uint32(ocCount)
+	} else {
+		tz := "UTC"
+		if req.Msg.Timezone != "" {
+			tz = req.Msg.Timezone
+		}
+		rows, err := s.Queries.GetNextScheduledBreakdown(ctx, models.GetNextScheduledBreakdownParams{
+			UserID:      int64(user.DBID),
+			Now:         toPGTimestamp(s.Nower.Now()),
+			Tz:          tz,
+			LexiconName: req.Msg.Lexicon,
+		})
+		if err != nil {
+			return nil, err
+		}
+		for i := range rows {
+			var s string
+			switch rows[i].ScheduledDate.InfinityModifier {
+			case pgtype.Finite:
+				s = rows[i].ScheduledDate.Time.Format("2006-01-02")
+			case pgtype.Infinity:
+				s = "infinity"
+			case pgtype.NegativeInfinity:
+				s = "overdue"
+			}
+			breakdown[s] = uint32(rows[i].QuestionCount)
+		}
+	}
+
+	return connect.NewResponse(&pb.NextScheduledBreakdown{Breakdown: breakdown}), nil
+}
+
 type postponement struct {
 	alphagram                string
 	card                     *fsrs.Card

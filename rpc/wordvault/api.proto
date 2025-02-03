@@ -225,6 +225,8 @@ service WordVaultService {
   }
   rpc NextScheduledCount(NextScheduledCountRequest)
       returns (NextScheduledBreakdown);
+  rpc NextScheduledCountByDeck(NextScheduledCountByDeckRequest)
+      returns (NextScheduledCountByDeckResponse);
   rpc ScoreCard(ScoreCardRequest) returns (ScoreCardResponse);
   rpc EditLastScore(EditLastScoreRequest) returns (ScoreCardResponse);
   rpc AddCards(AddCardsRequest) returns (AddCardsResponse);
