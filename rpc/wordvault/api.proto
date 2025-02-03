@@ -107,6 +107,21 @@ message NextScheduledCountRequest {
 
 message NextScheduledBreakdown { map<string, uint32> breakdown = 1; }
 
+message NextScheduledCountByDeckRequest {
+  bool only_overdue = 1;
+  string timezone = 2;
+  string lexicon = 3;
+}
+
+message DeckBreakdown {
+  uint64 deck_id = 1;
+  map<string, uint32> breakdown = 2;
+}
+
+message NextScheduledCountByDeckResponse {
+  repeated DeckBreakdown breakdowns = 1;
+}
+
 // TODO: make this deck-aware with a mutually exclusive all_decks/deck_id
 // parameter
 message PostponeRequest {
