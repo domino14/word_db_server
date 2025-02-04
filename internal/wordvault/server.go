@@ -958,10 +958,6 @@ func (s *Server) AddDeck(ctx context.Context, req *connect.Request[pb.AddDeckReq
 	})
 
 	if err != nil {
-		return nil, err
-	}
-
-	if err != nil {
 		var pgErr *pgconn.PgError
 		// unique_violation error code: https://www.postgresql.org/docs/14/errcodes-appendix.html
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
