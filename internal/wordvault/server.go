@@ -8,6 +8,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"sort"
+	"strings"
 	"time"
 
 	"connectrpc.com/connect"
@@ -980,58 +981,36 @@ func (s *Server) AddDeck(ctx context.Context, req *connect.Request[pb.AddDeckReq
 	*connect.Response[pb.AddDeckResponse], error) {
 
 	user := auth.UserFromContext(ctx)
+	deckName := strings.TrimSpace(req.Msg.Name)
 	if user == nil {
 		return nil, unauthenticated("user not authenticated")
 	}
-
 	if req.Msg.Lexicon == "" {
 		return nil, invalidArgError("need a lexicon")
 	}
-
-	if req.Msg.Name == "" {
+	if deckName == "" {
 		return nil, invalidArgError("need a name")
 	}
 
-	tx, err := s.DBPool.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback(ctx)
-	qtx := s.Queries.WithTx(tx)
-
-	sameNameCount, err := qtx.CountDecksWithSameName(ctx, models.CountDecksWithSameNameParams{
+	deck, err := s.Queries.AddDeck(ctx, models.AddDeckParams{
 		UserID:      int64(user.DBID),
 		LexiconName: req.Msg.Lexicon,
-		Name:        req.Msg.Name,
+		Name:        deckName,
 	})
 
 	if err != nil {
-		return nil, err
-	}
-
-	if sameNameCount > 0 {
-		return nil, invalidArgError("deck with this name already exists")
-	}
-
-	deck, err := qtx.AddDeck(ctx, models.AddDeckParams{
-		UserID:      int64(user.DBID),
-		LexiconName: req.Msg.Lexicon,
-		Name:        req.Msg.Name,
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = tx.Commit(ctx)
-	if err != nil {
+		var pgErr *pgconn.PgError
+		// unique_violation error code: https://www.postgresql.org/docs/14/errcodes-appendix.html
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, invalidArgError("deck with this name already exists")
+		}
 		return nil, err
 	}
 
 	return connect.NewResponse(&pb.AddDeckResponse{
 		Deck: &pb.Deck{
 			Id:      deck.ID,
-			Name:    deck.Name,
+			Name:    deckName,
 			Lexicon: deck.LexiconName,
 		}}), nil
 }

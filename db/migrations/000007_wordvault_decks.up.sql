@@ -12,6 +12,8 @@ CREATE TABLE wordvault_decks (
 ALTER TABLE wordvault_cards
 ADD COLUMN deck_id BIGINT REFERENCES wordvault_decks(id);
 
+CREATE UNIQUE INDEX decks_unique_name_idx ON wordvault_decks USING btree (LOWER(name), user_id, lexicon_name);
+
 -- Indexes for Decks
 CREATE INDEX decks_userid_idx ON wordvault_decks USING btree (user_id);
 
