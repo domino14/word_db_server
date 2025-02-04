@@ -155,24 +155,6 @@ func (q *Queries) CountCardsInOtherDecks(ctx context.Context, arg CountCardsInOt
 	return count, err
 }
 
-const countDecksWithSameName = `-- name: CountDecksWithSameName :one
-SELECT count(*) FROM wordvault_decks
-WHERE user_id = $1 AND LOWER(name) = LOWER($3::TEXT) AND lexicon_name = $2
-`
-
-type CountDecksWithSameNameParams struct {
-	UserID      int64
-	LexiconName string
-	Name        string
-}
-
-func (q *Queries) CountDecksWithSameName(ctx context.Context, arg CountDecksWithSameNameParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countDecksWithSameName, arg.UserID, arg.LexiconName, arg.Name)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const deleteCards = `-- name: DeleteCards :execrows
 DELETE FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2
