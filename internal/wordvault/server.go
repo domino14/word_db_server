@@ -8,6 +8,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"sort"
+	"strings"
 	"time"
 
 	"connectrpc.com/connect"
@@ -199,6 +200,8 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 		return nil, err
 	}
 
+	log := log.Ctx(ctx)
+	log.Info().Interface("params", params).Msg("params")
 	row, err := s.Queries.GetSingleNextScheduled(ctx, models.GetSingleNextScheduledParams{
 		UserID:               int64(user.DBID),
 		LexiconName:          req.Msg.Lexicon,
@@ -931,6 +934,110 @@ func (s *Server) EditFsrsParameters(ctx context.Context, req *connect.Request[pb
 		return nil, err
 	}
 	return connect.NewResponse(&pb.EditFsrsParametersResponse{}), nil
+}
+
+func (s *Server) AddDeck(ctx context.Context, req *connect.Request[pb.AddDeckRequest]) (
+	*connect.Response[pb.AddDeckResponse], error) {
+
+	user := auth.UserFromContext(ctx)
+	deckName := strings.TrimSpace(req.Msg.Name)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+	if req.Msg.Lexicon == "" {
+		return nil, invalidArgError("need a lexicon")
+	}
+	if deckName == "" {
+		return nil, invalidArgError("need a name")
+	}
+
+	deck, err := s.Queries.AddDeck(ctx, models.AddDeckParams{
+		UserID:      int64(user.DBID),
+		LexiconName: req.Msg.Lexicon,
+		Name:        deckName,
+	})
+
+	if err != nil {
+		var pgErr *pgconn.PgError
+		// unique_violation error code: https://www.postgresql.org/docs/14/errcodes-appendix.html
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, invalidArgError("deck with this name already exists")
+		}
+		return nil, err
+	}
+
+	return connect.NewResponse(&pb.AddDeckResponse{
+		Deck: &pb.Deck{
+			Id:      deck.ID,
+			Name:    deckName,
+			Lexicon: deck.LexiconName,
+		}}), nil
+}
+
+func (s *Server) GetDecks(ctx context.Context, req *connect.Request[pb.GetDecksRequest]) (
+	*connect.Response[pb.GetDecksResponse], error) {
+
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+
+	decks, err := s.Queries.GetDecks(ctx, int64(user.DBID))
+
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &pb.GetDecksResponse{
+		Decks: make([]*pb.Deck, len(decks)),
+	}
+
+	for i := range decks {
+		resp.Decks[i] = &pb.Deck{
+			Id:      decks[i].ID,
+			Name:    decks[i].Name,
+			Lexicon: decks[i].LexiconName,
+		}
+	}
+
+	return connect.NewResponse(resp), nil
+}
+
+func (s *Server) EditDeck(ctx context.Context, req *connect.Request[pb.EditDeckRequest]) (
+	*connect.Response[pb.EditDeckResponse], error) {
+
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+
+	if req.Msg.Id == 0 {
+		return nil, invalidArgError("need a deck")
+	}
+
+	if req.Msg.Name == "" {
+		return nil, invalidArgError("need a name")
+	}
+
+	deck, err := s.Queries.EditDeck(ctx, models.EditDeckParams{
+		ID:   req.Msg.Id,
+		Name: req.Msg.Name,
+		// We provide user ID just to stop users from spoofing
+		// the ID of another deck that they don't own.
+		UserID: int64(user.DBID),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return connect.NewResponse(&pb.EditDeckResponse{
+		Deck: &pb.Deck{
+			Id:      deck.ID,
+			Name:    deck.Name,
+			Lexicon: deck.LexiconName,
+		},
+	}), nil
 }
 
 // The fsrs library fuzzes only by day. It tends to ask questions at the same

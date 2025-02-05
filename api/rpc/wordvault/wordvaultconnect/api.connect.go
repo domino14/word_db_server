@@ -74,6 +74,15 @@ const (
 	// WordVaultServiceEditFsrsParametersProcedure is the fully-qualified name of the WordVaultService's
 	// EditFsrsParameters RPC.
 	WordVaultServiceEditFsrsParametersProcedure = "/wordvault.WordVaultService/EditFsrsParameters"
+	// WordVaultServiceAddDeckProcedure is the fully-qualified name of the WordVaultService's AddDeck
+	// RPC.
+	WordVaultServiceAddDeckProcedure = "/wordvault.WordVaultService/AddDeck"
+	// WordVaultServiceGetDecksProcedure is the fully-qualified name of the WordVaultService's GetDecks
+	// RPC.
+	WordVaultServiceGetDecksProcedure = "/wordvault.WordVaultService/GetDecks"
+	// WordVaultServiceEditDeckProcedure is the fully-qualified name of the WordVaultService's EditDeck
+	// RPC.
+	WordVaultServiceEditDeckProcedure = "/wordvault.WordVaultService/EditDeck"
 )
 
 // These variables are the protoreflect.Descriptor objects for the RPCs defined in this package.
@@ -93,6 +102,9 @@ var (
 	wordVaultServiceGetDailyLeaderboardMethodDescriptor    = wordVaultServiceServiceDescriptor.Methods().ByName("GetDailyLeaderboard")
 	wordVaultServiceGetFsrsParametersMethodDescriptor      = wordVaultServiceServiceDescriptor.Methods().ByName("GetFsrsParameters")
 	wordVaultServiceEditFsrsParametersMethodDescriptor     = wordVaultServiceServiceDescriptor.Methods().ByName("EditFsrsParameters")
+	wordVaultServiceAddDeckMethodDescriptor                = wordVaultServiceServiceDescriptor.Methods().ByName("AddDeck")
+	wordVaultServiceGetDecksMethodDescriptor               = wordVaultServiceServiceDescriptor.Methods().ByName("GetDecks")
+	wordVaultServiceEditDeckMethodDescriptor               = wordVaultServiceServiceDescriptor.Methods().ByName("EditDeck")
 )
 
 // WordVaultServiceClient is a client for the wordvault.WordVaultService service.
@@ -111,6 +123,9 @@ type WordVaultServiceClient interface {
 	GetDailyLeaderboard(context.Context, *connect.Request[wordvault.GetDailyLeaderboardRequest]) (*connect.Response[wordvault.GetDailyLeaderboardResponse], error)
 	GetFsrsParameters(context.Context, *connect.Request[wordvault.GetFsrsParametersRequest]) (*connect.Response[wordvault.GetFsrsParametersResponse], error)
 	EditFsrsParameters(context.Context, *connect.Request[wordvault.EditFsrsParametersRequest]) (*connect.Response[wordvault.EditFsrsParametersResponse], error)
+	AddDeck(context.Context, *connect.Request[wordvault.AddDeckRequest]) (*connect.Response[wordvault.AddDeckResponse], error)
+	GetDecks(context.Context, *connect.Request[wordvault.GetDecksRequest]) (*connect.Response[wordvault.GetDecksResponse], error)
+	EditDeck(context.Context, *connect.Request[wordvault.EditDeckRequest]) (*connect.Response[wordvault.EditDeckResponse], error)
 }
 
 // NewWordVaultServiceClient constructs a client for the wordvault.WordVaultService service. By
@@ -214,6 +229,24 @@ func NewWordVaultServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(wordVaultServiceEditFsrsParametersMethodDescriptor),
 			connect.WithClientOptions(opts...),
 		),
+		addDeck: connect.NewClient[wordvault.AddDeckRequest, wordvault.AddDeckResponse](
+			httpClient,
+			baseURL+WordVaultServiceAddDeckProcedure,
+			connect.WithSchema(wordVaultServiceAddDeckMethodDescriptor),
+			connect.WithClientOptions(opts...),
+		),
+		getDecks: connect.NewClient[wordvault.GetDecksRequest, wordvault.GetDecksResponse](
+			httpClient,
+			baseURL+WordVaultServiceGetDecksProcedure,
+			connect.WithSchema(wordVaultServiceGetDecksMethodDescriptor),
+			connect.WithClientOptions(opts...),
+		),
+		editDeck: connect.NewClient[wordvault.EditDeckRequest, wordvault.EditDeckResponse](
+			httpClient,
+			baseURL+WordVaultServiceEditDeckProcedure,
+			connect.WithSchema(wordVaultServiceEditDeckMethodDescriptor),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -233,6 +266,9 @@ type wordVaultServiceClient struct {
 	getDailyLeaderboard    *connect.Client[wordvault.GetDailyLeaderboardRequest, wordvault.GetDailyLeaderboardResponse]
 	getFsrsParameters      *connect.Client[wordvault.GetFsrsParametersRequest, wordvault.GetFsrsParametersResponse]
 	editFsrsParameters     *connect.Client[wordvault.EditFsrsParametersRequest, wordvault.EditFsrsParametersResponse]
+	addDeck                *connect.Client[wordvault.AddDeckRequest, wordvault.AddDeckResponse]
+	getDecks               *connect.Client[wordvault.GetDecksRequest, wordvault.GetDecksResponse]
+	editDeck               *connect.Client[wordvault.EditDeckRequest, wordvault.EditDeckResponse]
 }
 
 // GetCardCount calls wordvault.WordVaultService.GetCardCount.
@@ -305,6 +341,21 @@ func (c *wordVaultServiceClient) EditFsrsParameters(ctx context.Context, req *co
 	return c.editFsrsParameters.CallUnary(ctx, req)
 }
 
+// AddDeck calls wordvault.WordVaultService.AddDeck.
+func (c *wordVaultServiceClient) AddDeck(ctx context.Context, req *connect.Request[wordvault.AddDeckRequest]) (*connect.Response[wordvault.AddDeckResponse], error) {
+	return c.addDeck.CallUnary(ctx, req)
+}
+
+// GetDecks calls wordvault.WordVaultService.GetDecks.
+func (c *wordVaultServiceClient) GetDecks(ctx context.Context, req *connect.Request[wordvault.GetDecksRequest]) (*connect.Response[wordvault.GetDecksResponse], error) {
+	return c.getDecks.CallUnary(ctx, req)
+}
+
+// EditDeck calls wordvault.WordVaultService.EditDeck.
+func (c *wordVaultServiceClient) EditDeck(ctx context.Context, req *connect.Request[wordvault.EditDeckRequest]) (*connect.Response[wordvault.EditDeckResponse], error) {
+	return c.editDeck.CallUnary(ctx, req)
+}
+
 // WordVaultServiceHandler is an implementation of the wordvault.WordVaultService service.
 type WordVaultServiceHandler interface {
 	GetCardCount(context.Context, *connect.Request[wordvault.GetCardCountRequest]) (*connect.Response[wordvault.CardCountResponse], error)
@@ -321,6 +372,9 @@ type WordVaultServiceHandler interface {
 	GetDailyLeaderboard(context.Context, *connect.Request[wordvault.GetDailyLeaderboardRequest]) (*connect.Response[wordvault.GetDailyLeaderboardResponse], error)
 	GetFsrsParameters(context.Context, *connect.Request[wordvault.GetFsrsParametersRequest]) (*connect.Response[wordvault.GetFsrsParametersResponse], error)
 	EditFsrsParameters(context.Context, *connect.Request[wordvault.EditFsrsParametersRequest]) (*connect.Response[wordvault.EditFsrsParametersResponse], error)
+	AddDeck(context.Context, *connect.Request[wordvault.AddDeckRequest]) (*connect.Response[wordvault.AddDeckResponse], error)
+	GetDecks(context.Context, *connect.Request[wordvault.GetDecksRequest]) (*connect.Response[wordvault.GetDecksResponse], error)
+	EditDeck(context.Context, *connect.Request[wordvault.EditDeckRequest]) (*connect.Response[wordvault.EditDeckResponse], error)
 }
 
 // NewWordVaultServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -420,6 +474,24 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 		connect.WithSchema(wordVaultServiceEditFsrsParametersMethodDescriptor),
 		connect.WithHandlerOptions(opts...),
 	)
+	wordVaultServiceAddDeckHandler := connect.NewUnaryHandler(
+		WordVaultServiceAddDeckProcedure,
+		svc.AddDeck,
+		connect.WithSchema(wordVaultServiceAddDeckMethodDescriptor),
+		connect.WithHandlerOptions(opts...),
+	)
+	wordVaultServiceGetDecksHandler := connect.NewUnaryHandler(
+		WordVaultServiceGetDecksProcedure,
+		svc.GetDecks,
+		connect.WithSchema(wordVaultServiceGetDecksMethodDescriptor),
+		connect.WithHandlerOptions(opts...),
+	)
+	wordVaultServiceEditDeckHandler := connect.NewUnaryHandler(
+		WordVaultServiceEditDeckProcedure,
+		svc.EditDeck,
+		connect.WithSchema(wordVaultServiceEditDeckMethodDescriptor),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/wordvault.WordVaultService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case WordVaultServiceGetCardCountProcedure:
@@ -450,6 +522,12 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 			wordVaultServiceGetFsrsParametersHandler.ServeHTTP(w, r)
 		case WordVaultServiceEditFsrsParametersProcedure:
 			wordVaultServiceEditFsrsParametersHandler.ServeHTTP(w, r)
+		case WordVaultServiceAddDeckProcedure:
+			wordVaultServiceAddDeckHandler.ServeHTTP(w, r)
+		case WordVaultServiceGetDecksProcedure:
+			wordVaultServiceGetDecksHandler.ServeHTTP(w, r)
+		case WordVaultServiceEditDeckProcedure:
+			wordVaultServiceEditDeckHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -513,4 +591,16 @@ func (UnimplementedWordVaultServiceHandler) GetFsrsParameters(context.Context, *
 
 func (UnimplementedWordVaultServiceHandler) EditFsrsParameters(context.Context, *connect.Request[wordvault.EditFsrsParametersRequest]) (*connect.Response[wordvault.EditFsrsParametersResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.EditFsrsParameters is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) AddDeck(context.Context, *connect.Request[wordvault.AddDeckRequest]) (*connect.Response[wordvault.AddDeckResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.AddDeck is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) GetDecks(context.Context, *connect.Request[wordvault.GetDecksRequest]) (*connect.Response[wordvault.GetDecksResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.GetDecks is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) EditDeck(context.Context, *connect.Request[wordvault.EditDeckRequest]) (*connect.Response[wordvault.EditDeckResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.EditDeck is not implemented"))
 }

@@ -23,6 +23,15 @@ type WordvaultCard struct {
 	FsrsCard      stores.Card
 	ReviewLog     []stores.ReviewLog
 	ID            int64
+	DeckID        pgtype.Int8
+}
+
+type WordvaultDeck struct {
+	ID                 int64
+	UserID             int64
+	LexiconName        string
+	FsrsParamsOverride []byte
+	Name               string
 }
 
 type WordvaultParam struct {

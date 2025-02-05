@@ -59,6 +59,31 @@ func (q *Queries) AddCards(ctx context.Context, arg AddCardsParams) (int64, erro
 	return count, err
 }
 
+const addDeck = `-- name: AddDeck :one
+INSERT INTO wordvault_decks(user_id, lexicon_name, name)
+VALUES ($1, $2, $3)
+RETURNING id, user_id, lexicon_name, fsrs_params_override, name
+`
+
+type AddDeckParams struct {
+	UserID      int64
+	LexiconName string
+	Name        string
+}
+
+func (q *Queries) AddDeck(ctx context.Context, arg AddDeckParams) (WordvaultDeck, error) {
+	row := q.db.QueryRow(ctx, addDeck, arg.UserID, arg.LexiconName, arg.Name)
+	var i WordvaultDeck
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.LexiconName,
+		&i.FsrsParamsOverride,
+		&i.Name,
+	)
+	return i, err
+}
+
 const bulkUpdateCards = `-- name: BulkUpdateCards :exec
 WITH updated_values AS (
   SELECT
@@ -135,6 +160,16 @@ func (q *Queries) DeleteCardsWithAlphagrams(ctx context.Context, arg DeleteCards
 	return result.RowsAffected(), nil
 }
 
+const deleteDeck = `-- name: DeleteDeck :exec
+DELETE FROM wordvault_decks
+WHERE id = $1
+`
+
+func (q *Queries) DeleteDeck(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, deleteDeck, id)
+	return err
+}
+
 const deleteNewCards = `-- name: DeleteNewCards :execrows
 DELETE FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND jsonb_array_length(review_log) = 0
@@ -151,6 +186,32 @@ func (q *Queries) DeleteNewCards(ctx context.Context, arg DeleteNewCardsParams) 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const editDeck = `-- name: EditDeck :one
+UPDATE wordvault_decks
+SET name = $2
+WHERE id = $1 AND user_id = $3
+RETURNING id, user_id, lexicon_name, fsrs_params_override, name
+`
+
+type EditDeckParams struct {
+	ID     int64
+	Name   string
+	UserID int64
+}
+
+func (q *Queries) EditDeck(ctx context.Context, arg EditDeckParams) (WordvaultDeck, error) {
+	row := q.db.QueryRow(ctx, editDeck, arg.ID, arg.Name, arg.UserID)
+	var i WordvaultDeck
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.LexiconName,
+		&i.FsrsParamsOverride,
+		&i.Name,
+	)
+	return i, err
 }
 
 const getCard = `-- name: GetCard :one
@@ -211,6 +272,38 @@ func (q *Queries) GetCards(ctx context.Context, arg GetCardsParams) ([]GetCardsR
 			&i.NextScheduled,
 			&i.FsrsCard,
 			&i.ReviewLog,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getDecks = `-- name: GetDecks :many
+SELECT id, user_id, lexicon_name, fsrs_params_override, name
+FROM wordvault_decks
+WHERE user_id = $1
+`
+
+func (q *Queries) GetDecks(ctx context.Context, userID int64) ([]WordvaultDeck, error) {
+	rows, err := q.db.Query(ctx, getDecks, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WordvaultDeck
+	for rows.Next() {
+		var i WordvaultDeck
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.LexiconName,
+			&i.FsrsParamsOverride,
+			&i.Name,
 		); err != nil {
 			return nil, err
 		}
@@ -388,9 +481,9 @@ WITH matching_cards AS (
     AND lexicon_name = $2
     AND next_scheduled <= $3
   ORDER BY
-    -- When short-term scheduling is enabled, we want to prioritize review cards
-    -- over all other states (` + "`" + `1` + "`" + ` === Review in the FSRS card state)
-    CASE WHEN CAST(fsrs_card->'State' AS INTEGER) = 1 THEN $4::bool ELSE FALSE END DESC,
+    -- When short-term scheduling is enabled, we want to de-prioritize
+    -- new cards so that you clear your backlog of reviewed cards first.
+    CASE WHEN CAST(fsrs_card->'State' AS INTEGER) = 0 THEN FALSE ELSE $4::bool END DESC,
     next_scheduled ASC
 )
 SELECT alphagram, next_scheduled, fsrs_card, total_count FROM matching_cards

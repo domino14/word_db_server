@@ -1204,3 +1204,107 @@ func TestGetAndSetFsrsParams(t *testing.T) {
 	is.Equal(getres.Msg.Parameters.RequestRetention, float64(0.85))
 	is.Equal(getres.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM)
 }
+
+func TestDecks(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+
+	_, err = s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "",
+		Lexicon: "NWL23",
+	}))
+	is.True(err.Error() == "invalid_argument: need a name")
+	_, err = s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "My Deck",
+		Lexicon: "",
+	}))
+	is.True(err.Error() == "invalid_argument: need a lexicon")
+
+	added, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "My First Deck",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	is.Equal(added.Msg.Deck.Name, "My First Deck")
+	is.Equal(added.Msg.Deck.Lexicon, "NWL23")
+	firstDeckID := added.Msg.Deck.Id
+
+	_, err = s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "my first deck",
+		Lexicon: "NWL23",
+	}))
+	is.True(err.Error() == "invalid_argument: deck with this name already exists")
+
+	added, err = s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "My Second Deck",
+		Lexicon: "CSW21",
+	}))
+	is.NoErr(err)
+	is.Equal(added.Msg.Deck.Name, "My Second Deck")
+	is.Equal(added.Msg.Deck.Lexicon, "CSW21")
+	secondDeckID := added.Msg.Deck.Id
+
+	decks, err := s.GetDecks(ctx, connect.NewRequest(&pb.GetDecksRequest{}))
+	is.NoErr(err)
+	is.Equal(len(decks.Msg.Decks), 2)
+
+	// Create a map of decks by ID for easy lookup
+	deckMap := make(map[int64]*pb.Deck)
+	for _, deck := range decks.Msg.Decks {
+		deckMap[deck.Id] = deck
+	}
+
+	// Verify first deck
+	is.Equal(deckMap[firstDeckID].Name, "My First Deck")
+	is.Equal(deckMap[firstDeckID].Lexicon, "NWL23")
+
+	// Verify second deck
+	is.Equal(deckMap[secondDeckID].Name, "My Second Deck")
+	is.Equal(deckMap[secondDeckID].Lexicon, "CSW21")
+
+	_, err = s.EditDeck(ctx, connect.NewRequest(&pb.EditDeckRequest{
+		Id:   0,
+		Name: "New Name",
+	}))
+	is.True(err.Error() == "invalid_argument: need a deck")
+	_, err = s.EditDeck(ctx, connect.NewRequest(&pb.EditDeckRequest{
+		Id:   firstDeckID,
+		Name: "",
+	}))
+	is.True(err.Error() == "invalid_argument: need a name")
+
+	edited, err := s.EditDeck(ctx, connect.NewRequest(&pb.EditDeckRequest{
+		Id:   firstDeckID,
+		Name: "Updated First Deck",
+	}))
+	is.NoErr(err)
+	is.Equal(edited.Msg.Deck.Name, "Updated First Deck")
+	is.Equal(edited.Msg.Deck.Lexicon, "NWL23")
+	decks, err = s.GetDecks(ctx, connect.NewRequest(&pb.GetDecksRequest{}))
+	is.NoErr(err)
+	is.Equal(len(decks.Msg.Decks), 2)
+
+	deckMap = make(map[int64]*pb.Deck)
+	for _, deck := range decks.Msg.Decks {
+		deckMap[deck.Id] = deck
+	}
+
+	is.Equal(deckMap[firstDeckID].Name, "Updated First Deck")
+	is.Equal(deckMap[firstDeckID].Lexicon, "NWL23")
+
+	is.Equal(deckMap[secondDeckID].Name, "My Second Deck")
+	is.Equal(deckMap[secondDeckID].Lexicon, "CSW21")
+}
