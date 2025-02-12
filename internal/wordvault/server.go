@@ -111,8 +111,9 @@ func (s *Server) GetCardInformation(ctx context.Context, req *connect.Request[pb
 		}
 
 		if rows[i].DeckID.Valid {
-			deckId := uint64(rows[i].DeckID.Int64)
-			cards[i].DeckId = &deckId
+			cards[i].DeckId = uint64(rows[i].DeckID.Int64)
+		} else {
+			cards[i].DeckId = 0
 		}
 	}
 	return connect.NewResponse(&pb.Cards{Cards: cards}), nil
@@ -140,12 +141,9 @@ func (s *Server) GetNextScheduled(ctx context.Context, req *connect.Request[pb.G
 		Limit:         int32(req.Msg.Limit),
 		NextScheduled: toPGTimestamp(s.Nower.Now()),
 		DeckID: pgtype.Int8{
-			Valid: req.Msg.DeckId != nil,
-			Int64: 0,
+			Valid: req.Msg.DeckId != 0,
+			Int64: int64(*&req.Msg.DeckId),
 		},
-	}
-	if req.Msg.DeckId != nil {
-		params.DeckID.Int64 = int64(*req.Msg.DeckId)
 	}
 	rows, err := s.Queries.GetNextScheduled(ctx, params)
 	if err != nil {
@@ -220,16 +218,10 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 		NextScheduled:        toPGTimestamp(s.Nower.Now()),
 		IsShortTermScheduler: params.EnableShortTerm,
 		DeckID: pgtype.Int8{
-			Valid: req.Msg.DeckId != nil,
-			Int64: 0,
+			Valid: req.Msg.DeckId != 0,
+			Int64: int64(req.Msg.DeckId),
 		},
 	}
-	if req.Msg.DeckId != nil {
-		sqlParams.DeckID.Int64 = int64(*req.Msg.DeckId)
-	}
-
-	log := log.Ctx(ctx)
-	log.Info().Interface("params", sqlParams).Msg("get-single-next-scheduled")
 
 	row, err := s.Queries.GetSingleNextScheduled(ctx, sqlParams)
 
@@ -264,8 +256,9 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 	}
 
 	if row.DeckID.Valid {
-		deckId := uint64(row.DeckID.Int64)
-		card.DeckId = &deckId
+		card.DeckId = uint64(row.DeckID.Int64)
+	} else {
+		card.DeckId = 0
 	}
 
 	resp := &pb.GetSingleNextScheduledResponse{
@@ -585,13 +578,9 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 		Alphagrams:     alphagrams,
 		NextScheduleds: nextScheduleds,
 		DeckID: pgtype.Int8{
-			Int64: 0,
-			Valid: req.Msg.DeckId != nil,
+			Int64: int64(req.Msg.DeckId),
+			Valid: req.Msg.DeckId != 0,
 		},
-	}
-
-	if req.Msg.DeckId != nil {
-		params.DeckID.Int64 = int64(*req.Msg.DeckId)
 	}
 
 	numInserted, err := s.Queries.AddCards(ctx, params)
