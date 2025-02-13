@@ -142,7 +142,7 @@ func (s *Server) GetNextScheduled(ctx context.Context, req *connect.Request[pb.G
 		NextScheduled: toPGTimestamp(s.Nower.Now()),
 		DeckID: pgtype.Int8{
 			Valid: req.Msg.DeckId != 0,
-			Int64: int64(*&req.Msg.DeckId),
+			Int64: int64(req.Msg.DeckId),
 		},
 	}
 	rows, err := s.Queries.GetNextScheduled(ctx, params)
