@@ -109,6 +109,12 @@ func (s *Server) GetCardInformation(ctx context.Context, req *connect.Request[pb
 			Retrievability: f.GetRetrievability(fcard.Card, s.Nower.Now()),
 			ReviewLog:      revlogbts,
 		}
+
+		if rows[i].DeckID.Valid {
+			cards[i].DeckId = uint64(rows[i].DeckID.Int64)
+		} else {
+			cards[i].DeckId = 0
+		}
 	}
 	return connect.NewResponse(&pb.Cards{Cards: cards}), nil
 }
@@ -129,15 +135,21 @@ func (s *Server) GetNextScheduled(ctx context.Context, req *connect.Request[pb.G
 		return nil, ErrMaintenance
 	}
 
-	rows, err := s.Queries.GetNextScheduled(ctx, models.GetNextScheduledParams{
+	params := models.GetNextScheduledParams{
 		UserID:        int64(user.DBID),
 		LexiconName:   req.Msg.Lexicon,
 		Limit:         int32(req.Msg.Limit),
 		NextScheduled: toPGTimestamp(s.Nower.Now()),
-	})
+		DeckID: pgtype.Int8{
+			Valid: req.Msg.DeckId != 0,
+			Int64: int64(req.Msg.DeckId),
+		},
+	}
+	rows, err := s.Queries.GetNextScheduled(ctx, params)
 	if err != nil {
 		return nil, err
 	}
+
 	if len(rows) == 0 {
 		return connect.NewResponse(&pb.Cards{}), nil
 	}
@@ -200,14 +212,18 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 		return nil, err
 	}
 
-	log := log.Ctx(ctx)
-	log.Info().Interface("params", params).Msg("params")
-	row, err := s.Queries.GetSingleNextScheduled(ctx, models.GetSingleNextScheduledParams{
+	sqlParams := models.GetSingleNextScheduledParams{
 		UserID:               int64(user.DBID),
 		LexiconName:          req.Msg.Lexicon,
 		NextScheduled:        toPGTimestamp(s.Nower.Now()),
 		IsShortTermScheduler: params.EnableShortTerm,
-	})
+		DeckID: pgtype.Int8{
+			Valid: req.Msg.DeckId != 0,
+			Int64: int64(req.Msg.DeckId),
+		},
+	}
+
+	row, err := s.Queries.GetSingleNextScheduled(ctx, sqlParams)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -230,15 +246,23 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 		return nil, errors.New("unexpected expand response!")
 	}
 
+	card := pb.Card{
+		Lexicon:   req.Msg.Lexicon,
+		Alphagram: expandResponse.Msg.Alphagrams[0],
+		// sqlc can't detect that row.FsrsCard is of type fsrs.Card
+		// because of the way the query is written, so we just pass
+		// the raw bytes as they are.
+		CardJsonRepr: row.FsrsCard,
+	}
+
+	if row.DeckID.Valid {
+		card.DeckId = uint64(row.DeckID.Int64)
+	} else {
+		card.DeckId = 0
+	}
+
 	resp := &pb.GetSingleNextScheduledResponse{
-		Card: &pb.Card{
-			Lexicon:   req.Msg.Lexicon,
-			Alphagram: expandResponse.Msg.Alphagrams[0],
-			// sqlc can't detect that row.FsrsCard is of type fsrs.Card
-			// because of the way the query is written, so we just pass
-			// the raw bytes as they are.
-			CardJsonRepr: row.FsrsCard,
-		},
+		Card:         &card,
 		OverdueCount: uint32(row.TotalCount),
 	}
 
@@ -546,14 +570,20 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 		cards[i] = cardbts // This is by reference but it's ok after marshalling.
 	}
 
-	numInserted, err := s.Queries.AddCards(ctx, models.AddCardsParams{
+	params := models.AddCardsParams{
 		UserID:      int64(user.DBID),
 		LexiconName: req.Msg.Lexicon,
 		// sqlc compiler can't detect this is a special type. It's ok.
 		FsrsCards:      cards,
 		Alphagrams:     alphagrams,
 		NextScheduleds: nextScheduleds,
-	})
+		DeckID: pgtype.Int8{
+			Int64: int64(req.Msg.DeckId),
+			Valid: req.Msg.DeckId != 0,
+		},
+	}
+
+	numInserted, err := s.Queries.AddCards(ctx, params)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}

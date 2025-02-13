@@ -4,7 +4,7 @@ FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = $3;
 
 -- name: GetCards :many
-SELECT alphagram, next_scheduled, fsrs_card, review_log
+SELECT alphagram, next_scheduled, fsrs_card, review_log, deck_id
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY(@alphagrams::text[]);
 
@@ -29,9 +29,10 @@ DELETE FROM wordvault_decks
 WHERE id = $1;
 
 -- name: GetNextScheduled :many
-SELECT alphagram, next_scheduled, fsrs_card
+SELECT alphagram, next_scheduled, fsrs_card, deck_id
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3
+    AND ((sqlc.narg(deck_id)::bigint IS NULL AND deck_id IS NULL) OR deck_id = sqlc.narg(deck_id)::bigint)
 ORDER BY next_scheduled ASC
 LIMIT $4;
 
@@ -41,18 +42,20 @@ WITH matching_cards AS (
     alphagram,
     next_scheduled,
     fsrs_card,
+    deck_id,
     COUNT(*) OVER () AS total_count -- Window function to get the total count
   FROM wordvault_cards
   WHERE user_id = $1
     AND lexicon_name = $2
     AND next_scheduled <= $3
+    AND ((sqlc.narg(deck_id)::BIGINT IS NULL AND deck_id IS NULL) OR sqlc.narg(deck_id)::BIGINT = deck_id)
   ORDER BY
     -- When short-term scheduling is enabled, we want to de-prioritize
     -- new cards so that you clear your backlog of reviewed cards first.
     CASE WHEN CAST(fsrs_card->'State' AS INTEGER) = 0 THEN FALSE ELSE sqlc.arg(is_short_term_scheduler)::bool END DESC,
     next_scheduled ASC
 )
-SELECT alphagram, next_scheduled, fsrs_card, total_count FROM matching_cards
+SELECT alphagram, next_scheduled, fsrs_card, deck_id, total_count FROM matching_cards
 LIMIT 1;
 
 -- name: GetNumCardsInVault :many
@@ -89,7 +92,7 @@ SET params = $2;
 -- name: AddCards :one
 WITH inserted_rows AS (
     INSERT INTO wordvault_cards(
-        alphagram, next_scheduled, fsrs_card, user_id, lexicon_name, review_log
+        alphagram, next_scheduled, fsrs_card, user_id, lexicon_name, review_log, deck_id
     )
     SELECT
         unnest(@alphagrams::TEXT[]),
@@ -102,7 +105,8 @@ WITH inserted_rows AS (
                 @review_logs::JSONB[],
                 array_fill('[]'::JSONB, array[array_length(@alphagrams, 1)])
             )
-        )
+        ),
+        sqlc.narg(deck_id)::BIGINT
     ON CONFLICT(user_id, lexicon_name, alphagram) DO NOTHING
     RETURNING 1
 )

@@ -16,7 +16,7 @@ import (
 const addCards = `-- name: AddCards :one
 WITH inserted_rows AS (
     INSERT INTO wordvault_cards(
-        alphagram, next_scheduled, fsrs_card, user_id, lexicon_name, review_log
+        alphagram, next_scheduled, fsrs_card, user_id, lexicon_name, review_log, deck_id
     )
     SELECT
         unnest($1::TEXT[]),
@@ -29,7 +29,8 @@ WITH inserted_rows AS (
                 $6::JSONB[],
                 array_fill('[]'::JSONB, array[array_length($1, 1)])
             )
-        )
+        ),
+        $7::BIGINT
     ON CONFLICT(user_id, lexicon_name, alphagram) DO NOTHING
     RETURNING 1
 )
@@ -43,6 +44,7 @@ type AddCardsParams struct {
 	UserID         int64
 	LexiconName    string
 	ReviewLogs     [][]byte
+	DeckID         pgtype.Int8
 }
 
 func (q *Queries) AddCards(ctx context.Context, arg AddCardsParams) (int64, error) {
@@ -53,6 +55,7 @@ func (q *Queries) AddCards(ctx context.Context, arg AddCardsParams) (int64, erro
 		arg.UserID,
 		arg.LexiconName,
 		arg.ReviewLogs,
+		arg.DeckID,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -240,7 +243,7 @@ func (q *Queries) GetCard(ctx context.Context, arg GetCardParams) (GetCardRow, e
 }
 
 const getCards = `-- name: GetCards :many
-SELECT alphagram, next_scheduled, fsrs_card, review_log
+SELECT alphagram, next_scheduled, fsrs_card, review_log, deck_id
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY($3::text[])
 `
@@ -256,6 +259,7 @@ type GetCardsRow struct {
 	NextScheduled pgtype.Timestamptz
 	FsrsCard      stores.Card
 	ReviewLog     []stores.ReviewLog
+	DeckID        pgtype.Int8
 }
 
 func (q *Queries) GetCards(ctx context.Context, arg GetCardsParams) ([]GetCardsRow, error) {
@@ -272,6 +276,7 @@ func (q *Queries) GetCards(ctx context.Context, arg GetCardsParams) ([]GetCardsR
 			&i.NextScheduled,
 			&i.FsrsCard,
 			&i.ReviewLog,
+			&i.DeckID,
 		); err != nil {
 			return nil, err
 		}
@@ -316,9 +321,10 @@ func (q *Queries) GetDecks(ctx context.Context, userID int64) ([]WordvaultDeck, 
 }
 
 const getNextScheduled = `-- name: GetNextScheduled :many
-SELECT alphagram, next_scheduled, fsrs_card
+SELECT alphagram, next_scheduled, fsrs_card, deck_id
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3
+    AND (($5::bigint IS NULL AND deck_id IS NULL) OR deck_id = $5::bigint)
 ORDER BY next_scheduled ASC
 LIMIT $4
 `
@@ -328,12 +334,14 @@ type GetNextScheduledParams struct {
 	LexiconName   string
 	NextScheduled pgtype.Timestamptz
 	Limit         int32
+	DeckID        pgtype.Int8
 }
 
 type GetNextScheduledRow struct {
 	Alphagram     string
 	NextScheduled pgtype.Timestamptz
 	FsrsCard      stores.Card
+	DeckID        pgtype.Int8
 }
 
 func (q *Queries) GetNextScheduled(ctx context.Context, arg GetNextScheduledParams) ([]GetNextScheduledRow, error) {
@@ -342,6 +350,7 @@ func (q *Queries) GetNextScheduled(ctx context.Context, arg GetNextScheduledPara
 		arg.LexiconName,
 		arg.NextScheduled,
 		arg.Limit,
+		arg.DeckID,
 	)
 	if err != nil {
 		return nil, err
@@ -350,7 +359,12 @@ func (q *Queries) GetNextScheduled(ctx context.Context, arg GetNextScheduledPara
 	var items []GetNextScheduledRow
 	for rows.Next() {
 		var i GetNextScheduledRow
-		if err := rows.Scan(&i.Alphagram, &i.NextScheduled, &i.FsrsCard); err != nil {
+		if err := rows.Scan(
+			&i.Alphagram,
+			&i.NextScheduled,
+			&i.FsrsCard,
+			&i.DeckID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -475,18 +489,20 @@ WITH matching_cards AS (
     alphagram,
     next_scheduled,
     fsrs_card,
+    deck_id,
     COUNT(*) OVER () AS total_count -- Window function to get the total count
   FROM wordvault_cards
   WHERE user_id = $1
     AND lexicon_name = $2
     AND next_scheduled <= $3
+    AND (($4::BIGINT IS NULL AND deck_id IS NULL) OR $4::BIGINT = deck_id)
   ORDER BY
     -- When short-term scheduling is enabled, we want to de-prioritize
     -- new cards so that you clear your backlog of reviewed cards first.
-    CASE WHEN CAST(fsrs_card->'State' AS INTEGER) = 0 THEN FALSE ELSE $4::bool END DESC,
+    CASE WHEN CAST(fsrs_card->'State' AS INTEGER) = 0 THEN FALSE ELSE $5::bool END DESC,
     next_scheduled ASC
 )
-SELECT alphagram, next_scheduled, fsrs_card, total_count FROM matching_cards
+SELECT alphagram, next_scheduled, fsrs_card, deck_id, total_count FROM matching_cards
 LIMIT 1
 `
 
@@ -494,6 +510,7 @@ type GetSingleNextScheduledParams struct {
 	UserID               int64
 	LexiconName          string
 	NextScheduled        pgtype.Timestamptz
+	DeckID               pgtype.Int8
 	IsShortTermScheduler bool
 }
 
@@ -501,6 +518,7 @@ type GetSingleNextScheduledRow struct {
 	Alphagram     string
 	NextScheduled pgtype.Timestamptz
 	FsrsCard      []byte
+	DeckID        pgtype.Int8
 	TotalCount    int64
 }
 
@@ -509,6 +527,7 @@ func (q *Queries) GetSingleNextScheduled(ctx context.Context, arg GetSingleNextS
 		arg.UserID,
 		arg.LexiconName,
 		arg.NextScheduled,
+		arg.DeckID,
 		arg.IsShortTermScheduler,
 	)
 	var i GetSingleNextScheduledRow
@@ -516,6 +535,7 @@ func (q *Queries) GetSingleNextScheduled(ctx context.Context, arg GetSingleNextS
 		&i.Alphagram,
 		&i.NextScheduled,
 		&i.FsrsCard,
+		&i.DeckID,
 		&i.TotalCount,
 	)
 	return i, err
