@@ -1445,11 +1445,11 @@ func TestAddingAndMovingCardsWithOverlap(t *testing.T) {
 
 	is.NoErr(err)
 	is.Equal(len(info.Msg.Cards), 2)
-	deckMap := make(map[string]*uint64)
+	deckMap := make(map[string]uint64)
 	for _, card := range info.Msg.Cards {
 		deckMap[card.Alphagram.Alphagram] = card.DeckId
 	}
 
-	is.Equal(*deckMap["ADEEGMMO"], deckIDUint)
-	is.Equal(deckMap["ADEEHMMO"], nil)
+	is.Equal(deckMap["ADEEGMMO"], deckIDUint)
+	is.Equal(deckMap["ADEEHMMO"], 0)
 }

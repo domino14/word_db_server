@@ -4,7 +4,7 @@ FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = $3;
 
 -- name: GetCards :many
-SELECT alphagram, next_scheduled, fsrs_card, review_log, deck_id
+SELECT alphagram, next_scheduled, fsrs_card, review_log, COALESCE(deck_id, 0) as deck_id
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY(@alphagrams::text[]);
 
@@ -29,10 +29,10 @@ DELETE FROM wordvault_decks
 WHERE id = $1;
 
 -- name: GetNextScheduled :many
-SELECT alphagram, next_scheduled, fsrs_card, deck_id
+SELECT alphagram, next_scheduled, fsrs_card, COALESCE(deck_id, 0) as deck_id
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3
-    AND ((sqlc.narg(deck_id)::bigint IS NULL AND deck_id IS NULL) OR deck_id = sqlc.narg(deck_id)::bigint)
+    AND COALESCE(deck_id, 0) = sqlc.arg(deck_id)::bigint
 ORDER BY next_scheduled ASC
 LIMIT $4;
 
@@ -42,13 +42,13 @@ WITH matching_cards AS (
     alphagram,
     next_scheduled,
     fsrs_card,
-    deck_id,
+    COALESCE(deck_id, 0) as deck_id,
     COUNT(*) OVER () AS total_count -- Window function to get the total count
   FROM wordvault_cards
   WHERE user_id = $1
     AND lexicon_name = $2
     AND next_scheduled <= $3
-    AND ((sqlc.narg(deck_id)::BIGINT IS NULL AND deck_id IS NULL) OR sqlc.narg(deck_id)::BIGINT = deck_id)
+    AND COALESCE(deck_id, 0) = sqlc.arg(deck_id)::bigint
   ORDER BY
     -- When short-term scheduling is enabled, we want to de-prioritize
     -- new cards so that you clear your backlog of reviewed cards first.
@@ -95,7 +95,7 @@ FROM wordvault_cards
 WHERE user_id = $1
     AND lexicon_name = $2
     AND alphagram = ANY(@alphagrams::text[])
-    AND deck_id IS DISTINCT FROM sqlc.narg(deck_id)::BIGINT;
+    AND COALESCE(deck_id, 0) <> sqlc.arg(deck_id)::BIGINT;
 
 -- name: GetCardsInOtherDecks :many
 SELECT id, alphagram, deck_id
@@ -103,7 +103,7 @@ FROM wordvault_cards
 WHERE user_id = $1
     AND lexicon_name = $2
     AND alphagram = ANY(@alphagrams::text[])
-    AND deck_id IS DISTINCT FROM sqlc.narg(deck_id)::BIGINT
+    AND COALESCE(deck_id, 0) <> sqlc.arg(deck_id)::BIGINT
 LIMIT $3;
 
 -- name: AddCards :one
@@ -123,7 +123,10 @@ WITH inserted_rows AS (
                 array_fill('[]'::JSONB, array[array_length(@alphagrams, 1)])
             )
         ),
-        sqlc.narg(deck_id)::BIGINT
+        CASE 
+            WHEN sqlc.arg(deck_id)::BIGINT = 0 THEN NULL 
+            ELSE sqlc.arg(deck_id)::BIGINT 
+        END
     ON CONFLICT(user_id, lexicon_name, alphagram) DO NOTHING
     RETURNING 1
 )
@@ -131,7 +134,7 @@ SELECT COUNT(*) FROM inserted_rows;
 
 -- name: MoveCards :execrows
 UPDATE wordvault_cards
-SET deck_id = $3
+SET deck_id = CASE WHEN sqlc.arg(deck_id)::BIGINT = 0 THEN NULL ELSE sqlc.arg(deck_id)::BIGINT END
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY(@alphagrams::text[]);
 
 -- name: GetNextScheduledBreakdown :many

@@ -26,7 +26,7 @@ message Card {
 message CardPreview {
     string lexicon = 1;
     string alphagram = 2;
-    optional uint64 deck_id = 5;
+    uint64 deck_id = 5;
 }
 
 message GetCardInfoRequest {
