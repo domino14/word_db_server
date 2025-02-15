@@ -123,10 +123,7 @@ WITH inserted_rows AS (
                 array_fill('[]'::JSONB, array[array_length(@alphagrams, 1)])
             )
         ),
-        CASE 
-            WHEN sqlc.arg(deck_id)::BIGINT = 0 THEN NULL 
-            ELSE sqlc.arg(deck_id)::BIGINT 
-        END
+        NULLIF(sqlc.arg(deck_id)::BIGINT, 0)
     ON CONFLICT(user_id, lexicon_name, alphagram) DO NOTHING
     RETURNING 1
 )
@@ -134,7 +131,7 @@ SELECT COUNT(*) FROM inserted_rows;
 
 -- name: MoveCards :execrows
 UPDATE wordvault_cards
-SET deck_id = CASE WHEN sqlc.arg(deck_id)::BIGINT = 0 THEN NULL ELSE sqlc.arg(deck_id)::BIGINT END
+SET deck_id = NULLIF(sqlc.arg(deck_id)::BIGINT, 0)
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY(@alphagrams::text[]);
 
 -- name: GetNextScheduledBreakdown :many
