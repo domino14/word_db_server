@@ -132,8 +132,7 @@ FROM wordvault_cards
 WHERE user_id = $1
     AND lexicon_name = $2
     AND alphagram = ANY($3::text[])
-    AND ((deck_id IS NULL AND $4::BIGINT IS NOT NULL)
-        OR (deck_id IS NOT NULL AND deck_id != COALESCE($4::BIGINT, -1)))
+    AND deck_id IS DISTINCT FROM $4::BIGINT
 `
 
 type CountCardsInOtherDecksParams struct {
@@ -323,8 +322,7 @@ FROM wordvault_cards
 WHERE user_id = $1
     AND lexicon_name = $2
     AND alphagram = ANY($4::text[])
-    AND ((deck_id IS NULL AND $5::BIGINT IS NOT NULL)
-        OR (deck_id IS NOT NULL AND deck_id != COALESCE($5::BIGINT, -1)))
+    AND deck_id IS DISTINCT FROM $5::BIGINT
 LIMIT $3
 `
 
