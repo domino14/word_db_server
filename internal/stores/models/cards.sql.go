@@ -30,10 +30,7 @@ WITH inserted_rows AS (
                 array_fill('[]'::JSONB, array[array_length($1, 1)])
             )
         ),
-        CASE 
-            WHEN $7::BIGINT = 0 THEN NULL 
-            ELSE $7::BIGINT 
-        END
+        NULLIF($7::BIGINT, 0)
     ON CONFLICT(user_id, lexicon_name, alphagram) DO NOTHING
     RETURNING 1
 )
@@ -636,7 +633,7 @@ func (q *Queries) LoadFsrsParams(ctx context.Context, userID int64) (go_fsrs.Par
 
 const moveCards = `-- name: MoveCards :execrows
 UPDATE wordvault_cards
-SET deck_id = CASE WHEN $3::BIGINT = 0 THEN NULL ELSE $3::BIGINT END
+SET deck_id = NULLIF($3::BIGINT, 0)
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY($4::text[])
 `
 
