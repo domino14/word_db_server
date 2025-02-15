@@ -586,18 +586,15 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 	qtx := s.Queries.WithTx(tx)
 
 	deckIdParam := pgtype.Int8{
-		Valid: req.Msg.DeckId != nil,
-		Int64: 0,
-	}
-	if req.Msg.DeckId != nil {
-		deckIdParam.Int64 = int64(*req.Msg.DeckId)
+		Valid: req.Msg.DeckId != 0,
+		Int64: int64(req.Msg.DeckId),
 	}
 
 	countParams := models.CountCardsInOtherDecksParams{
 		UserID:      int64(user.DBID),
 		LexiconName: req.Msg.Lexicon,
 		Alphagrams:  alphagrams,
-		DeckID:      deckIdParam,
+		DeckID:      pgtype.Int8{},
 	}
 	numInOtherDeck, err := qtx.CountCardsInOtherDecks(ctx, countParams)
 	if err != nil {
@@ -666,19 +663,14 @@ func (s *Server) MoveCards(ctx context.Context, req *connect.Request[pb.MoveCard
 		return nil, invalidArgError("need at least one card to move")
 	}
 
-	deckId := pgtype.Int8{
-		Valid: req.Msg.DeckId != nil,
-		Int64: 0,
-	}
-	if req.Msg.DeckId != nil {
-		deckId.Int64 = int64(*req.Msg.DeckId)
-	}
-
 	params := models.MoveCardsParams{
 		UserID:      int64(user.DBID),
 		LexiconName: req.Msg.Lexicon,
 		Alphagrams:  req.Msg.Alphagrams,
-		DeckID:      deckId,
+		DeckID: pgtype.Int8{
+			Valid: req.Msg.DeckId != 0,
+			Int64: int64(req.Msg.DeckId),
+		},
 	}
 	numMoved, err := s.Queries.MoveCards(ctx, params)
 	if err != nil {
