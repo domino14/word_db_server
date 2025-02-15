@@ -98,7 +98,7 @@ WHERE user_id = $1
     AND ((deck_id IS NULL AND sqlc.narg(deck_id)::BIGINT IS NOT NULL)
         OR (deck_id IS NOT NULL AND deck_id != COALESCE(sqlc.narg(deck_id)::BIGINT, -1)));
 
--- name: GetCardsInOtherDecksAlphagrams :many
+-- name: GetCardsInOtherDecks :many
 SELECT id, alphagram, deck_id
 FROM wordvault_cards
 WHERE user_id = $1

@@ -317,7 +317,7 @@ func (q *Queries) GetCards(ctx context.Context, arg GetCardsParams) ([]GetCardsR
 	return items, nil
 }
 
-const getCardsInOtherDecksAlphagrams = `-- name: GetCardsInOtherDecksAlphagrams :many
+const getCardsInOtherDecks = `-- name: GetCardsInOtherDecks :many
 SELECT id, alphagram, deck_id
 FROM wordvault_cards
 WHERE user_id = $1
@@ -328,7 +328,7 @@ WHERE user_id = $1
 LIMIT $3
 `
 
-type GetCardsInOtherDecksAlphagramsParams struct {
+type GetCardsInOtherDecksParams struct {
 	UserID      int64
 	LexiconName string
 	Limit       int32
@@ -336,14 +336,14 @@ type GetCardsInOtherDecksAlphagramsParams struct {
 	DeckID      pgtype.Int8
 }
 
-type GetCardsInOtherDecksAlphagramsRow struct {
+type GetCardsInOtherDecksRow struct {
 	ID        int64
 	Alphagram string
 	DeckID    pgtype.Int8
 }
 
-func (q *Queries) GetCardsInOtherDecksAlphagrams(ctx context.Context, arg GetCardsInOtherDecksAlphagramsParams) ([]GetCardsInOtherDecksAlphagramsRow, error) {
-	rows, err := q.db.Query(ctx, getCardsInOtherDecksAlphagrams,
+func (q *Queries) GetCardsInOtherDecks(ctx context.Context, arg GetCardsInOtherDecksParams) ([]GetCardsInOtherDecksRow, error) {
+	rows, err := q.db.Query(ctx, getCardsInOtherDecks,
 		arg.UserID,
 		arg.LexiconName,
 		arg.Limit,
@@ -354,9 +354,9 @@ func (q *Queries) GetCardsInOtherDecksAlphagrams(ctx context.Context, arg GetCar
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetCardsInOtherDecksAlphagramsRow
+	var items []GetCardsInOtherDecksRow
 	for rows.Next() {
-		var i GetCardsInOtherDecksAlphagramsRow
+		var i GetCardsInOtherDecksRow
 		if err := rows.Scan(&i.ID, &i.Alphagram, &i.DeckID); err != nil {
 			return nil, err
 		}

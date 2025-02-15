@@ -596,14 +596,14 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 
 	var previewRows []*pb.CardPreview
 	if numInOtherDeck > 0 {
-		cardPreviewParams := models.GetCardsInOtherDecksAlphagramsParams{
+		cardPreviewParams := models.GetCardsInOtherDecksParams{
 			UserID:      int64(user.DBID),
 			LexiconName: req.Msg.Lexicon,
 			Alphagrams:  alphagrams,
 			DeckID:      deckIdParam,
 			Limit:       CardInOtherDeckPreviewLimit,
 		}
-		rows, err := qtx.GetCardsInOtherDecksAlphagrams(ctx, cardPreviewParams)
+		rows, err := qtx.GetCardsInOtherDecks(ctx, cardPreviewParams)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument, err)
 		}
