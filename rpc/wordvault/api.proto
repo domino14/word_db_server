@@ -66,7 +66,7 @@ message ScoreCardResponse {
 message AddCardsRequest {
   string lexicon = 1;
   repeated string alphagrams = 2;
-  optional uint64 deck_id = 3;
+  uint64 deck_id = 3;
 }
 
 message AddCardsResponse {
@@ -78,7 +78,7 @@ message AddCardsResponse {
 message MoveCardsRequest {
   string lexicon = 1;
   repeated string alphagrams = 2;
-  optional uint64 deck_id = 3;
+  uint64 deck_id = 3;
 }
 
 message MoveCardsResponse {
