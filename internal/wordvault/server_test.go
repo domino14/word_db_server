@@ -1451,5 +1451,5 @@ func TestAddingAndMovingCardsWithOverlap(t *testing.T) {
 	}
 
 	is.Equal(deckMap["ADEEGMMO"], deckIDUint)
-	is.Equal(deckMap["ADEEHMMO"], 0)
+	is.Equal(deckMap["ADEEHMMO"], uint64(0))
 }
