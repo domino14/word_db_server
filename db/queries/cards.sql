@@ -131,15 +131,6 @@ WITH inserted_rows AS (
 )
 SELECT COUNT(*) FROM inserted_rows;
 
--- name: MoveCards :one
-WITH moved_rows AS (
-    UPDATE wordvault_cards
-    SET deck_id = $3
-    WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY(@alphagrams::text[])
-    RETURNING 1
-)
-SELECT COUNT(*) from moved_rows;
-
 -- name: GetNextScheduledBreakdown :many
 WITH scheduled_cards AS (
     SELECT

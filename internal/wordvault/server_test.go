@@ -1331,18 +1331,17 @@ func TestAddingCardsToDeck(t *testing.T) {
 		Lexicon: "NWL23",
 	}))
 	is.NoErr(err)
-	deckID := added.Msg.Deck.Id
-	deckIDUint := uint64(deckID)
+	deckID := uint64(added.Msg.Deck.Id)
 
 	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
 		Lexicon:    "NWL23",
 		Alphagrams: []string{"ADEEGMMO"},
-		DeckId:     deckIDUint,
+		DeckId:     deckID,
 	}))
 
 	res, err := s.GetSingleNextScheduled(ctx, connect.NewRequest(&pb.GetSingleNextScheduledRequest{
 		Lexicon: "NWL23",
-		DeckId:  &deckIDUint,
+		DeckId:  deckID,
 	}))
 
 	is.NoErr(err)

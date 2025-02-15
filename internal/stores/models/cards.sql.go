@@ -633,35 +633,6 @@ func (q *Queries) LoadFsrsParams(ctx context.Context, userID int64) (go_fsrs.Par
 	return params, err
 }
 
-const moveCards = `-- name: MoveCards :one
-WITH moved_rows AS (
-    UPDATE wordvault_cards
-    SET deck_id = $3
-    WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY($4::text[])
-    RETURNING 1
-)
-SELECT COUNT(*) from moved_rows
-`
-
-type MoveCardsParams struct {
-	UserID      int64
-	LexiconName string
-	DeckID      pgtype.Int8
-	Alphagrams  []string
-}
-
-func (q *Queries) MoveCards(ctx context.Context, arg MoveCardsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, moveCards,
-		arg.UserID,
-		arg.LexiconName,
-		arg.DeckID,
-		arg.Alphagrams,
-	)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const postponementQuery = `-- name: PostponementQuery :many
 SELECT alphagram, next_scheduled, fsrs_card
 FROM wordvault_cards
