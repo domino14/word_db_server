@@ -110,11 +110,7 @@ func (s *Server) GetCardInformation(ctx context.Context, req *connect.Request[pb
 			Retrievability: f.GetRetrievability(fcard.Card, s.Nower.Now()),
 			ReviewLog:      revlogbts,
 		}
-
-		if rows[i].DeckID.Valid {
-			deckId := uint64(rows[i].DeckID.Int64)
-			cards[i].DeckId = &deckId
-		}
+		cards[i].DeckId = uint64(rows[i].DeckID)
 	}
 	return connect.NewResponse(&pb.Cards{Cards: cards}), nil
 }
@@ -140,13 +136,7 @@ func (s *Server) GetNextScheduled(ctx context.Context, req *connect.Request[pb.G
 		LexiconName:   req.Msg.Lexicon,
 		Limit:         int32(req.Msg.Limit),
 		NextScheduled: toPGTimestamp(s.Nower.Now()),
-		DeckID: pgtype.Int8{
-			Valid: req.Msg.DeckId != nil,
-			Int64: 0,
-		},
-	}
-	if req.Msg.DeckId != nil {
-		params.DeckID.Int64 = int64(*req.Msg.DeckId)
+		DeckID:        int64(req.Msg.DeckId),
 	}
 	rows, err := s.Queries.GetNextScheduled(ctx, params)
 	if err != nil {
@@ -220,17 +210,8 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 		LexiconName:          req.Msg.Lexicon,
 		NextScheduled:        toPGTimestamp(s.Nower.Now()),
 		IsShortTermScheduler: params.EnableShortTerm,
-		DeckID: pgtype.Int8{
-			Valid: req.Msg.DeckId != nil,
-			Int64: 0,
-		},
+		DeckID:               int64(req.Msg.DeckId),
 	}
-	if req.Msg.DeckId != nil {
-		sqlParams.DeckID.Int64 = int64(*req.Msg.DeckId)
-	}
-
-	log := log.Ctx(ctx)
-	log.Info().Interface("params", sqlParams).Msg("get-single-next-scheduled")
 
 	row, err := s.Queries.GetSingleNextScheduled(ctx, sqlParams)
 
@@ -263,11 +244,7 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 		// the raw bytes as they are.
 		CardJsonRepr: row.FsrsCard,
 	}
-
-	if row.DeckID.Valid {
-		deckId := uint64(row.DeckID.Int64)
-		card.DeckId = &deckId
-	}
+	card.DeckId = uint64(row.DeckID)
 
 	resp := &pb.GetSingleNextScheduledResponse{
 		Card:         &card,
@@ -585,19 +562,11 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 	defer tx.Rollback(ctx)
 	qtx := s.Queries.WithTx(tx)
 
-	deckIdParam := pgtype.Int8{
-		Valid: req.Msg.DeckId != nil,
-		Int64: 0,
-	}
-	if req.Msg.DeckId != nil {
-		deckIdParam.Int64 = int64(*req.Msg.DeckId)
-	}
-
 	countParams := models.CountCardsInOtherDecksParams{
 		UserID:      int64(user.DBID),
 		LexiconName: req.Msg.Lexicon,
 		Alphagrams:  alphagrams,
-		DeckID:      deckIdParam,
+		DeckID:      int64(req.Msg.DeckId),
 	}
 	numInOtherDeck, err := qtx.CountCardsInOtherDecks(ctx, countParams)
 	if err != nil {
@@ -606,24 +575,23 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 
 	var previewRows []*pb.CardPreview
 	if numInOtherDeck > 0 {
-		cardPreviewParams := models.GetCardsInOtherDecksAlphagramsParams{
+		cardPreviewParams := models.GetCardsInOtherDecksParams{
 			UserID:      int64(user.DBID),
 			LexiconName: req.Msg.Lexicon,
 			Alphagrams:  alphagrams,
-			DeckID:      deckIdParam,
+			DeckID:      int64(req.Msg.DeckId),
 			Limit:       CardInOtherDeckPreviewLimit,
 		}
-		rows, err := qtx.GetCardsInOtherDecksAlphagrams(ctx, cardPreviewParams)
+		rows, err := qtx.GetCardsInOtherDecks(ctx, cardPreviewParams)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument, err)
 		}
 		previewRows = make([]*pb.CardPreview, len(rows))
 		for i := range rows {
-			deckId := uint64(rows[i].DeckID.Int64)
 			previewRows[i] = &pb.CardPreview{
 				Lexicon:   req.Msg.Lexicon,
 				Alphagram: rows[i].Alphagram,
-				DeckId:    &deckId,
+				DeckId:    uint64(rows[i].DeckID.Int64),
 			}
 		}
 	}
@@ -635,7 +603,7 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 		FsrsCards:      cards,
 		Alphagrams:     alphagrams,
 		NextScheduleds: nextScheduleds,
-		DeckID:         deckIdParam,
+		DeckID:         int64(req.Msg.DeckId),
 	}
 	numInserted, err := qtx.AddCards(ctx, addParams)
 	if err != nil {
@@ -666,19 +634,11 @@ func (s *Server) MoveCards(ctx context.Context, req *connect.Request[pb.MoveCard
 		return nil, invalidArgError("need at least one card to move")
 	}
 
-	deckId := pgtype.Int8{
-		Valid: req.Msg.DeckId != nil,
-		Int64: 0,
-	}
-	if req.Msg.DeckId != nil {
-		deckId.Int64 = int64(*req.Msg.DeckId)
-	}
-
 	params := models.MoveCardsParams{
 		UserID:      int64(user.DBID),
 		LexiconName: req.Msg.Lexicon,
 		Alphagrams:  req.Msg.Alphagrams,
-		DeckID:      deckId,
+		DeckID:      int64(req.Msg.DeckId),
 	}
 	numMoved, err := s.Queries.MoveCards(ctx, params)
 	if err != nil {

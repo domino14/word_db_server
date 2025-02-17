@@ -20,13 +20,13 @@ message Card {
   // as of the time of request.
   double retrievability = 4;
   bytes review_log = 5;
-  optional uint64 deck_id = 6;
+  uint64 deck_id = 6;
 }
 
 message CardPreview {
     string lexicon = 1;
     string alphagram = 2;
-    optional uint64 deck_id = 5;
+    uint64 deck_id = 5;
 }
 
 message GetCardInfoRequest {
@@ -37,12 +37,12 @@ message GetCardInfoRequest {
 message GetNextScheduledRequest {
   string lexicon = 1;
   uint32 limit = 2;
-  optional uint64 deck_id = 3;
+  uint64 deck_id = 3;
 }
 
 message GetSingleNextScheduledRequest {
-    string lexicon = 1;
-    optional uint64 deck_id = 2;
+  string lexicon = 1;
+  uint64 deck_id = 2;
 }
 
 message GetSingleNextScheduledResponse {
@@ -66,7 +66,7 @@ message ScoreCardResponse {
 message AddCardsRequest {
   string lexicon = 1;
   repeated string alphagrams = 2;
-  optional uint64 deck_id = 3;
+  uint64 deck_id = 3;
 }
 
 message AddCardsResponse {
@@ -78,7 +78,7 @@ message AddCardsResponse {
 message MoveCardsRequest {
   string lexicon = 1;
   repeated string alphagrams = 2;
-  optional uint64 deck_id = 3;
+  uint64 deck_id = 3;
 }
 
 message MoveCardsResponse {

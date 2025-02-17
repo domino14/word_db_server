@@ -4,7 +4,7 @@ FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = $3;
 
 -- name: GetCards :many
-SELECT alphagram, next_scheduled, fsrs_card, review_log, deck_id
+SELECT alphagram, next_scheduled, fsrs_card, review_log, COALESCE(deck_id, 0) as deck_id
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY(@alphagrams::text[]);
 
@@ -29,10 +29,10 @@ DELETE FROM wordvault_decks
 WHERE id = $1;
 
 -- name: GetNextScheduled :many
-SELECT alphagram, next_scheduled, fsrs_card, deck_id
+SELECT alphagram, next_scheduled, fsrs_card, COALESCE(deck_id, 0) as deck_id
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3
-    AND ((sqlc.narg(deck_id)::bigint IS NULL AND deck_id IS NULL) OR deck_id = sqlc.narg(deck_id)::bigint)
+    AND COALESCE(deck_id, 0) = sqlc.arg(deck_id)::bigint
 ORDER BY next_scheduled ASC
 LIMIT $4;
 
@@ -42,13 +42,13 @@ WITH matching_cards AS (
     alphagram,
     next_scheduled,
     fsrs_card,
-    deck_id,
+    COALESCE(deck_id, 0) as deck_id,
     COUNT(*) OVER () AS total_count -- Window function to get the total count
   FROM wordvault_cards
   WHERE user_id = $1
     AND lexicon_name = $2
     AND next_scheduled <= $3
-    AND ((sqlc.narg(deck_id)::BIGINT IS NULL AND deck_id IS NULL) OR sqlc.narg(deck_id)::BIGINT = deck_id)
+    AND COALESCE(deck_id, 0) = sqlc.arg(deck_id)::bigint
   ORDER BY
     -- When short-term scheduling is enabled, we want to de-prioritize
     -- new cards so that you clear your backlog of reviewed cards first.
@@ -95,17 +95,15 @@ FROM wordvault_cards
 WHERE user_id = $1
     AND lexicon_name = $2
     AND alphagram = ANY(@alphagrams::text[])
-    AND ((deck_id IS NULL AND sqlc.narg(deck_id)::BIGINT IS NOT NULL)
-        OR (deck_id IS NOT NULL AND deck_id != COALESCE(sqlc.narg(deck_id)::BIGINT, -1)));
+    AND COALESCE(deck_id, 0) <> sqlc.arg(deck_id)::BIGINT;
 
--- name: GetCardsInOtherDecksAlphagrams :many
-SELECT alphagram, deck_id
+-- name: GetCardsInOtherDecks :many
+SELECT id, alphagram, COALESCE(deck_id, 0) as deck_id
 FROM wordvault_cards
 WHERE user_id = $1
     AND lexicon_name = $2
     AND alphagram = ANY(@alphagrams::text[])
-    AND ((deck_id IS NULL AND sqlc.narg(deck_id)::BIGINT IS NOT NULL)
-        OR (deck_id IS NOT NULL AND deck_id != COALESCE(sqlc.narg(deck_id)::BIGINT, -1)))
+    AND COALESCE(deck_id, 0) <> sqlc.arg(deck_id)::BIGINT
 LIMIT $3;
 
 -- name: AddCards :one
@@ -125,20 +123,16 @@ WITH inserted_rows AS (
                 array_fill('[]'::JSONB, array[array_length(@alphagrams, 1)])
             )
         ),
-        sqlc.narg(deck_id)::BIGINT
+        NULLIF(sqlc.arg(deck_id)::BIGINT, 0)
     ON CONFLICT(user_id, lexicon_name, alphagram) DO NOTHING
     RETURNING 1
 )
 SELECT COUNT(*) FROM inserted_rows;
 
--- name: MoveCards :one
-WITH moved_rows AS (
-    UPDATE wordvault_cards
-    SET deck_id = $3
-    WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY(@alphagrams::text[])
-    RETURNING 1
-)
-SELECT COUNT(*) from moved_rows;
+-- name: MoveCards :execrows
+UPDATE wordvault_cards
+SET deck_id = NULLIF(sqlc.arg(deck_id)::BIGINT, 0)
+WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY(@alphagrams::text[]);
 
 -- name: GetNextScheduledBreakdown :many
 WITH scheduled_cards AS (
@@ -166,7 +160,7 @@ WITH scheduled_cards AS (
         CASE WHEN next_scheduled <= @now THEN '-infinity'::date
         ELSE (next_scheduled AT TIME ZONE @tz::text)::date END
         AS scheduled_date,
-        deck_id
+        COALESCE(deck_id, 0) as deck_id
     FROM
         wordvault_cards
     WHERE user_id = $1 AND lexicon_name = $2
@@ -189,7 +183,7 @@ WHERE next_scheduled <= @now AND user_id = $1 AND lexicon_name = $2;
 
 -- name: GetOverdueCountByDeck :many
 SELECT
-    deck_id, count(*) from wordvault_cards
+    COALESCE(deck_id, 0) as deck_id, count(*) from wordvault_cards
 WHERE next_scheduled <= @now AND user_id = $1 AND lexicon_name = $2
 GROUP BY deck_id;
 

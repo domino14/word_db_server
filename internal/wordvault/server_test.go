@@ -1387,18 +1387,17 @@ func TestAddingCardsToDeck(t *testing.T) {
 		Lexicon: "NWL23",
 	}))
 	is.NoErr(err)
-	deckID := added.Msg.Deck.Id
-	deckIDUint := uint64(deckID)
+	deckID := uint64(added.Msg.Deck.Id)
 
 	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
 		Lexicon:    "NWL23",
 		Alphagrams: []string{"ADEEGMMO"},
-		DeckId:     &deckIDUint,
+		DeckId:     deckID,
 	}))
 
 	res, err := s.GetSingleNextScheduled(ctx, connect.NewRequest(&pb.GetSingleNextScheduledRequest{
 		Lexicon: "NWL23",
-		DeckId:  &deckIDUint,
+		DeckId:  deckID,
 	}))
 
 	is.NoErr(err)
@@ -1450,14 +1449,14 @@ func TestAddingAndMovingCardsWithOverlap(t *testing.T) {
 	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
 		Lexicon:    "NWL23",
 		Alphagrams: []string{"ADEEHMMO"},
-		DeckId:     &deckIDUint,
+		DeckId:     deckIDUint,
 	}))
 
 	// Add two cards to the test deck: one overlapping and one new
 	addResp, err := s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
 		Lexicon:    "NWL23",
 		Alphagrams: []string{"ADEEGMMO", "AIELRNO"},
-		DeckId:     &deckIDUint,
+		DeckId:     deckIDUint,
 	}))
 	is.NoErr(err)
 
@@ -1481,7 +1480,7 @@ func TestAddingAndMovingCardsWithOverlap(t *testing.T) {
 	moveResp, err := s.MoveCards(ctx, connect.NewRequest(&pb.MoveCardsRequest{
 		Lexicon:    "NWL23",
 		Alphagrams: []string{"ADEEGMMO"},
-		DeckId:     &deckIDUint,
+		DeckId:     deckIDUint,
 	}))
 
 	is.NoErr(err)
@@ -1502,11 +1501,11 @@ func TestAddingAndMovingCardsWithOverlap(t *testing.T) {
 
 	is.NoErr(err)
 	is.Equal(len(info.Msg.Cards), 2)
-	deckMap := make(map[string]*uint64)
+	deckMap := make(map[string]uint64)
 	for _, card := range info.Msg.Cards {
 		deckMap[card.Alphagram.Alphagram] = card.DeckId
 	}
 
-	is.Equal(*deckMap["ADEEGMMO"], deckIDUint)
-	is.Equal(deckMap["ADEEHMMO"], nil)
+	is.Equal(deckMap["ADEEGMMO"], deckIDUint)
+	is.Equal(deckMap["ADEEHMMO"], uint64(0))
 }
