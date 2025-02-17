@@ -33,6 +33,7 @@ var ErrNeedMembership = errors.New("adding these cards would put you over your l
 var ErrMaybeRefreshApp = invalidArgError("Card with your input parameters was not found. Please refresh this page as the app may have updated.")
 var ErrMaintenance = connect.NewError(connect.CodeUnavailable, errors.New("WordVault App is currently undergoing maintenance. Please wait a few moments and try again."))
 
+const CardInOtherDeckPreviewLimit = 10
 const JustReviewedInterval = time.Second * 10
 
 type nower interface {
@@ -109,12 +110,7 @@ func (s *Server) GetCardInformation(ctx context.Context, req *connect.Request[pb
 			Retrievability: f.GetRetrievability(fcard.Card, s.Nower.Now()),
 			ReviewLog:      revlogbts,
 		}
-
-		if rows[i].DeckID.Valid {
-			cards[i].DeckId = uint64(rows[i].DeckID.Int64)
-		} else {
-			cards[i].DeckId = 0
-		}
+		cards[i].DeckId = uint64(rows[i].DeckID)
 	}
 	return connect.NewResponse(&pb.Cards{Cards: cards}), nil
 }
@@ -140,10 +136,7 @@ func (s *Server) GetNextScheduled(ctx context.Context, req *connect.Request[pb.G
 		LexiconName:   req.Msg.Lexicon,
 		Limit:         int32(req.Msg.Limit),
 		NextScheduled: toPGTimestamp(s.Nower.Now()),
-		DeckID: pgtype.Int8{
-			Valid: req.Msg.DeckId != 0,
-			Int64: int64(req.Msg.DeckId),
-		},
+		DeckID:        int64(req.Msg.DeckId),
 	}
 	rows, err := s.Queries.GetNextScheduled(ctx, params)
 	if err != nil {
@@ -217,10 +210,7 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 		LexiconName:          req.Msg.Lexicon,
 		NextScheduled:        toPGTimestamp(s.Nower.Now()),
 		IsShortTermScheduler: params.EnableShortTerm,
-		DeckID: pgtype.Int8{
-			Valid: req.Msg.DeckId != 0,
-			Int64: int64(req.Msg.DeckId),
-		},
+		DeckID:               int64(req.Msg.DeckId),
 	}
 
 	row, err := s.Queries.GetSingleNextScheduled(ctx, sqlParams)
@@ -254,12 +244,7 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 		// the raw bytes as they are.
 		CardJsonRepr: row.FsrsCard,
 	}
-
-	if row.DeckID.Valid {
-		card.DeckId = uint64(row.DeckID.Int64)
-	} else {
-		card.DeckId = 0
-	}
+	card.DeckId = uint64(row.DeckID)
 
 	resp := &pb.GetSingleNextScheduledResponse{
 		Card:         &card,
@@ -570,24 +555,96 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 		cards[i] = cardbts // This is by reference but it's ok after marshalling.
 	}
 
-	params := models.AddCardsParams{
+	tx, err := s.DBPool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	qtx := s.Queries.WithTx(tx)
+
+	countParams := models.CountCardsInOtherDecksParams{
+		UserID:      int64(user.DBID),
+		LexiconName: req.Msg.Lexicon,
+		Alphagrams:  alphagrams,
+		DeckID:      int64(req.Msg.DeckId),
+	}
+	numInOtherDeck, err := qtx.CountCardsInOtherDecks(ctx, countParams)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
+	var previewRows []*pb.CardPreview
+	if numInOtherDeck > 0 {
+		cardPreviewParams := models.GetCardsInOtherDecksParams{
+			UserID:      int64(user.DBID),
+			LexiconName: req.Msg.Lexicon,
+			Alphagrams:  alphagrams,
+			DeckID:      int64(req.Msg.DeckId),
+			Limit:       CardInOtherDeckPreviewLimit,
+		}
+		rows, err := qtx.GetCardsInOtherDecks(ctx, cardPreviewParams)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		}
+		previewRows = make([]*pb.CardPreview, len(rows))
+		for i := range rows {
+			previewRows[i] = &pb.CardPreview{
+				Lexicon:   req.Msg.Lexicon,
+				Alphagram: rows[i].Alphagram,
+				DeckId:    uint64(rows[i].DeckID.Int64),
+			}
+		}
+	}
+
+	addParams := models.AddCardsParams{
 		UserID:      int64(user.DBID),
 		LexiconName: req.Msg.Lexicon,
 		// sqlc compiler can't detect this is a special type. It's ok.
 		FsrsCards:      cards,
 		Alphagrams:     alphagrams,
 		NextScheduleds: nextScheduleds,
-		DeckID: pgtype.Int8{
-			Int64: int64(req.Msg.DeckId),
-			Valid: req.Msg.DeckId != 0,
-		},
+		DeckID:         int64(req.Msg.DeckId),
 	}
-
-	numInserted, err := s.Queries.AddCards(ctx, params)
+	numInserted, err := qtx.AddCards(ctx, addParams)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
-	return connect.NewResponse(&pb.AddCardsResponse{NumCardsAdded: uint32(numInserted)}), nil
+	err = tx.Commit(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return connect.NewResponse(&pb.AddCardsResponse{
+		NumCardsAdded:            uint32(numInserted),
+		NumCardsInOtherDecks:     uint32(numInOtherDeck),
+		CardsInOtherDecksPreview: previewRows,
+	}), nil
+}
+
+func (s *Server) MoveCards(ctx context.Context, req *connect.Request[pb.MoveCardsRequest]) (
+	*connect.Response[pb.MoveCardsResponse], error) {
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+	if req.Msg.Lexicon == "" {
+		return nil, invalidArgError("need a lexicon")
+	}
+	if len(req.Msg.Alphagrams) == 0 {
+		return nil, invalidArgError("need at least one card to move")
+	}
+
+	params := models.MoveCardsParams{
+		UserID:      int64(user.DBID),
+		LexiconName: req.Msg.Lexicon,
+		Alphagrams:  req.Msg.Alphagrams,
+		DeckID:      int64(req.Msg.DeckId),
+	}
+	numMoved, err := s.Queries.MoveCards(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&pb.MoveCardsResponse{NumCardsMoved: uint32(numMoved)}), nil
 }
 
 func (s *Server) GetCardCount(ctx context.Context, req *connect.Request[pb.GetCardCountRequest]) (

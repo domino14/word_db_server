@@ -1357,3 +1357,99 @@ func TestAddingCardsToDeck(t *testing.T) {
 	is.Equal(res.Msg.OverdueCount, uint32(0))
 	is.True(res.Msg.Card == nil)
 }
+
+func TestAddingAndMovingCardsWithOverlap(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+
+	// Create a new deck
+	added, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Test Deck",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	deckID := added.Msg.Deck.Id
+	deckIDUint := uint64(deckID)
+
+	// Add card to default deck
+	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO"},
+	}))
+	// Add a different card to the other deck
+	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEHMMO"},
+		DeckId:     deckIDUint,
+	}))
+
+	// Add two cards to the test deck: one overlapping and one new
+	addResp, err := s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "AIELRNO"},
+		DeckId:     deckIDUint,
+	}))
+	is.NoErr(err)
+
+	is.Equal(len(addResp.Msg.CardsInOtherDecksPreview), 1)
+	is.Equal(addResp.Msg.CardsInOtherDecksPreview[0].Alphagram, "ADEEGMMO")
+	is.Equal(addResp.Msg.NumCardsInOtherDecks, uint32(1))
+	is.Equal(addResp.Msg.NumCardsAdded, uint32(1))
+
+	// Add two cards to the default deck: one overlapping and one new
+	addResp, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEHMMO", "AEINSTU"},
+	}))
+	is.NoErr(err)
+
+	is.Equal(len(addResp.Msg.CardsInOtherDecksPreview), 1)
+	is.Equal(addResp.Msg.CardsInOtherDecksPreview[0].Alphagram, "ADEEHMMO")
+	is.Equal(addResp.Msg.NumCardsInOtherDecks, uint32(1))
+	is.Equal(addResp.Msg.NumCardsAdded, uint32(1))
+
+	moveResp, err := s.MoveCards(ctx, connect.NewRequest(&pb.MoveCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO"},
+		DeckId:     deckIDUint,
+	}))
+
+	is.NoErr(err)
+	is.Equal(moveResp.Msg.NumCardsMoved, uint32(1))
+
+	moveResp, err = s.MoveCards(ctx, connect.NewRequest(&pb.MoveCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEHMMO"},
+	}))
+
+	is.NoErr(err)
+	is.Equal(moveResp.Msg.NumCardsMoved, uint32(1))
+
+	info, err := s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO"},
+	}))
+
+	is.NoErr(err)
+	is.Equal(len(info.Msg.Cards), 2)
+	deckMap := make(map[string]uint64)
+	for _, card := range info.Msg.Cards {
+		deckMap[card.Alphagram.Alphagram] = card.DeckId
+	}
+
+	is.Equal(deckMap["ADEEGMMO"], deckIDUint)
+	is.Equal(deckMap["ADEEHMMO"], uint64(0))
+}

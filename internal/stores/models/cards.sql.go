@@ -30,7 +30,7 @@ WITH inserted_rows AS (
                 array_fill('[]'::JSONB, array[array_length($1, 1)])
             )
         ),
-        $7::BIGINT
+        NULLIF($7::BIGINT, 0)
     ON CONFLICT(user_id, lexicon_name, alphagram) DO NOTHING
     RETURNING 1
 )
@@ -44,7 +44,7 @@ type AddCardsParams struct {
 	UserID         int64
 	LexiconName    string
 	ReviewLogs     [][]byte
-	DeckID         pgtype.Int8
+	DeckID         int64
 }
 
 func (q *Queries) AddCards(ctx context.Context, arg AddCardsParams) (int64, error) {
@@ -124,6 +124,34 @@ func (q *Queries) BulkUpdateCards(ctx context.Context, arg BulkUpdateCardsParams
 		arg.LexiconName,
 	)
 	return err
+}
+
+const countCardsInOtherDecks = `-- name: CountCardsInOtherDecks :one
+SELECT COUNT(*)
+FROM wordvault_cards
+WHERE user_id = $1
+    AND lexicon_name = $2
+    AND alphagram = ANY($3::text[])
+    AND COALESCE(deck_id, 0) <> $4::BIGINT
+`
+
+type CountCardsInOtherDecksParams struct {
+	UserID      int64
+	LexiconName string
+	Alphagrams  []string
+	DeckID      int64
+}
+
+func (q *Queries) CountCardsInOtherDecks(ctx context.Context, arg CountCardsInOtherDecksParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countCardsInOtherDecks,
+		arg.UserID,
+		arg.LexiconName,
+		arg.Alphagrams,
+		arg.DeckID,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const deleteCards = `-- name: DeleteCards :execrows
@@ -243,7 +271,7 @@ func (q *Queries) GetCard(ctx context.Context, arg GetCardParams) (GetCardRow, e
 }
 
 const getCards = `-- name: GetCards :many
-SELECT alphagram, next_scheduled, fsrs_card, review_log, deck_id
+SELECT alphagram, next_scheduled, fsrs_card, review_log, COALESCE(deck_id, 0) as deck_id
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY($3::text[])
 `
@@ -259,7 +287,7 @@ type GetCardsRow struct {
 	NextScheduled pgtype.Timestamptz
 	FsrsCard      stores.Card
 	ReviewLog     []stores.ReviewLog
-	DeckID        pgtype.Int8
+	DeckID        int64
 }
 
 func (q *Queries) GetCards(ctx context.Context, arg GetCardsParams) ([]GetCardsRow, error) {
@@ -278,6 +306,56 @@ func (q *Queries) GetCards(ctx context.Context, arg GetCardsParams) ([]GetCardsR
 			&i.ReviewLog,
 			&i.DeckID,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getCardsInOtherDecks = `-- name: GetCardsInOtherDecks :many
+SELECT id, alphagram, deck_id
+FROM wordvault_cards
+WHERE user_id = $1
+    AND lexicon_name = $2
+    AND alphagram = ANY($4::text[])
+    AND COALESCE(deck_id, 0) <> $5::BIGINT
+LIMIT $3
+`
+
+type GetCardsInOtherDecksParams struct {
+	UserID      int64
+	LexiconName string
+	Limit       int32
+	Alphagrams  []string
+	DeckID      int64
+}
+
+type GetCardsInOtherDecksRow struct {
+	ID        int64
+	Alphagram string
+	DeckID    pgtype.Int8
+}
+
+func (q *Queries) GetCardsInOtherDecks(ctx context.Context, arg GetCardsInOtherDecksParams) ([]GetCardsInOtherDecksRow, error) {
+	rows, err := q.db.Query(ctx, getCardsInOtherDecks,
+		arg.UserID,
+		arg.LexiconName,
+		arg.Limit,
+		arg.Alphagrams,
+		arg.DeckID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetCardsInOtherDecksRow
+	for rows.Next() {
+		var i GetCardsInOtherDecksRow
+		if err := rows.Scan(&i.ID, &i.Alphagram, &i.DeckID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -321,10 +399,10 @@ func (q *Queries) GetDecks(ctx context.Context, userID int64) ([]WordvaultDeck, 
 }
 
 const getNextScheduled = `-- name: GetNextScheduled :many
-SELECT alphagram, next_scheduled, fsrs_card, deck_id
+SELECT alphagram, next_scheduled, fsrs_card, COALESCE(deck_id, 0) as deck_id
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3
-    AND (($5::bigint IS NULL AND deck_id IS NULL) OR deck_id = $5::bigint)
+    AND COALESCE(deck_id, 0) = $5::bigint
 ORDER BY next_scheduled ASC
 LIMIT $4
 `
@@ -334,14 +412,14 @@ type GetNextScheduledParams struct {
 	LexiconName   string
 	NextScheduled pgtype.Timestamptz
 	Limit         int32
-	DeckID        pgtype.Int8
+	DeckID        int64
 }
 
 type GetNextScheduledRow struct {
 	Alphagram     string
 	NextScheduled pgtype.Timestamptz
 	FsrsCard      stores.Card
-	DeckID        pgtype.Int8
+	DeckID        int64
 }
 
 func (q *Queries) GetNextScheduled(ctx context.Context, arg GetNextScheduledParams) ([]GetNextScheduledRow, error) {
@@ -489,13 +567,13 @@ WITH matching_cards AS (
     alphagram,
     next_scheduled,
     fsrs_card,
-    deck_id,
+    COALESCE(deck_id, 0) as deck_id,
     COUNT(*) OVER () AS total_count -- Window function to get the total count
   FROM wordvault_cards
   WHERE user_id = $1
     AND lexicon_name = $2
     AND next_scheduled <= $3
-    AND (($4::BIGINT IS NULL AND deck_id IS NULL) OR $4::BIGINT = deck_id)
+    AND COALESCE(deck_id, 0) = $4::bigint
   ORDER BY
     -- When short-term scheduling is enabled, we want to de-prioritize
     -- new cards so that you clear your backlog of reviewed cards first.
@@ -510,7 +588,7 @@ type GetSingleNextScheduledParams struct {
 	UserID               int64
 	LexiconName          string
 	NextScheduled        pgtype.Timestamptz
-	DeckID               pgtype.Int8
+	DeckID               int64
 	IsShortTermScheduler bool
 }
 
@@ -518,7 +596,7 @@ type GetSingleNextScheduledRow struct {
 	Alphagram     string
 	NextScheduled pgtype.Timestamptz
 	FsrsCard      []byte
-	DeckID        pgtype.Int8
+	DeckID        int64
 	TotalCount    int64
 }
 
@@ -551,6 +629,32 @@ func (q *Queries) LoadFsrsParams(ctx context.Context, userID int64) (go_fsrs.Par
 	var params go_fsrs.Parameters
 	err := row.Scan(&params)
 	return params, err
+}
+
+const moveCards = `-- name: MoveCards :execrows
+UPDATE wordvault_cards
+SET deck_id = NULLIF($3::BIGINT, 0)
+WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY($4::text[])
+`
+
+type MoveCardsParams struct {
+	UserID      int64
+	LexiconName string
+	DeckID      int64
+	Alphagrams  []string
+}
+
+func (q *Queries) MoveCards(ctx context.Context, arg MoveCardsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, moveCards,
+		arg.UserID,
+		arg.LexiconName,
+		arg.DeckID,
+		arg.Alphagrams,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const postponementQuery = `-- name: PostponementQuery :many

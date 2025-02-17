@@ -57,6 +57,9 @@ const (
 	// WordVaultServiceAddCardsProcedure is the fully-qualified name of the WordVaultService's AddCards
 	// RPC.
 	WordVaultServiceAddCardsProcedure = "/wordvault.WordVaultService/AddCards"
+	// WordVaultServiceMoveCardsProcedure is the fully-qualified name of the WordVaultService's
+	// MoveCards RPC.
+	WordVaultServiceMoveCardsProcedure = "/wordvault.WordVaultService/MoveCards"
 	// WordVaultServicePostponeProcedure is the fully-qualified name of the WordVaultService's Postpone
 	// RPC.
 	WordVaultServicePostponeProcedure = "/wordvault.WordVaultService/Postpone"
@@ -96,6 +99,7 @@ var (
 	wordVaultServiceScoreCardMethodDescriptor              = wordVaultServiceServiceDescriptor.Methods().ByName("ScoreCard")
 	wordVaultServiceEditLastScoreMethodDescriptor          = wordVaultServiceServiceDescriptor.Methods().ByName("EditLastScore")
 	wordVaultServiceAddCardsMethodDescriptor               = wordVaultServiceServiceDescriptor.Methods().ByName("AddCards")
+	wordVaultServiceMoveCardsMethodDescriptor              = wordVaultServiceServiceDescriptor.Methods().ByName("MoveCards")
 	wordVaultServicePostponeMethodDescriptor               = wordVaultServiceServiceDescriptor.Methods().ByName("Postpone")
 	wordVaultServiceDeleteMethodDescriptor                 = wordVaultServiceServiceDescriptor.Methods().ByName("Delete")
 	wordVaultServiceGetDailyProgressMethodDescriptor       = wordVaultServiceServiceDescriptor.Methods().ByName("GetDailyProgress")
@@ -117,6 +121,7 @@ type WordVaultServiceClient interface {
 	ScoreCard(context.Context, *connect.Request[wordvault.ScoreCardRequest]) (*connect.Response[wordvault.ScoreCardResponse], error)
 	EditLastScore(context.Context, *connect.Request[wordvault.EditLastScoreRequest]) (*connect.Response[wordvault.ScoreCardResponse], error)
 	AddCards(context.Context, *connect.Request[wordvault.AddCardsRequest]) (*connect.Response[wordvault.AddCardsResponse], error)
+	MoveCards(context.Context, *connect.Request[wordvault.MoveCardsRequest]) (*connect.Response[wordvault.MoveCardsResponse], error)
 	Postpone(context.Context, *connect.Request[wordvault.PostponeRequest]) (*connect.Response[wordvault.PostponeResponse], error)
 	Delete(context.Context, *connect.Request[wordvault.DeleteRequest]) (*connect.Response[wordvault.DeleteResponse], error)
 	GetDailyProgress(context.Context, *connect.Request[wordvault.GetDailyProgressRequest]) (*connect.Response[wordvault.GetDailyProgressResponse], error)
@@ -190,6 +195,12 @@ func NewWordVaultServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(wordVaultServiceAddCardsMethodDescriptor),
 			connect.WithClientOptions(opts...),
 		),
+		moveCards: connect.NewClient[wordvault.MoveCardsRequest, wordvault.MoveCardsResponse](
+			httpClient,
+			baseURL+WordVaultServiceMoveCardsProcedure,
+			connect.WithSchema(wordVaultServiceMoveCardsMethodDescriptor),
+			connect.WithClientOptions(opts...),
+		),
 		postpone: connect.NewClient[wordvault.PostponeRequest, wordvault.PostponeResponse](
 			httpClient,
 			baseURL+WordVaultServicePostponeProcedure,
@@ -260,6 +271,7 @@ type wordVaultServiceClient struct {
 	scoreCard              *connect.Client[wordvault.ScoreCardRequest, wordvault.ScoreCardResponse]
 	editLastScore          *connect.Client[wordvault.EditLastScoreRequest, wordvault.ScoreCardResponse]
 	addCards               *connect.Client[wordvault.AddCardsRequest, wordvault.AddCardsResponse]
+	moveCards              *connect.Client[wordvault.MoveCardsRequest, wordvault.MoveCardsResponse]
 	postpone               *connect.Client[wordvault.PostponeRequest, wordvault.PostponeResponse]
 	delete                 *connect.Client[wordvault.DeleteRequest, wordvault.DeleteResponse]
 	getDailyProgress       *connect.Client[wordvault.GetDailyProgressRequest, wordvault.GetDailyProgressResponse]
@@ -309,6 +321,11 @@ func (c *wordVaultServiceClient) EditLastScore(ctx context.Context, req *connect
 // AddCards calls wordvault.WordVaultService.AddCards.
 func (c *wordVaultServiceClient) AddCards(ctx context.Context, req *connect.Request[wordvault.AddCardsRequest]) (*connect.Response[wordvault.AddCardsResponse], error) {
 	return c.addCards.CallUnary(ctx, req)
+}
+
+// MoveCards calls wordvault.WordVaultService.MoveCards.
+func (c *wordVaultServiceClient) MoveCards(ctx context.Context, req *connect.Request[wordvault.MoveCardsRequest]) (*connect.Response[wordvault.MoveCardsResponse], error) {
+	return c.moveCards.CallUnary(ctx, req)
 }
 
 // Postpone calls wordvault.WordVaultService.Postpone.
@@ -366,6 +383,7 @@ type WordVaultServiceHandler interface {
 	ScoreCard(context.Context, *connect.Request[wordvault.ScoreCardRequest]) (*connect.Response[wordvault.ScoreCardResponse], error)
 	EditLastScore(context.Context, *connect.Request[wordvault.EditLastScoreRequest]) (*connect.Response[wordvault.ScoreCardResponse], error)
 	AddCards(context.Context, *connect.Request[wordvault.AddCardsRequest]) (*connect.Response[wordvault.AddCardsResponse], error)
+	MoveCards(context.Context, *connect.Request[wordvault.MoveCardsRequest]) (*connect.Response[wordvault.MoveCardsResponse], error)
 	Postpone(context.Context, *connect.Request[wordvault.PostponeRequest]) (*connect.Response[wordvault.PostponeResponse], error)
 	Delete(context.Context, *connect.Request[wordvault.DeleteRequest]) (*connect.Response[wordvault.DeleteResponse], error)
 	GetDailyProgress(context.Context, *connect.Request[wordvault.GetDailyProgressRequest]) (*connect.Response[wordvault.GetDailyProgressResponse], error)
@@ -433,6 +451,12 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 		WordVaultServiceAddCardsProcedure,
 		svc.AddCards,
 		connect.WithSchema(wordVaultServiceAddCardsMethodDescriptor),
+		connect.WithHandlerOptions(opts...),
+	)
+	wordVaultServiceMoveCardsHandler := connect.NewUnaryHandler(
+		WordVaultServiceMoveCardsProcedure,
+		svc.MoveCards,
+		connect.WithSchema(wordVaultServiceMoveCardsMethodDescriptor),
 		connect.WithHandlerOptions(opts...),
 	)
 	wordVaultServicePostponeHandler := connect.NewUnaryHandler(
@@ -510,6 +534,8 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 			wordVaultServiceEditLastScoreHandler.ServeHTTP(w, r)
 		case WordVaultServiceAddCardsProcedure:
 			wordVaultServiceAddCardsHandler.ServeHTTP(w, r)
+		case WordVaultServiceMoveCardsProcedure:
+			wordVaultServiceMoveCardsHandler.ServeHTTP(w, r)
 		case WordVaultServicePostponeProcedure:
 			wordVaultServicePostponeHandler.ServeHTTP(w, r)
 		case WordVaultServiceDeleteProcedure:
@@ -567,6 +593,10 @@ func (UnimplementedWordVaultServiceHandler) EditLastScore(context.Context, *conn
 
 func (UnimplementedWordVaultServiceHandler) AddCards(context.Context, *connect.Request[wordvault.AddCardsRequest]) (*connect.Response[wordvault.AddCardsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.AddCards is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) MoveCards(context.Context, *connect.Request[wordvault.MoveCardsRequest]) (*connect.Response[wordvault.MoveCardsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.MoveCards is not implemented"))
 }
 
 func (UnimplementedWordVaultServiceHandler) Postpone(context.Context, *connect.Request[wordvault.PostponeRequest]) (*connect.Response[wordvault.PostponeResponse], error) {
