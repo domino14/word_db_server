@@ -678,8 +678,6 @@ func TestOverdueCountByDeck(t *testing.T) {
 		Lexicon: "NWL23",
 	}))
 	is.NoErr(err)
-	deckId := addedDeck.Msg.Deck.Id
-	deckIdUint := uint64(deckId)
 
 	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
 		Lexicon:    "NWL23",
@@ -688,7 +686,7 @@ func TestOverdueCountByDeck(t *testing.T) {
 	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
 		Lexicon:    "NWL23",
 		Alphagrams: []string{"AEINSTU", "AELNSTW"},
-		DeckId:     &deckIdUint,
+		DeckId:     uint64(addedDeck.Msg.Deck.Id),
 	}))
 
 	res, err := s.NextScheduledCountByDeck(ctx, connect.NewRequest(&pb.NextScheduledCountByDeckRequest{
@@ -700,10 +698,10 @@ func TestOverdueCountByDeck(t *testing.T) {
 	testDeckCount := uint32(0)
 
 	for _, deckBreakdown := range res.Msg.Breakdowns {
-		if deckBreakdown.DeckId == nil {
-			defaultCount = deckBreakdown.Breakdown["overdue"]
-		} else if int64(*deckBreakdown.DeckId) == deckId {
+		if deckBreakdown.DeckId == uint64(addedDeck.Msg.Deck.Id) {
 			testDeckCount = deckBreakdown.Breakdown["overdue"]
+		} else if deckBreakdown.DeckId == 0 {
+			defaultCount = deckBreakdown.Breakdown["overdue"]
 		} else {
 			is.Fail()
 		}

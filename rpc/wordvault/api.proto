@@ -114,7 +114,7 @@ message NextScheduledCountByDeckRequest {
 }
 
 message DeckBreakdown {
-  optional uint64 deck_id = 1;
+  uint64 deck_id = 1;
   map<string, uint32> breakdown = 2;
 }
 

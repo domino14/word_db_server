@@ -591,7 +591,7 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 			previewRows[i] = &pb.CardPreview{
 				Lexicon:   req.Msg.Lexicon,
 				Alphagram: rows[i].Alphagram,
-				DeckId:    uint64(rows[i].DeckID.Int64),
+				DeckId:    uint64(rows[i].DeckID),
 			}
 		}
 	}
@@ -751,18 +751,11 @@ func (s *Server) NextScheduledCountByDeck(ctx context.Context, req *connect.Requ
 		}
 
 		for _, ocCount := range ocCounts {
-			var deckId *uint64
-
 			breakdown := map[string]uint32{}
 			breakdown["overdue"] = uint32(ocCount.Count)
 
-			if ocCount.DeckID.Valid {
-				id := uint64(ocCount.DeckID.Int64)
-				deckId = &id
-			}
-
 			breakdowns = append(breakdowns, &pb.DeckBreakdown{
-				DeckId:    deckId,
+				DeckId:    uint64(ocCount.DeckID),
 				Breakdown: breakdown,
 			})
 		}
@@ -780,7 +773,6 @@ func (s *Server) NextScheduledCountByDeck(ctx context.Context, req *connect.Requ
 		if err != nil {
 			return nil, err
 		}
-		defaultDeck := make(map[string]uint32)
 		perDeckBreakdown := make(map[uint64]map[string]uint32)
 
 		for _, row := range rows {
@@ -794,26 +786,14 @@ func (s *Server) NextScheduledCountByDeck(ctx context.Context, req *connect.Requ
 				s = "overdue"
 			}
 
-			if row.DeckID.Valid {
-				deckId := uint64(row.DeckID.Int64)
-				if _, ok := perDeckBreakdown[deckId]; !ok {
-					perDeckBreakdown[deckId] = make(map[string]uint32)
-				}
-				perDeckBreakdown[deckId][s] = uint32(row.QuestionCount)
-			} else {
-				defaultDeck[s] = uint32(row.QuestionCount)
+			deckId := uint64(row.DeckID)
+			if _, ok := perDeckBreakdown[deckId]; !ok {
+				perDeckBreakdown[deckId] = make(map[string]uint32)
 			}
-		}
-
-		breakdowns = append(breakdowns, &pb.DeckBreakdown{
-			DeckId:    nil,
-			Breakdown: defaultDeck,
-		})
-
-		for deckId, breakdown := range perDeckBreakdown {
+			perDeckBreakdown[deckId][s] = uint32(row.QuestionCount)
 			breakdowns = append(breakdowns, &pb.DeckBreakdown{
-				DeckId:    &deckId,
-				Breakdown: breakdown,
+				DeckId:    deckId,
+				Breakdown: perDeckBreakdown[deckId],
 			})
 		}
 	}
