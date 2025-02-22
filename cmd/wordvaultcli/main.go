@@ -143,7 +143,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.mgr.jwt = msg.jwt
 
 	case string:
-		log.Printf("Possible error: " + msg)
+		log.Print("Possible error: " + msg)
 
 	}
 	m.textInput, cmd = m.textInput.Update(msg)
