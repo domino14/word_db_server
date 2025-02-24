@@ -591,7 +591,7 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 			previewRows[i] = &pb.CardPreview{
 				Lexicon:   req.Msg.Lexicon,
 				Alphagram: rows[i].Alphagram,
-				DeckId:    uint64(rows[i].DeckID.Int64),
+				DeckId:    uint64(rows[i].DeckID),
 			}
 		}
 	}
@@ -724,6 +724,81 @@ func (s *Server) NextScheduledCount(ctx context.Context, req *connect.Request[pb
 	}
 
 	return connect.NewResponse(&pb.NextScheduledBreakdown{Breakdown: breakdown}), nil
+}
+
+func (s *Server) NextScheduledCountByDeck(ctx context.Context, req *connect.Request[pb.NextScheduledCountByDeckRequest]) (
+	*connect.Response[pb.NextScheduledCountByDeckResponse], error) {
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+	log := log.Ctx(ctx)
+	log.Info().Interface("req", req.Msg).Msg("next-scheduled-count")
+
+	if req.Msg.Lexicon == "" {
+		return nil, invalidArgError("must provide a lexicon")
+	}
+	var breakdowns []*pb.DeckBreakdown
+
+	if req.Msg.OnlyOverdue {
+		ocCounts, err := s.Queries.GetOverdueCountByDeck(ctx, models.GetOverdueCountByDeckParams{
+			UserID:      int64(user.DBID),
+			Now:         toPGTimestamp(s.Nower.Now()),
+			LexiconName: req.Msg.Lexicon,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		for _, ocCount := range ocCounts {
+			breakdown := map[string]uint32{}
+			breakdown["overdue"] = uint32(ocCount.Count)
+
+			breakdowns = append(breakdowns, &pb.DeckBreakdown{
+				DeckId:    uint64(ocCount.DeckID),
+				Breakdown: breakdown,
+			})
+		}
+	} else {
+		tz := "UTC"
+		if req.Msg.Timezone != "" {
+			tz = req.Msg.Timezone
+		}
+		rows, err := s.Queries.GetNextScheduledBreakdownByDeck(ctx, models.GetNextScheduledBreakdownByDeckParams{
+			UserID:      int64(user.DBID),
+			Now:         toPGTimestamp(s.Nower.Now()),
+			Tz:          tz,
+			LexiconName: req.Msg.Lexicon,
+		})
+		if err != nil {
+			return nil, err
+		}
+		perDeckBreakdown := make(map[uint64]map[string]uint32)
+
+		for _, row := range rows {
+			var s string
+			switch row.ScheduledDate.InfinityModifier {
+			case pgtype.Finite:
+				s = row.ScheduledDate.Time.Format("2006-01-02")
+			case pgtype.Infinity:
+				s = "infinity"
+			case pgtype.NegativeInfinity:
+				s = "overdue"
+			}
+
+			deckId := uint64(row.DeckID)
+			if _, ok := perDeckBreakdown[deckId]; !ok {
+				perDeckBreakdown[deckId] = make(map[string]uint32)
+			}
+			perDeckBreakdown[deckId][s] = uint32(row.QuestionCount)
+			breakdowns = append(breakdowns, &pb.DeckBreakdown{
+				DeckId:    deckId,
+				Breakdown: perDeckBreakdown[deckId],
+			})
+		}
+	}
+
+	return connect.NewResponse(&pb.NextScheduledCountByDeckResponse{Breakdowns: breakdowns}), nil
 }
 
 type postponement struct {
