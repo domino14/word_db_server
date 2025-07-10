@@ -8,8 +8,6 @@ spaced repetition algorithms
 
 ## Core Data Models
 
-### General Data Models
-
 **Alphagram:**
 
 - Alphabetically sorted letters that can form one or more words
