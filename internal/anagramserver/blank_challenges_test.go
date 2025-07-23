@@ -20,7 +20,7 @@ var DefaultConfig = &config.Config{
 }
 
 func loadKWG(lexName string) (*kwg.KWG, error) {
-	return kwg.Get(DefaultConfig, lexName)
+	return kwg.GetKWG(DefaultConfig, lexName)
 }
 
 func TestRacks(t *testing.T) {

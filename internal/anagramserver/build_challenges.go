@@ -19,7 +19,7 @@ import (
 func GenerateBuildChallenge(ctx context.Context, cfg *config.Config, req *pb.BuildChallengeCreateRequest) (
 	*pb.Alphagram, error) {
 
-	dawg, err := kwg.Get(cfg, req.Lexicon)
+	dawg, err := kwg.GetKWG(cfg, req.Lexicon)
 	if err != nil {
 		return nil, err
 	}

@@ -15,7 +15,7 @@ import (
 const DeletionToken = "X"
 
 func loadKWG(dataPath, lexName string) *kwg.KWG {
-	k, err := kwg.Get(&config.Config{DataPath: dataPath}, lexName)
+	k, err := kwg.GetKWG(&config.Config{DataPath: dataPath}, lexName)
 	if err != nil {
 		log.Err(err).Str("lexName", lexName).Msg("unable to load kwg")
 	}

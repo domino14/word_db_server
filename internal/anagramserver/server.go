@@ -63,7 +63,7 @@ func (s *Server) Anagram(ctx context.Context, req *connect.Request[pb.AnagramReq
 	*connect.Response[pb.AnagramResponse], error) {
 	defer timeTrack(time.Now(), "anagram")
 
-	dawg, err := kwg.Get(s.Config, req.Msg.Lexicon)
+	dawg, err := kwg.GetKWG(s.Config, req.Msg.Lexicon)
 	if err != nil {
 		return nil, err
 	}

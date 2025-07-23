@@ -13,6 +13,7 @@ type Config struct {
 	MaxNonmemberCards    int
 	MaxCardsAdd          int
 	SmallJitterOnAddCard bool
+	MaxQueryResults      int
 }
 
 // Load loads the configs from the given arguments
@@ -26,6 +27,7 @@ func (c *Config) Load(args []string) error {
 	fs.IntVar(&c.MaxCardsAdd, "max-cards-add", 1000, "maximum cards that can be added at once")
 	fs.IntVar(&c.MaxNonmemberCards, "max-nonmember-cards", 10000, "maximum total cards for non-members")
 	fs.BoolVar(&c.SmallJitterOnAddCard, "jitter-on-addcard", true, "add small jitter in time due when first adding card")
+	fs.IntVar(&c.MaxQueryResults, "max-query-results", 150000, "maximum results from a single search query to prevent OOM")
 	err := fs.Parse(args)
 	return err
 }

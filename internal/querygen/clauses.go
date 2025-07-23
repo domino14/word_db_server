@@ -237,6 +237,71 @@ func (lc *LimitOffsetClause) Render() (string, []interface{}, error) {
 	return "LIMIT ? OFFSET ?", []interface{}{limit, offset}, nil
 }
 
+// WhereHooksClause handles front_hooks and back_hooks searches
+type WhereHooksClause struct {
+	column       string
+	hooks        string
+	notCondition bool
+}
+
+func (w *WhereHooksClause) Render() (string, []interface{}, error) {
+	var clauses []string
+	var bindParams []interface{}
+	
+	// Special handling for empty hooks
+	if w.hooks == "" {
+		if w.notCondition {
+			// Search for words that have some hooks (non-empty)
+			return fmt.Sprintf("%s != ?", w.column), []interface{}{""}, nil
+		} else {
+			// Search for words that have no hooks (empty)
+			return fmt.Sprintf("%s = ?", w.column), []interface{}{""}, nil
+		}
+	}
+	
+	if w.notCondition {
+		// Search for words that do NOT contain any of the specified hook letters
+		for _, letter := range w.hooks {
+			clauses = append(clauses, fmt.Sprintf("%s NOT LIKE ?", w.column))
+			bindParams = append(bindParams, fmt.Sprintf("%%%c%%", letter))
+		}
+		condition := "(" + strings.Join(clauses, " AND ") + ")"
+		return condition, bindParams, nil
+	} else {
+		// Search for words that contain at least one of the specified hook letters
+		for _, letter := range w.hooks {
+			clauses = append(clauses, fmt.Sprintf("%s LIKE ?", w.column))
+			bindParams = append(bindParams, fmt.Sprintf("%%%c%%", letter))
+		}
+		condition := "(" + strings.Join(clauses, " OR ") + ")"
+		return condition, bindParams, nil
+	}
+}
+
+// WhereInnerHooksClause handles inner_hooks searches
+type WhereInnerHooksClause struct {
+	hasInnerHooks bool
+}
+
+func (w *WhereInnerHooksClause) Render() (string, []interface{}, error) {
+	if w.hasInnerHooks {
+		return "(inner_front_hook = 1 OR inner_back_hook = 1)", []interface{}{}, nil
+	} else {
+		return "(inner_front_hook = 0 AND inner_back_hook = 0)", []interface{}{}, nil
+	}
+}
+
+// WhereDefinitionContainsClause handles definition searches
+type WhereDefinitionContainsClause struct {
+	searchTerm string
+}
+
+func (w *WhereDefinitionContainsClause) Render() (string, []interface{}, error) {
+	condition := "definition LIKE ? COLLATE NOCASE"
+	bindParams := []interface{}{"%" + w.searchTerm + "%"}
+	return condition, bindParams, nil
+}
+
 func isListClause(clause Clause) bool {
 	// try to cast to a WhereIn clause.
 	_, ok := clause.(*WhereInClause)
