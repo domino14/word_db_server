@@ -28,7 +28,8 @@ const (
 )
 
 type Server struct {
-	Config *wglconfig.Config
+	Config    *wglconfig.Config
+	WDBConfig *config.Config
 }
 
 func timeTrack(start time.Time, name string) {
@@ -108,12 +109,8 @@ func (s *Server) Anagram(ctx context.Context, req *connect.Request[pb.AnagramReq
 	var words []*pb.Word
 	if req.Msg.Expand && len(sols) > 0 {
 		// Build an expand request.
-
-		// searchServer needs a *config.Config
-		cfg := &config.Config{}
-		cfg.DataPath = s.Config.DataPath
 		expander := &searchserver.Server{
-			Config: cfg,
+			Config: s.WDBConfig,
 		}
 		alphagram := &pb.Alphagram{
 			Alphagram: req.Msg.Letters, // not technically an alphagram but doesn't matter rn

@@ -77,7 +77,8 @@ func main() {
 		Config: cfg,
 	}
 	anagramServer := &anagramserver.Server{
-		Config: &wglconfig.Config{DataPath: cfg.DataPath},
+		Config:    &wglconfig.Config{DataPath: cfg.DataPath},
+		WDBConfig: cfg,
 	}
 	wordSearchServer := &searchserver.WordSearchServer{
 		Config: cfg,
