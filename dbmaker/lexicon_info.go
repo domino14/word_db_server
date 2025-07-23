@@ -30,6 +30,7 @@ const (
 	FamilyOSPS               = "OSPS"
 	FamilyDeutsch            = "Deutsch"
 	FamilyFrench             = "FRA"
+	FamilyNorsk              = "Norsk"
 )
 
 type LexiconMap map[FamilyName]LexiconFamily
