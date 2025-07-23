@@ -69,7 +69,7 @@ func try(nBlanks int32, dist *tilemapping.LetterDistribution, wordLength int32,
 func GenerateBlanks(ctx context.Context, cfg *config.Config, req *pb.BlankChallengeCreateRequest) (
 	[]*pb.Alphagram, error) {
 
-	dawg, err := kwg.Get(cfg, req.Lexicon)
+	dawg, err := kwg.GetKWG(cfg, req.Lexicon)
 	if err != nil {
 		return nil, err
 	}

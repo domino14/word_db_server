@@ -32,6 +32,7 @@ var DefaultConfig = &config.Config{
 	DBMigrationsPath:  os.Getenv("DB_MIGRATIONS_PATH"),
 	MaxNonmemberCards: 10000,
 	MaxCardsAdd:       1000,
+	MaxQueryResults:   50000,
 }
 
 func testDBURI(useDBName bool) string {

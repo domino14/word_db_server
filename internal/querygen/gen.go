@@ -66,6 +66,58 @@ FROM deletedwords WHERE %s
 ORDER BY word
 `
 
+// WordFilteredUnexpandedQuery finds alphagrams with matching words, then returns all words for those alphagrams
+const WordFilteredUnexpandedQuery = `
+SELECT w.word, w.alphagram FROM words w
+WHERE w.alphagram IN (
+	SELECT DISTINCT w2.alphagram FROM words w2 WHERE %s
+)
+ORDER BY w.alphagram
+%s
+`
+
+// WordFilteredFullQuery finds alphagrams with matching words, then returns all words with full info
+const WordFilteredFullQuery = `
+SELECT w.word, w.alphagram, w.lexicon_symbols, w.definition, w.front_hooks, w.back_hooks,
+w.inner_front_hook, w.inner_back_hook, a.probability, a.combinations, a.difficulty
+FROM words w
+INNER JOIN alphagrams a ON w.alphagram = a.alphagram
+WHERE w.alphagram IN (
+	SELECT DISTINCT w2.alphagram FROM words w2 WHERE %s
+)
+ORDER BY a.probability, w.alphagram
+%s
+`
+
+// WordFilteredUnexpandedQueryWithAlphagrams finds alphagrams with matching words (with alphagram table access)
+const WordFilteredUnexpandedQueryWithAlphagrams = `
+SELECT w.word, w.alphagram FROM words w
+WHERE w.alphagram IN (
+	SELECT DISTINCT w2.alphagram
+	FROM words w2
+	INNER JOIN alphagrams a2 ON w2.alphagram = a2.alphagram
+	WHERE %s
+)
+ORDER BY w.alphagram
+%s
+`
+
+// WordFilteredFullQueryWithAlphagrams finds alphagrams with matching words (with alphagram table access)
+const WordFilteredFullQueryWithAlphagrams = `
+SELECT w.word, w.alphagram, w.lexicon_symbols, w.definition, w.front_hooks, w.back_hooks,
+w.inner_front_hook, w.inner_back_hook, a.probability, a.combinations, a.difficulty
+FROM words w
+INNER JOIN alphagrams a ON w.alphagram = a.alphagram
+WHERE w.alphagram IN (
+	SELECT DISTINCT w2.alphagram
+	FROM words w2
+	INNER JOIN alphagrams a2 ON w2.alphagram = a2.alphagram
+	WHERE %s
+)
+ORDER BY a.probability, w.alphagram
+%s
+`
+
 type QueryType uint8
 
 const (
@@ -74,6 +126,10 @@ const (
 	WordsOnly
 	AlphagramsAndWords
 	DeletedWords
+	WordFilteredExpanded
+	WordFilteredUnexpanded
+	WordFilteredExpandedWithAlphagrams
+	WordFilteredUnexpandedWithAlphagrams
 )
 
 // Query is a struct that encapsulates a set of bind parameters and a template.
@@ -107,6 +163,16 @@ func NewQuery(bp []interface{}, qt QueryType) *Query {
 		template = WordInfoQuery
 	case DeletedWords:
 		template = DeletedWordQuery
+	case WordFilteredExpanded:
+		template = WordFilteredFullQuery
+		expandedForm = true
+	case WordFilteredUnexpanded:
+		template = WordFilteredUnexpandedQuery
+	case WordFilteredExpandedWithAlphagrams:
+		template = WordFilteredFullQueryWithAlphagrams
+		expandedForm = true
+	case WordFilteredUnexpandedWithAlphagrams:
+		template = WordFilteredUnexpandedQueryWithAlphagrams
 	}
 
 	return &Query{
@@ -151,8 +217,9 @@ func alphasFromWordList(words []string, dist *tilemapping.LetterDistribution) []
 // query template.
 func (q *Query) Render(whereClauses []string, limitOffsetClause string) {
 	where := strings.Join(whereClauses, " AND ")
-	if where == "" && q.template == DeletedWordQuery {
-		// This should only happen for deleted words.
+	if where == "" {
+		// Handle empty WHERE clause for all query types
+		// This can happen when only LEXICON condition is provided (which doesn't generate SQL)
 		where = "1=1"
 	}
 	q.rendered = fmt.Sprintf(q.template, where, limitOffsetClause)
@@ -182,6 +249,13 @@ func NewQueryGen(lexiconName string, queryType QueryType,
 
 func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchParam) (Clause, error) {
 	condition := sp.GetCondition()
+
+	// Determine the correct table alias for alphagrams based on query type
+	alphagramsTable := "alphagrams"
+	if qg.queryType == WordFilteredExpandedWithAlphagrams || qg.queryType == WordFilteredUnexpandedWithAlphagrams {
+		alphagramsTable = "a2"
+	}
+
 	switch condition {
 	case wordsearcher.SearchRequest_LENGTH:
 		minmax := sp.GetMinmax()
@@ -189,7 +263,7 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 			return nil, errors.New("minmax not provided for length request")
 		}
 		if qg.queryType != DeletedWords {
-			return NewWhereBetweenClause("alphagrams", "length", minmax), nil
+			return NewWhereBetweenClause(alphagramsTable, "length", minmax), nil
 		}
 		return NewWhereBetweenClause("deletedwords", "length", minmax), nil
 
@@ -198,35 +272,35 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 		if minmax == nil {
 			return nil, errors.New("minmax not provided for num anagrams request")
 		}
-		return NewWhereBetweenClause("alphagrams", "num_anagrams", minmax), nil
+		return NewWhereBetweenClause(alphagramsTable, "num_anagrams", minmax), nil
 
 	case wordsearcher.SearchRequest_PROBABILITY_RANGE:
 		minmax := sp.GetMinmax()
 		if minmax == nil {
 			return nil, errors.New("minmax not provided for prob range request")
 		}
-		return NewWhereBetweenClause("alphagrams", "probability", minmax), nil
+		return NewWhereBetweenClause(alphagramsTable, "probability", minmax), nil
 
 	case wordsearcher.SearchRequest_DIFFICULTY_RANGE:
 		minmax := sp.GetMinmax()
 		if minmax == nil {
 			return nil, errors.New("minmax not provided for difficulty range request")
 		}
-		return NewWhereBetweenClause("alphagrams", "difficulty", minmax), nil
+		return NewWhereBetweenClause(alphagramsTable, "difficulty", minmax), nil
 
 	case wordsearcher.SearchRequest_NUMBER_OF_VOWELS:
 		minmax := sp.GetMinmax()
 		if minmax == nil {
 			return nil, errors.New("minmax not provided for num vowels request")
 		}
-		return NewWhereBetweenClause("alphagrams", "num_vowels", minmax), nil
+		return NewWhereBetweenClause(alphagramsTable, "num_vowels", minmax), nil
 
 	case wordsearcher.SearchRequest_POINT_VALUE:
 		minmax := sp.GetMinmax()
 		if minmax == nil {
 			return nil, errors.New("minmax not provided for point value request")
 		}
-		return NewWhereBetweenClause("alphagrams", "point_value", minmax), nil
+		return NewWhereBetweenClause(alphagramsTable, "point_value", minmax), nil
 
 	case wordsearcher.SearchRequest_NOT_IN_LEXICON:
 		desc := sp.GetNumbervalue()
@@ -239,7 +313,7 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 		} else if desc.GetValue() == int32(wordsearcher.SearchRequest_PREVIOUS_VERSION) {
 			column = "contains_update_to_lex"
 		}
-		return NewWhereEqualsNumberClause("alphagrams", column, 1), nil
+		return NewWhereEqualsNumberClause(alphagramsTable, column, 1), nil
 
 	case wordsearcher.SearchRequest_MATCHING_ANAGRAM:
 		desc := sp.GetStringvalue()
@@ -248,7 +322,7 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 		}
 		letters := strings.TrimSpace(strings.ToUpper(desc.GetValue()))
 
-		dawg, err := kwg.Get(qg.config, qg.lexiconName)
+		dawg, err := kwg.GetKWG(qg.config, qg.lexiconName)
 		if err != nil {
 			return nil, err
 		}
@@ -283,7 +357,7 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 				Stringarray: &wordsearcher.SearchRequest_StringArray{
 					Values: alphas}}}
 
-		return NewWhereInClause("alphagrams", "alphagram", newSp), nil
+		return NewWhereInClause(alphagramsTable, "alphagram", newSp), nil
 
 	case wordsearcher.SearchRequest_UPLOADED_WORD_OR_ALPHAGRAM_LIST:
 		words := sp.GetStringarray()
@@ -300,13 +374,13 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 				Stringarray: &wordsearcher.SearchRequest_StringArray{
 					Values: alphas}}}
 
-		return NewWhereInClause("alphagrams", "alphagram", newSp), nil
+		return NewWhereInClause(alphagramsTable, "alphagram", newSp), nil
 
 	case wordsearcher.SearchRequest_PROBABILITY_LIST:
-		return NewWhereInClause("alphagrams", "probability", sp), nil
+		return NewWhereInClause(alphagramsTable, "probability", sp), nil
 
 	case wordsearcher.SearchRequest_ALPHAGRAM_LIST:
-		return NewWhereInClause("alphagrams", "alphagram", sp), nil
+		return NewWhereInClause(alphagramsTable, "alphagram", sp), nil
 
 	case wordsearcher.SearchRequest_PROBABILITY_LIMIT:
 		// This is handled by a limit offset clause, which is handled specially.
@@ -324,10 +398,65 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 		// handled elsewhere
 		return nil, nil
 
+	case wordsearcher.SearchRequest_CONTAINS_HOOKS:
+		hooksParam := sp.GetHooksparam()
+		if hooksParam == nil {
+			return nil, errors.New("hooksparam not provided for contains hooks request")
+		}
+		return qg.generateHooksClause(hooksParam)
+
+	case wordsearcher.SearchRequest_DEFINITION_CONTAINS:
+		stringValue := sp.GetStringvalue()
+		if stringValue == nil {
+			return nil, errors.New("stringvalue not provided for definition contains request")
+		}
+		return qg.generateDefinitionContainsClause(stringValue.GetValue())
+
 	default:
 		return nil, fmt.Errorf("unhandled search request condition: %v", condition)
 
 	}
+}
+
+// generateHooksClause creates a clause for searching words by hooks
+func (qg *QueryGen) generateHooksClause(hooksParam *wordsearcher.SearchRequest_HooksParam) (Clause, error) {
+	hookType := hooksParam.GetHookType()
+	hooks := strings.TrimSpace(strings.ToUpper(hooksParam.GetHooks()))
+	notCondition := hooksParam.GetNotCondition()
+
+	switch hookType {
+	case wordsearcher.SearchRequest_INNER_HOOKS:
+		// For inner hooks, check the boolean fields
+		if notCondition {
+			return &WhereInnerHooksClause{hasInnerHooks: false}, nil
+		} else {
+			return &WhereInnerHooksClause{hasInnerHooks: true}, nil
+		}
+	case wordsearcher.SearchRequest_FRONT_HOOKS:
+		return &WhereHooksClause{
+			column:       "front_hooks",
+			hooks:        hooks,
+			notCondition: notCondition,
+		}, nil
+	case wordsearcher.SearchRequest_BACK_HOOKS:
+		return &WhereHooksClause{
+			column:       "back_hooks",
+			hooks:        hooks,
+			notCondition: notCondition,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unsupported hook type: %v", hookType)
+	}
+}
+
+// generateDefinitionContainsClause creates a clause for searching words by definition content
+func (qg *QueryGen) generateDefinitionContainsClause(searchTerm string) (Clause, error) {
+	searchTerm = strings.TrimSpace(searchTerm)
+	if searchTerm == "" {
+		return nil, errors.New("definition search term cannot be empty")
+	}
+
+	return &WhereDefinitionContainsClause{searchTerm: searchTerm}, nil
 }
 
 func isMutexCondition(condition wordsearcher.SearchRequest_Condition) bool {
