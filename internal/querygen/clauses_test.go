@@ -52,6 +52,59 @@ func TestWhereInClause(t *testing.T) {
 	assert.Equal(t, []interface{}{"abc", "easy", "as", "123"}, params)
 }
 
+func TestWhereHooksClause(t *testing.T) {
+	// Test front hooks with normal condition
+	c := &WhereHooksClause{
+		column:       "front_hooks",
+		hooks:        "S",
+		notCondition: false,
+	}
+	res, params, _ := c.Render()
+	assert.Equal(t, "(front_hooks LIKE ?)", res)
+	assert.Equal(t, []interface{}{"%S%"}, params)
+
+	// Test back hooks with NOT condition
+	c = &WhereHooksClause{
+		column:       "back_hooks",
+		hooks:        "S",
+		notCondition: true,
+	}
+	res, params, _ = c.Render()
+	assert.Equal(t, "(back_hooks NOT LIKE ?)", res)
+	assert.Equal(t, []interface{}{"%S%"}, params)
+
+	// Test multiple hook letters
+	c = &WhereHooksClause{
+		column:       "front_hooks",
+		hooks:        "ST",
+		notCondition: false,
+	}
+	res, params, _ = c.Render()
+	assert.Equal(t, "(front_hooks LIKE ? OR front_hooks LIKE ?)", res)
+	assert.Equal(t, []interface{}{"%S%", "%T%"}, params)
+}
+
+func TestWhereInnerHooksClause(t *testing.T) {
+	// Test has inner hooks
+	c := &WhereInnerHooksClause{hasInnerHooks: true}
+	res, params, _ := c.Render()
+	assert.Equal(t, "(inner_front_hook = 1 OR inner_back_hook = 1)", res)
+	assert.Equal(t, []interface{}{}, params)
+
+	// Test does NOT have inner hooks
+	c = &WhereInnerHooksClause{hasInnerHooks: false}
+	res, params, _ = c.Render()
+	assert.Equal(t, "(inner_front_hook = 0 AND inner_back_hook = 0)", res)
+	assert.Equal(t, []interface{}{}, params)
+}
+
+func TestWhereDefinitionContainsClause(t *testing.T) {
+	c := &WhereDefinitionContainsClause{searchTerm: "animal"}
+	res, params, _ := c.Render()
+	assert.Equal(t, "definition LIKE ? COLLATE NOCASE", res)
+	assert.Equal(t, []interface{}{"%animal%"}, params)
+}
+
 func TestWhereInClauseSingleItem(t *testing.T) {
 	sp := &wordsearcher.SearchRequest_SearchParam{
 		Conditionparam: &wordsearcher.SearchRequest_SearchParam_Stringarray{
@@ -87,4 +140,16 @@ func TestLimitOffsetClause(t *testing.T) {
 	res, params, _ := lc.Render()
 	assert.Equal(t, "LIMIT ? OFFSET ?", res)
 	assert.Equal(t, []interface{}{int32(100), int32(200)}, params)
+}
+
+func TestEmptyWhereClause(t *testing.T) {
+	// Test that empty WHERE clauses are handled properly by adding "1=1"
+	q := NewQuery([]interface{}{}, AlphagramsAndWords)
+	
+	// Render with empty where clauses (simulates LEXICON-only search)
+	q.Render([]string{}, "")
+	
+	// The rendered query should contain "WHERE 1=1" instead of empty WHERE
+	assert.Contains(t, q.Rendered(), "WHERE 1=1")
+	assert.NotContains(t, q.Rendered(), "WHERE ORDER")
 }

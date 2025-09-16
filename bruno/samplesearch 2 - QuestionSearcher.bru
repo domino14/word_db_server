@@ -1,0 +1,35 @@
+meta {
+  name: samplesearch 2 - QuestionSearcher
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://aerolith.localhost/word_db_server/api/wordsearcher.QuestionSearcher/Search
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "searchparams": [
+      {
+        "condition": "LEXICON",
+        "stringvalue": {
+          "value": "NWL23"
+        }
+      },
+      {
+        "condition": "LENGTH",
+        "minmax": {
+          "min": 7,
+          "max": 15
+        }
+      }
+    ]
+  }
+}

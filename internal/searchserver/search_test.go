@@ -12,7 +12,8 @@ import (
 )
 
 var DefaultConfig = &config.Config{
-	DataPath: os.Getenv("WDB_DATA_PATH"),
+	DataPath:        os.Getenv("WDB_DATA_PATH"),
+	MaxQueryResults: 50000,
 }
 
 func alphagrams(sr *pb.SearchResponse) []string {
@@ -258,7 +259,7 @@ func TestProbabilityListMultipleQueries(t *testing.T) {
 	assert.Nil(t, err)
 	// There should be 5 queries (max chunk size is 2 and we have 9 elements in list)
 	assert.Equal(t, 5, len(queries))
-	pbAlphas, err := combineQueryResults(queries, db, expand, qgen.Type())
+	pbAlphas, err := combineQueryResults(queries, db, expand, qgen.Type(), DefaultConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, []string{
 		"ADELNOR", "EILNORS", // 73, 92
@@ -287,7 +288,7 @@ func TestProbabilityListMultipleQueriesOther(t *testing.T) {
 	queries, _ := qgen.Generate()
 	// There should be 3 queries (max chunk size is 2 and we have 9 elements in list)
 	assert.Equal(t, 3, len(queries))
-	pbAlphas, _ := combineQueryResults(queries, db, expand, qgen.Type())
+	pbAlphas, _ := combineQueryResults(queries, db, expand, qgen.Type(), DefaultConfig)
 	assert.Equal(t, []string{
 		"ADELNOR", "AENORSU", "EILNORS", // 73, 85, 92
 		"AEGINOS", "AINORTU", "CEINORT", // 43, 61, 185

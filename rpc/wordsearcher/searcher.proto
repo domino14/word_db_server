@@ -74,6 +74,10 @@ message SearchRequest {
     DIFFICULTY_RANGE = 17;
     PLAYABILITY_RANGE = 18;
     DELETED_WORD = 19;
+
+    // Word-level searches (return alphagrams containing matching words)
+    CONTAINS_HOOKS = 20;
+    DEFINITION_CONTAINS = 21;
   }
 
   enum NotInLexCondition {
@@ -105,6 +109,18 @@ message SearchRequest {
 
   message NumberValue { int32 value = 1; }
 
+  enum HookType {
+    FRONT_HOOKS = 0;
+    BACK_HOOKS = 1;
+    INNER_HOOKS = 2;
+  }
+
+  message HooksParam {
+    HookType hook_type = 1;
+    string hooks = 2;
+    bool not_condition = 3; // if true, search for words that do NOT contain these hooks
+  }
+
   message SearchParam {
     Condition condition = 1;
     oneof conditionparam {
@@ -113,6 +129,7 @@ message SearchRequest {
       StringArray stringarray = 4;
       NumberArray numberarray = 5;
       NumberValue numbervalue = 6;
+      HooksParam hooksparam = 7;
     };
   }
 }

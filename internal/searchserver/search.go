@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"connectrpc.com/connect"
@@ -38,7 +39,7 @@ func (s *Server) Search(ctx context.Context, req *connect.Request[pb.SearchReque
 	}
 	log.Debug().Msgf("Generated queries %v", queries)
 
-	alphagrams, err := combineQueryResults(queries, db, req.Msg.Expand, qgen.Type())
+	alphagrams, err := combineQueryResults(queries, db, req.Msg.Expand, qgen.Type(), s.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -60,16 +61,58 @@ func createQueryGen(req *pb.SearchRequest, cfg *config.Config, maxChunkSize int)
 	lexName := req.Searchparams[0].GetStringvalue().GetValue()
 
 	var queryType querygen.QueryType
-	if req.Expand {
-		queryType = querygen.FullExpanded
-	} else {
-		queryType = querygen.AlphagramsAndWords
-	}
-	// overwrite the queryType (essentially ignore the expand parameter)
-	// if we are searching the deleted word table.
+	needsWordFiltering := false
+	needsAlphagramAccess := false
+	
+	// Check if any search params require word-level filtering or alphagram access
 	for _, p := range req.Searchparams {
 		if p.Condition == pb.SearchRequest_DELETED_WORD {
 			queryType = querygen.DeletedWords
+			break
+		}
+		if p.Condition == pb.SearchRequest_CONTAINS_HOOKS || 
+		   p.Condition == pb.SearchRequest_DEFINITION_CONTAINS {
+			needsWordFiltering = true
+		}
+		// Check if condition needs alphagram table columns
+		switch p.Condition {
+		case pb.SearchRequest_LENGTH,
+			pb.SearchRequest_NUMBER_OF_ANAGRAMS,
+			pb.SearchRequest_PROBABILITY_RANGE,
+			pb.SearchRequest_DIFFICULTY_RANGE,
+			pb.SearchRequest_NUMBER_OF_VOWELS,
+			pb.SearchRequest_POINT_VALUE,
+			pb.SearchRequest_NOT_IN_LEXICON,
+			pb.SearchRequest_PROBABILITY_LIST,
+			pb.SearchRequest_ALPHAGRAM_LIST:
+			needsAlphagramAccess = true
+		}
+	}
+	
+	// Set query type based on filtering needs and expand parameter
+	if queryType != querygen.DeletedWords {
+		if needsWordFiltering {
+			if needsAlphagramAccess {
+				// Need both word filtering and alphagram access
+				if req.Expand {
+					queryType = querygen.WordFilteredExpandedWithAlphagrams
+				} else {
+					queryType = querygen.WordFilteredUnexpandedWithAlphagrams
+				}
+			} else {
+				// Only need word filtering
+				if req.Expand {
+					queryType = querygen.WordFilteredExpanded
+				} else {
+					queryType = querygen.WordFilteredUnexpanded
+				}
+			}
+		} else {
+			if req.Expand {
+				queryType = querygen.FullExpanded
+			} else {
+				queryType = querygen.AlphagramsAndWords
+			}
 		}
 	}
 
@@ -84,7 +127,7 @@ func createQueryGen(req *pb.SearchRequest, cfg *config.Config, maxChunkSize int)
 	return qgen, nil
 }
 
-func combineQueryResults(queries []*querygen.Query, db *sql.DB, expand bool, qtype querygen.QueryType) (
+func combineQueryResults(queries []*querygen.Query, db *sql.DB, expand bool, qtype querygen.QueryType, cfg *config.Config) (
 	[]*pb.Alphagram, error) {
 
 	alphagrams := []*pb.Alphagram{}
@@ -94,7 +137,12 @@ func combineQueryResults(queries []*querygen.Query, db *sql.DB, expand bool, qty
 		if err != nil {
 			return nil, err
 		}
-		alphagrams = append(alphagrams, processQuestionRows(rows, expand, qtype)...)
+		results, err := processQuestionRows(rows, expand, qtype, cfg)
+		if err != nil {
+			rows.Close()
+			return nil, err
+		}
+		alphagrams = append(alphagrams, results...)
 
 		rows.Close()
 	}
@@ -102,7 +150,7 @@ func combineQueryResults(queries []*querygen.Query, db *sql.DB, expand bool, qty
 	return alphagrams, nil
 }
 
-func processQuestionRows(rows *sql.Rows, expanded bool, qtype querygen.QueryType) []*pb.Alphagram {
+func processQuestionRows(rows *sql.Rows, expanded bool, qtype querygen.QueryType, cfg *config.Config) ([]*pb.Alphagram, error) {
 	alphagrams := []*pb.Alphagram{}
 	start := time.Now()
 
@@ -131,6 +179,12 @@ func processQuestionRows(rows *sql.Rows, expanded bool, qtype querygen.QueryType
 	log.Info().Msgf("before rows.Next() took %s", time.Since(start))
 
 	for rows.Next() {
+		rowCtr++
+		// Check if we've exceeded the maximum number of results
+		if rowCtr > cfg.MaxQueryResults {
+			return nil, fmt.Errorf("query exceeded maximum results limit of %d. Please refine your search criteria", cfg.MaxQueryResults)
+		}
+		
 		var word, alphagram string
 		var lexSymbols, definition, frontHooks, backHooks string
 		var probability, difficulty int32
@@ -202,12 +256,11 @@ func processQuestionRows(rows *sql.Rows, expanded bool, qtype querygen.QueryType
 		})
 
 		lastAlphagram = alpha
-		rowCtr++
 	}
 	if lastAlphagram != nil {
 		lastAlphagram.Words = curWords
 		alphagrams = append(alphagrams, lastAlphagram)
 	}
 	log.Debug().Msgf("Scanned %v rows", rowCtr)
-	return alphagrams
+	return alphagrams, nil
 }

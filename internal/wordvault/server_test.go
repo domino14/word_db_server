@@ -32,6 +32,7 @@ var DefaultConfig = &config.Config{
 	DBMigrationsPath:  os.Getenv("DB_MIGRATIONS_PATH"),
 	MaxNonmemberCards: 10000,
 	MaxCardsAdd:       1000,
+	MaxQueryResults:   50000,
 }
 
 func testDBURI(useDBName bool) string {
@@ -654,7 +655,61 @@ func TestCardMemberLimits(t *testing.T) {
 		Alphagrams: alphaStrs,
 	}))
 	is.Equal(err.Error(), "invalid_argument: "+ErrNeedMembership.Error())
+}
 
+func TestOverdueCountByDeck(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+
+	addedDeck, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Test Deck",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+
+	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO", "AEILNOR"},
+	}))
+	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"AEINSTU", "AELNSTW"},
+		DeckId:     uint64(addedDeck.Msg.Deck.Id),
+	}))
+
+	res, err := s.NextScheduledCountByDeck(ctx, connect.NewRequest(&pb.NextScheduledCountByDeckRequest{
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+
+	defaultCount := uint32(0)
+	testDeckCount := uint32(0)
+
+	for _, deckBreakdown := range res.Msg.Breakdowns {
+		if deckBreakdown.DeckId == uint64(addedDeck.Msg.Deck.Id) {
+			testDeckCount = deckBreakdown.Breakdown["overdue"]
+		} else if deckBreakdown.DeckId == 0 {
+			defaultCount = deckBreakdown.Breakdown["overdue"]
+		} else {
+			is.Fail()
+		}
+	}
+
+	is.Equal(defaultCount, uint32(3))
+	is.Equal(testDeckCount, uint32(2))
 }
 
 func TestOverdueCount(t *testing.T) {

@@ -317,7 +317,7 @@ func (q *Queries) GetCards(ctx context.Context, arg GetCardsParams) ([]GetCardsR
 }
 
 const getCardsInOtherDecks = `-- name: GetCardsInOtherDecks :many
-SELECT id, alphagram, deck_id
+SELECT id, alphagram, COALESCE(deck_id, 0) as deck_id
 FROM wordvault_cards
 WHERE user_id = $1
     AND lexicon_name = $2
@@ -337,7 +337,7 @@ type GetCardsInOtherDecksParams struct {
 type GetCardsInOtherDecksRow struct {
 	ID        int64
 	Alphagram string
-	DeckID    pgtype.Int8
+	DeckID    int64
 }
 
 func (q *Queries) GetCardsInOtherDecks(ctx context.Context, arg GetCardsInOtherDecksParams) ([]GetCardsInOtherDecksRow, error) {
@@ -511,6 +511,67 @@ func (q *Queries) GetNextScheduledBreakdown(ctx context.Context, arg GetNextSche
 	return items, nil
 }
 
+const getNextScheduledBreakdownByDeck = `-- name: GetNextScheduledBreakdownByDeck :many
+WITH scheduled_cards AS (
+    SELECT
+        CASE WHEN next_scheduled <= $3 THEN '-infinity'::date
+        ELSE (next_scheduled AT TIME ZONE $4::text)::date END
+        AS scheduled_date,
+        COALESCE(deck_id, 0) as deck_id
+    FROM
+        wordvault_cards
+    WHERE user_id = $1 AND lexicon_name = $2
+)
+SELECT
+    deck_id,
+    scheduled_date,
+    COUNT(*) AS question_count
+FROM
+    scheduled_cards
+GROUP BY
+    deck_id, scheduled_date
+ORDER BY
+    scheduled_date
+`
+
+type GetNextScheduledBreakdownByDeckParams struct {
+	UserID      int64
+	LexiconName string
+	Now         pgtype.Timestamptz
+	Tz          string
+}
+
+type GetNextScheduledBreakdownByDeckRow struct {
+	DeckID        int64
+	ScheduledDate pgtype.Date
+	QuestionCount int64
+}
+
+func (q *Queries) GetNextScheduledBreakdownByDeck(ctx context.Context, arg GetNextScheduledBreakdownByDeckParams) ([]GetNextScheduledBreakdownByDeckRow, error) {
+	rows, err := q.db.Query(ctx, getNextScheduledBreakdownByDeck,
+		arg.UserID,
+		arg.LexiconName,
+		arg.Now,
+		arg.Tz,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetNextScheduledBreakdownByDeckRow
+	for rows.Next() {
+		var i GetNextScheduledBreakdownByDeckRow
+		if err := rows.Scan(&i.DeckID, &i.ScheduledDate, &i.QuestionCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getNumCardsInVault = `-- name: GetNumCardsInVault :many
 SELECT lexicon_name, count(*) as card_count FROM wordvault_cards
 WHERE user_id = $1
@@ -559,6 +620,44 @@ func (q *Queries) GetOverdueCount(ctx context.Context, arg GetOverdueCountParams
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const getOverdueCountByDeck = `-- name: GetOverdueCountByDeck :many
+SELECT
+    COALESCE(deck_id, 0) as deck_id, count(*) from wordvault_cards
+WHERE next_scheduled <= $3 AND user_id = $1 AND lexicon_name = $2
+GROUP BY deck_id
+`
+
+type GetOverdueCountByDeckParams struct {
+	UserID      int64
+	LexiconName string
+	Now         pgtype.Timestamptz
+}
+
+type GetOverdueCountByDeckRow struct {
+	DeckID int64
+	Count  int64
+}
+
+func (q *Queries) GetOverdueCountByDeck(ctx context.Context, arg GetOverdueCountByDeckParams) ([]GetOverdueCountByDeckRow, error) {
+	rows, err := q.db.Query(ctx, getOverdueCountByDeck, arg.UserID, arg.LexiconName, arg.Now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOverdueCountByDeckRow
+	for rows.Next() {
+		var i GetOverdueCountByDeckRow
+		if err := rows.Scan(&i.DeckID, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getSingleNextScheduled = `-- name: GetSingleNextScheduled :one

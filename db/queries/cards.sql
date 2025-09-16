@@ -98,7 +98,7 @@ WHERE user_id = $1
     AND COALESCE(deck_id, 0) <> sqlc.arg(deck_id)::BIGINT;
 
 -- name: GetCardsInOtherDecks :many
-SELECT id, alphagram, deck_id
+SELECT id, alphagram, COALESCE(deck_id, 0) as deck_id
 FROM wordvault_cards
 WHERE user_id = $1
     AND lexicon_name = $2
@@ -154,10 +154,38 @@ GROUP BY
 ORDER BY
     scheduled_date;
 
+-- name: GetNextScheduledBreakdownByDeck :many
+WITH scheduled_cards AS (
+    SELECT
+        CASE WHEN next_scheduled <= @now THEN '-infinity'::date
+        ELSE (next_scheduled AT TIME ZONE @tz::text)::date END
+        AS scheduled_date,
+        COALESCE(deck_id, 0) as deck_id
+    FROM
+        wordvault_cards
+    WHERE user_id = $1 AND lexicon_name = $2
+)
+SELECT
+    deck_id,
+    scheduled_date,
+    COUNT(*) AS question_count
+FROM
+    scheduled_cards
+GROUP BY
+    deck_id, scheduled_date
+ORDER BY
+    scheduled_date;
+
 -- name: GetOverdueCount :one
 SELECT
     count(*) from wordvault_cards
 WHERE next_scheduled <= @now AND user_id = $1 AND lexicon_name = $2;
+
+-- name: GetOverdueCountByDeck :many
+SELECT
+    COALESCE(deck_id, 0) as deck_id, count(*) from wordvault_cards
+WHERE next_scheduled <= @now AND user_id = $1 AND lexicon_name = $2
+GROUP BY deck_id;
 
 -- name: PostponementQuery :many
 SELECT alphagram, next_scheduled, fsrs_card

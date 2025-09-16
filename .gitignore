@@ -1,3 +1,4 @@
+.DS_Store
 word_db_server
 *.sublime-*
 *.db

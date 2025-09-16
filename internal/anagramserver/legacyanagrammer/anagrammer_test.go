@@ -101,7 +101,7 @@ func wordlistToSet(wl []string) map[string]struct{} {
 func TestAnagram(t *testing.T) {
 	is := is.New(t)
 
-	d, err := kwg.Get(DefaultConfig, "America")
+	d, err := kwg.GetKWG(DefaultConfig, "America")
 	is.NoErr(err)
 
 	for _, pair := range buildTests {
@@ -121,7 +121,7 @@ func TestAnagram(t *testing.T) {
 
 func TestAnagramSpanish(t *testing.T) {
 	is := is.New(t)
-	d, err := kwg.Get(DefaultConfig, "FISE2")
+	d, err := kwg.GetKWG(DefaultConfig, "FISE2")
 	is.NoErr(err)
 	for _, pair := range spanishBuildTests {
 		answers := Anagram(pair.rack, d, ModeBuild)
@@ -141,7 +141,7 @@ func TestAnagramSpanish(t *testing.T) {
 func BenchmarkAnagramBlanks(b *testing.B) {
 	// ~ 21.33 ms per op on my macbook pro.
 	is := is.New(b)
-	d, err := kwg.Get(DefaultConfig, "CSW15")
+	d, err := kwg.GetKWG(DefaultConfig, "CSW15")
 	is.NoErr(err)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -152,7 +152,7 @@ func BenchmarkAnagramBlanks(b *testing.B) {
 func BenchmarkAnagramFourBlanks(b *testing.B) {
 	// ~ 453.6ms
 	is := is.New(b)
-	d, err := kwg.Get(DefaultConfig, "America")
+	d, err := kwg.GetKWG(DefaultConfig, "America")
 	is.NoErr(err)
 
 	b.ResetTimer()
@@ -163,7 +163,7 @@ func BenchmarkAnagramFourBlanks(b *testing.B) {
 
 func TestBuildFourBlanks(t *testing.T) {
 	is := is.New(t)
-	d, err := kwg.Get(DefaultConfig, "America")
+	d, err := kwg.GetKWG(DefaultConfig, "America")
 	is.NoErr(err)
 	answers := Anagram("AEINST????", d, ModeBuild)
 	expected := 61711
@@ -174,7 +174,7 @@ func TestBuildFourBlanks(t *testing.T) {
 
 func TestAnagramFourBlanks(t *testing.T) {
 	is := is.New(t)
-	d, err := kwg.Get(DefaultConfig, "America")
+	d, err := kwg.GetKWG(DefaultConfig, "America")
 	is.NoErr(err)
 	answers := Anagram("AEINST????", d, ModeExact)
 	expected := 863
@@ -202,7 +202,7 @@ func TestMakeRack(t *testing.T) {
 
 func TestAnagramRangeSmall(t *testing.T) {
 	is := is.New(t)
-	d, err := kwg.Get(DefaultConfig, "CSW19")
+	d, err := kwg.GetKWG(DefaultConfig, "CSW19")
 	is.NoErr(err)
 	answers := Anagram("(JQXZ)A", d, ModeExact)
 	log.Info().Msgf("answers: %v", answers)
@@ -212,7 +212,7 @@ func TestAnagramRangeSmall(t *testing.T) {
 
 func TestAnagramRangeSmall2(t *testing.T) {
 	is := is.New(t)
-	d, err := kwg.Get(DefaultConfig, "CSW19")
+	d, err := kwg.GetKWG(DefaultConfig, "CSW19")
 	is.NoErr(err)
 	answers := Anagram("(AEIOU)(JQXZ)", d, ModeExact)
 	log.Info().Msgf("answers: %v", answers)
@@ -222,7 +222,7 @@ func TestAnagramRangeSmall2(t *testing.T) {
 
 func TestAnagramRangeSmallOrderDoesntMatter(t *testing.T) {
 	is := is.New(t)
-	d, err := kwg.Get(DefaultConfig, "CSW19")
+	d, err := kwg.GetKWG(DefaultConfig, "CSW19")
 	is.NoErr(err)
 	answers := Anagram("(JQXZ)(AEIOU)", d, ModeExact)
 	log.Info().Msgf("answers: %v", answers)
@@ -232,7 +232,7 @@ func TestAnagramRangeSmallOrderDoesntMatter(t *testing.T) {
 
 func TestAnagramRange(t *testing.T) {
 	is := is.New(t)
-	d, err := kwg.Get(DefaultConfig, "CSW19")
+	d, err := kwg.GetKWG(DefaultConfig, "CSW19")
 	is.NoErr(err)
 	answers := Anagram("AE(JQXZ)NR?(KY)?", d, ModeExact)
 	log.Info().Msgf("answers: %v", answers)
