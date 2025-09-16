@@ -672,6 +672,34 @@ func (s *Server) GetCardCount(ctx context.Context, req *connect.Request[pb.GetCa
 	}), nil
 }
 
+func (s *Server) GetCardCountByDeck(ctx context.Context, req *connect.Request[pb.GetCardCountByDeckRequest]) (
+	*connect.Response[pb.GetCardCountByDeckResponse], error) {
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+	if req.Msg.Lexicon == "" {
+		return nil, invalidArgError("must provide a lexicon")
+	}
+
+	rows, err := s.Queries.GetNumCardsInVaultByDeck(ctx, models.GetNumCardsInVaultByDeckParams{
+		UserID:      int64(user.DBID),
+		LexiconName: req.Msg.Lexicon,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]*pb.DeckCardCount, len(rows))
+	for i := range rows {
+		items[i] = &pb.DeckCardCount{
+			DeckId: uint64(rows[i].DeckID),
+			Count:  uint32(rows[i].CardCount),
+		}
+	}
+	return connect.NewResponse(&pb.GetCardCountByDeckResponse{Items: items}), nil
+}
+
 func (s *Server) NextScheduledCount(ctx context.Context, req *connect.Request[pb.NextScheduledCountRequest]) (
 	*connect.Response[pb.NextScheduledBreakdown], error) {
 	user := auth.UserFromContext(ctx)

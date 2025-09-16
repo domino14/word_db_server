@@ -100,6 +100,15 @@ message CardCountResponse {
   uint32 total_cards = 2;
 }
 
+message GetCardCountByDeckRequest { string lexicon = 1; }
+
+message DeckCardCount {
+  uint64 deck_id = 1; // 0 represents the default deck
+  uint32 count = 2;
+}
+
+message GetCardCountByDeckResponse { repeated DeckCardCount items = 1; }
+
 message NextScheduledCountRequest {
   bool only_overdue = 1;
   string timezone = 2;
@@ -224,6 +233,9 @@ message EditFsrsParametersResponse {}
 
 service WordVaultService {
   rpc GetCardCount(GetCardCountRequest) returns (CardCountResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  rpc GetCardCountByDeck(GetCardCountByDeckRequest) returns (GetCardCountByDeckResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
   rpc GetCardInformation(GetCardInfoRequest) returns (Cards) {

@@ -1600,3 +1600,53 @@ func TestAddingAndMovingCardsWithOverlap(t *testing.T) {
 	is.Equal(deckMap["ADEEGMMO"], deckIDUint)
 	is.Equal(deckMap["ADEEHMMO"], uint64(0))
 }
+
+func TestCardCountByDeck(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+
+	addedDeck, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Test Deck",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+
+	// Add three cards to default, two to the deck
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO", "AEILNOR"},
+	}))
+	is.NoErr(err)
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"AEINSTU", "AELNSTW"},
+		DeckId:     uint64(addedDeck.Msg.Deck.Id),
+	}))
+	is.NoErr(err)
+
+	res, err := s.GetCardCountByDeck(ctx, connect.NewRequest(&pb.GetCardCountByDeckRequest{
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+
+	// Expect 2 entries: default=3, deck=2
+	counts := map[uint64]uint32{}
+	for _, it := range res.Msg.Items {
+		counts[it.DeckId] = it.Count
+	}
+	is.Equal(counts[0], uint32(3))
+	is.Equal(counts[uint64(addedDeck.Msg.Deck.Id)], uint32(2))
+}

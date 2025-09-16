@@ -36,6 +36,9 @@ const (
 	// WordVaultServiceGetCardCountProcedure is the fully-qualified name of the WordVaultService's
 	// GetCardCount RPC.
 	WordVaultServiceGetCardCountProcedure = "/wordvault.WordVaultService/GetCardCount"
+	// WordVaultServiceGetCardCountByDeckProcedure is the fully-qualified name of the WordVaultService's
+	// GetCardCountByDeck RPC.
+	WordVaultServiceGetCardCountByDeckProcedure = "/wordvault.WordVaultService/GetCardCountByDeck"
 	// WordVaultServiceGetCardInformationProcedure is the fully-qualified name of the WordVaultService's
 	// GetCardInformation RPC.
 	WordVaultServiceGetCardInformationProcedure = "/wordvault.WordVaultService/GetCardInformation"
@@ -98,6 +101,7 @@ const (
 var (
 	wordVaultServiceServiceDescriptor                        = wordvault.File_rpc_wordvault_api_proto.Services().ByName("WordVaultService")
 	wordVaultServiceGetCardCountMethodDescriptor             = wordVaultServiceServiceDescriptor.Methods().ByName("GetCardCount")
+	wordVaultServiceGetCardCountByDeckMethodDescriptor       = wordVaultServiceServiceDescriptor.Methods().ByName("GetCardCountByDeck")
 	wordVaultServiceGetCardInformationMethodDescriptor       = wordVaultServiceServiceDescriptor.Methods().ByName("GetCardInformation")
 	wordVaultServiceGetNextScheduledMethodDescriptor         = wordVaultServiceServiceDescriptor.Methods().ByName("GetNextScheduled")
 	wordVaultServiceGetSingleNextScheduledMethodDescriptor   = wordVaultServiceServiceDescriptor.Methods().ByName("GetSingleNextScheduled")
@@ -122,6 +126,7 @@ var (
 // WordVaultServiceClient is a client for the wordvault.WordVaultService service.
 type WordVaultServiceClient interface {
 	GetCardCount(context.Context, *connect.Request[wordvault.GetCardCountRequest]) (*connect.Response[wordvault.CardCountResponse], error)
+	GetCardCountByDeck(context.Context, *connect.Request[wordvault.GetCardCountByDeckRequest]) (*connect.Response[wordvault.GetCardCountByDeckResponse], error)
 	GetCardInformation(context.Context, *connect.Request[wordvault.GetCardInfoRequest]) (*connect.Response[wordvault.Cards], error)
 	GetNextScheduled(context.Context, *connect.Request[wordvault.GetNextScheduledRequest]) (*connect.Response[wordvault.Cards], error)
 	GetSingleNextScheduled(context.Context, *connect.Request[wordvault.GetSingleNextScheduledRequest]) (*connect.Response[wordvault.GetSingleNextScheduledResponse], error)
@@ -157,6 +162,13 @@ func NewWordVaultServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			httpClient,
 			baseURL+WordVaultServiceGetCardCountProcedure,
 			connect.WithSchema(wordVaultServiceGetCardCountMethodDescriptor),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		getCardCountByDeck: connect.NewClient[wordvault.GetCardCountByDeckRequest, wordvault.GetCardCountByDeckResponse](
+			httpClient,
+			baseURL+WordVaultServiceGetCardCountByDeckProcedure,
+			connect.WithSchema(wordVaultServiceGetCardCountByDeckMethodDescriptor),
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
@@ -287,6 +299,7 @@ func NewWordVaultServiceClient(httpClient connect.HTTPClient, baseURL string, op
 // wordVaultServiceClient implements WordVaultServiceClient.
 type wordVaultServiceClient struct {
 	getCardCount             *connect.Client[wordvault.GetCardCountRequest, wordvault.CardCountResponse]
+	getCardCountByDeck       *connect.Client[wordvault.GetCardCountByDeckRequest, wordvault.GetCardCountByDeckResponse]
 	getCardInformation       *connect.Client[wordvault.GetCardInfoRequest, wordvault.Cards]
 	getNextScheduled         *connect.Client[wordvault.GetNextScheduledRequest, wordvault.Cards]
 	getSingleNextScheduled   *connect.Client[wordvault.GetSingleNextScheduledRequest, wordvault.GetSingleNextScheduledResponse]
@@ -311,6 +324,11 @@ type wordVaultServiceClient struct {
 // GetCardCount calls wordvault.WordVaultService.GetCardCount.
 func (c *wordVaultServiceClient) GetCardCount(ctx context.Context, req *connect.Request[wordvault.GetCardCountRequest]) (*connect.Response[wordvault.CardCountResponse], error) {
 	return c.getCardCount.CallUnary(ctx, req)
+}
+
+// GetCardCountByDeck calls wordvault.WordVaultService.GetCardCountByDeck.
+func (c *wordVaultServiceClient) GetCardCountByDeck(ctx context.Context, req *connect.Request[wordvault.GetCardCountByDeckRequest]) (*connect.Response[wordvault.GetCardCountByDeckResponse], error) {
+	return c.getCardCountByDeck.CallUnary(ctx, req)
 }
 
 // GetCardInformation calls wordvault.WordVaultService.GetCardInformation.
@@ -411,6 +429,7 @@ func (c *wordVaultServiceClient) EditDeck(ctx context.Context, req *connect.Requ
 // WordVaultServiceHandler is an implementation of the wordvault.WordVaultService service.
 type WordVaultServiceHandler interface {
 	GetCardCount(context.Context, *connect.Request[wordvault.GetCardCountRequest]) (*connect.Response[wordvault.CardCountResponse], error)
+	GetCardCountByDeck(context.Context, *connect.Request[wordvault.GetCardCountByDeckRequest]) (*connect.Response[wordvault.GetCardCountByDeckResponse], error)
 	GetCardInformation(context.Context, *connect.Request[wordvault.GetCardInfoRequest]) (*connect.Response[wordvault.Cards], error)
 	GetNextScheduled(context.Context, *connect.Request[wordvault.GetNextScheduledRequest]) (*connect.Response[wordvault.Cards], error)
 	GetSingleNextScheduled(context.Context, *connect.Request[wordvault.GetSingleNextScheduledRequest]) (*connect.Response[wordvault.GetSingleNextScheduledResponse], error)
@@ -442,6 +461,13 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 		WordVaultServiceGetCardCountProcedure,
 		svc.GetCardCount,
 		connect.WithSchema(wordVaultServiceGetCardCountMethodDescriptor),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	wordVaultServiceGetCardCountByDeckHandler := connect.NewUnaryHandler(
+		WordVaultServiceGetCardCountByDeckProcedure,
+		svc.GetCardCountByDeck,
+		connect.WithSchema(wordVaultServiceGetCardCountByDeckMethodDescriptor),
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
@@ -570,6 +596,8 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 		switch r.URL.Path {
 		case WordVaultServiceGetCardCountProcedure:
 			wordVaultServiceGetCardCountHandler.ServeHTTP(w, r)
+		case WordVaultServiceGetCardCountByDeckProcedure:
+			wordVaultServiceGetCardCountByDeckHandler.ServeHTTP(w, r)
 		case WordVaultServiceGetCardInformationProcedure:
 			wordVaultServiceGetCardInformationHandler.ServeHTTP(w, r)
 		case WordVaultServiceGetNextScheduledProcedure:
@@ -619,6 +647,10 @@ type UnimplementedWordVaultServiceHandler struct{}
 
 func (UnimplementedWordVaultServiceHandler) GetCardCount(context.Context, *connect.Request[wordvault.GetCardCountRequest]) (*connect.Response[wordvault.CardCountResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.GetCardCount is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) GetCardCountByDeck(context.Context, *connect.Request[wordvault.GetCardCountByDeckRequest]) (*connect.Response[wordvault.GetCardCountByDeckResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.GetCardCountByDeck is not implemented"))
 }
 
 func (UnimplementedWordVaultServiceHandler) GetCardInformation(context.Context, *connect.Request[wordvault.GetCardInfoRequest]) (*connect.Response[wordvault.Cards], error) {

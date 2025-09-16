@@ -603,6 +603,50 @@ func (q *Queries) GetNumCardsInVault(ctx context.Context, userID int64) ([]GetNu
 	return items, nil
 }
 
+const getNumCardsInVaultByDeck = `-- name: GetNumCardsInVaultByDeck :many
+SELECT
+    COALESCE(deck_id, 0) as deck_id,
+    COUNT(*) as card_count
+FROM
+    wordvault_cards
+WHERE
+    user_id = $1 AND lexicon_name = $2
+GROUP BY
+    deck_id
+ORDER BY
+    deck_id NULLS FIRST
+`
+
+type GetNumCardsInVaultByDeckParams struct {
+	UserID      int64
+	LexiconName string
+}
+
+type GetNumCardsInVaultByDeckRow struct {
+	DeckID    int64
+	CardCount int64
+}
+
+func (q *Queries) GetNumCardsInVaultByDeck(ctx context.Context, arg GetNumCardsInVaultByDeckParams) ([]GetNumCardsInVaultByDeckRow, error) {
+	rows, err := q.db.Query(ctx, getNumCardsInVaultByDeck, arg.UserID, arg.LexiconName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetNumCardsInVaultByDeckRow
+	for rows.Next() {
+		var i GetNumCardsInVaultByDeckRow
+		if err := rows.Scan(&i.DeckID, &i.CardCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getOverdueCount = `-- name: GetOverdueCount :one
 SELECT
     count(*) from wordvault_cards
