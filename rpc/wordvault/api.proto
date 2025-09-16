@@ -2,6 +2,7 @@ syntax = "proto3";
 package wordvault;
 
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
 import "rpc/wordsearcher/searcher.proto";
 
 enum Score {
@@ -131,6 +132,18 @@ message GetDailyProgressRequest { string timezone = 1; }
 
 message GetDailyProgressResponse { map<string, int32> progress_stats = 1; }
 
+message GetDailyProgressByDeckRequest { string timezone = 1; }
+
+message DailyProgressByDeckItem {
+  // Nullable deck id. Null represents the default deck.
+  google.protobuf.Int64Value deck_id = 1;
+  map<string, int32> progress_stats = 2;
+}
+
+message GetDailyProgressByDeckResponse {
+  repeated DailyProgressByDeckItem items = 1;
+}
+
 message GetDailyLeaderboardRequest { string timezone = 1; }
 
 message GetDailyLeaderboardResponse {
@@ -218,6 +231,10 @@ service WordVaultService {
   rpc Delete(DeleteRequest) returns (DeleteResponse);
   rpc GetDailyProgress(GetDailyProgressRequest)
       returns (GetDailyProgressResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  };
+  rpc GetDailyProgressByDeck(GetDailyProgressByDeckRequest)
+      returns (GetDailyProgressByDeckResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   };
   rpc GetDailyLeaderboard(GetDailyLeaderboardRequest)

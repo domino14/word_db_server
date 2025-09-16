@@ -19,6 +19,7 @@ import (
 	"github.com/open-spaced-repetition/go-fsrs/v3"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	searchpb "github.com/domino14/word_db_server/api/rpc/wordsearcher"
 	pb "github.com/domino14/word_db_server/api/rpc/wordvault"
@@ -921,6 +922,49 @@ func (s *Server) GetDailyProgress(ctx context.Context, req *connect.Request[pb.G
 			"ReviewedEasy":   int32(progress.ReviewedRating4),
 		},
 	}), nil
+}
+
+func (s *Server) GetDailyProgressByDeck(ctx context.Context, req *connect.Request[pb.GetDailyProgressByDeckRequest]) (
+	*connect.Response[pb.GetDailyProgressByDeckResponse], error) {
+
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+
+	rows, err := s.Queries.GetDailyProgressByDeck(ctx, models.GetDailyProgressByDeckParams{
+		UserID:   int64(user.DBID),
+		Timezone: req.Msg.Timezone,
+		Now:      toPGTimestamp(s.Nower.Now()),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]*pb.DailyProgressByDeckItem, len(rows))
+	for i := range rows {
+		var deckID *wrapperspb.Int64Value
+		if rows[i].DeckID.Valid {
+			deckID = wrapperspb.Int64(rows[i].DeckID.Int64)
+		}
+		items[i] = &pb.DailyProgressByDeckItem{
+			DeckId: deckID,
+			ProgressStats: map[string]int32{
+				"New":            int32(rows[i].NewCards),
+				"Reviewed":       int32(rows[i].ReviewedCards),
+				"NewMissed":      int32(rows[i].NewRating1),
+				"NewHard":        int32(rows[i].NewRating2),
+				"NewGood":        int32(rows[i].NewRating3),
+				"NewEasy":        int32(rows[i].NewRating4),
+				"ReviewedMissed": int32(rows[i].ReviewedRating1),
+				"ReviewedHard":   int32(rows[i].ReviewedRating2),
+				"ReviewedGood":   int32(rows[i].ReviewedRating3),
+				"ReviewedEasy":   int32(rows[i].ReviewedRating4),
+			},
+		}
+	}
+
+	return connect.NewResponse(&pb.GetDailyProgressByDeckResponse{Items: items}), nil
 }
 
 func (s *Server) GetDailyLeaderboard(ctx context.Context, req *connect.Request[pb.GetDailyLeaderboardRequest]) (

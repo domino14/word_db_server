@@ -1021,6 +1021,98 @@ func TestCardStats(t *testing.T) {
 
 }
 
+func TestDailyProgressByDeck(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+	fakenower := &FakeNower{}
+	s.Nower = fakenower
+
+	// Create a deck
+	addedDeck, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Deck A",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	deckID := uint64(addedDeck.Msg.Deck.Id)
+
+	// Add one card to default deck and one to Deck A
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO"},
+	}))
+	is.NoErr(err)
+
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEHMMO"},
+		DeckId:     deckID,
+	}))
+	is.NoErr(err)
+
+	// Score both today: one new miss and one new easy
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
+
+	_, err = s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+		Score:     pb.Score_SCORE_AGAIN,
+		Lexicon:   "NWL23",
+		Alphagram: "ADEEGMMO",
+	}))
+	is.NoErr(err)
+
+	_, err = s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+		Score:     pb.Score_SCORE_EASY,
+		Lexicon:   "NWL23",
+		Alphagram: "ADEEHMMO",
+	}))
+	is.NoErr(err)
+
+	// Query by deck
+	resp, err := s.GetDailyProgressByDeck(ctx, connect.NewRequest(&pb.GetDailyProgressByDeckRequest{
+		Timezone: "UTC",
+	}))
+	is.NoErr(err)
+
+	// Build helper map deckId(string or "") -> stats
+	type stats struct{ New, Reviewed, NewMissed, NewEasy int32 }
+	got := map[string]stats{}
+	for _, it := range resp.Msg.Items {
+		key := ""
+		if it.DeckId != nil {
+			key = fmt.Sprintf("%d", it.DeckId.Value)
+		}
+		got[key] = stats{
+			New:       it.ProgressStats["New"],
+			Reviewed:  it.ProgressStats["Reviewed"],
+			NewMissed: it.ProgressStats["NewMissed"],
+			NewEasy:   it.ProgressStats["NewEasy"],
+		}
+	}
+
+	// Default deck should have 1 new, 1 new missed
+	is.Equal(got[""].New, int32(1))
+	is.Equal(got[""].NewMissed, int32(1))
+	is.Equal(got[""].Reviewed, int32(0))
+
+	// Deck A should have 1 new, 1 new easy
+	keyA := fmt.Sprintf("%d", addedDeck.Msg.Deck.Id)
+	is.Equal(got[keyA].New, int32(1))
+	is.Equal(got[keyA].NewEasy, int32(1))
+	is.Equal(got[keyA].Reviewed, int32(0))
+}
+
 func TestDelete(t *testing.T) {
 	is := is.New(t)
 	err := RecreateTestDB()

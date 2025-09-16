@@ -153,3 +153,80 @@ func (q *Queries) GetDailyProgress(ctx context.Context, arg GetDailyProgressPara
 	)
 	return i, err
 }
+
+const getDailyProgressByDeck = `-- name: GetDailyProgressByDeck :many
+SELECT
+    deck_id,
+    COALESCE(SUM(CASE WHEN jsonb_array_length(review_log) = 1 THEN 1 ELSE 0 END), 0)::int AS new_cards,
+    COALESCE(SUM(CASE WHEN jsonb_array_length(review_log) > 1 THEN 1 ELSE 0 END), 0)::int AS reviewed_cards,
+    COALESCE(COUNT(*) FILTER (WHERE jsonb_array_length(review_log) = 1 AND (review_log->0->>'Rating')::int = 1), 0)::int AS new_rating_1,
+    COALESCE(COUNT(*) FILTER (WHERE jsonb_array_length(review_log) = 1 AND (review_log->0->>'Rating')::int = 2), 0)::int AS new_rating_2,
+    COALESCE(COUNT(*) FILTER (WHERE jsonb_array_length(review_log) = 1 AND (review_log->0->>'Rating')::int = 3), 0)::int AS new_rating_3,
+    COALESCE(COUNT(*) FILTER (WHERE jsonb_array_length(review_log) = 1 AND (review_log->0->>'Rating')::int = 4), 0)::int AS new_rating_4,
+    COALESCE(COUNT(*) FILTER (WHERE jsonb_array_length(review_log) > 1 AND (review_log->-1->>'Rating')::int = 1), 0)::int AS reviewed_rating_1,
+    COALESCE(COUNT(*) FILTER (WHERE jsonb_array_length(review_log) > 1 AND (review_log->-1->>'Rating')::int = 2), 0)::int AS reviewed_rating_2,
+    COALESCE(COUNT(*) FILTER (WHERE jsonb_array_length(review_log) > 1 AND (review_log->-1->>'Rating')::int = 3), 0)::int AS reviewed_rating_3,
+    COALESCE(COUNT(*) FILTER (WHERE jsonb_array_length(review_log) > 1 AND (review_log->-1->>'Rating')::int = 4), 0)::int AS reviewed_rating_4
+FROM
+    wordvault_cards
+WHERE
+    user_id = $1
+    AND ((fsrs_card->>'LastReview')::timestamp AT TIME ZONE 'UTC' AT TIME ZONE $2::text)::date =
+        ($3::timestamptz AT TIME ZONE $2::text)::date
+GROUP BY
+    deck_id
+ORDER BY
+    deck_id NULLS FIRST
+`
+
+type GetDailyProgressByDeckParams struct {
+	UserID   int64
+	Timezone string
+	Now      pgtype.Timestamptz
+}
+
+type GetDailyProgressByDeckRow struct {
+	DeckID          pgtype.Int8
+	NewCards        int32
+	ReviewedCards   int32
+	NewRating1      int32
+	NewRating2      int32
+	NewRating3      int32
+	NewRating4      int32
+	ReviewedRating1 int32
+	ReviewedRating2 int32
+	ReviewedRating3 int32
+	ReviewedRating4 int32
+}
+
+func (q *Queries) GetDailyProgressByDeck(ctx context.Context, arg GetDailyProgressByDeckParams) ([]GetDailyProgressByDeckRow, error) {
+	rows, err := q.db.Query(ctx, getDailyProgressByDeck, arg.UserID, arg.Timezone, arg.Now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetDailyProgressByDeckRow
+	for rows.Next() {
+		var i GetDailyProgressByDeckRow
+		if err := rows.Scan(
+			&i.DeckID,
+			&i.NewCards,
+			&i.ReviewedCards,
+			&i.NewRating1,
+			&i.NewRating2,
+			&i.NewRating3,
+			&i.NewRating4,
+			&i.ReviewedRating1,
+			&i.ReviewedRating2,
+			&i.ReviewedRating3,
+			&i.ReviewedRating4,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
