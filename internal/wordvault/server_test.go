@@ -731,14 +731,12 @@ func TestNextScheduledCountByDeckBreakdown(t *testing.T) {
 	fakenower := &FakeNower{}
 	s.Nower = fakenower
 
-	// Create a separate deck
 	addedDeck, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
 		Name:    "Deck A",
 		Lexicon: "NWL23",
 	}))
 	is.NoErr(err)
 
-	// Add cards at t=2024-09-22T23:00:00Z
 	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
 	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
 		Lexicon:    "NWL23",
@@ -752,7 +750,7 @@ func TestNextScheduledCountByDeckBreakdown(t *testing.T) {
 	}))
 	is.NoErr(err)
 
-	// Query with now set to one hour earlier so none are overdue; all bucketed to 2024-09-22
+	// Query with now set to one hour earlier
 	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-22T22:00:00Z")
 	resp, err := s.NextScheduledCountByDeck(ctx, connect.NewRequest(&pb.NextScheduledCountByDeckRequest{
 		OnlyOverdue: false,
@@ -761,7 +759,6 @@ func TestNextScheduledCountByDeckBreakdown(t *testing.T) {
 	}))
 	is.NoErr(err)
 
-	// Aggregate by deck
 	byDeck := map[uint64]map[string]uint32{}
 	for _, b := range resp.Msg.Breakdowns {
 		if _, ok := byDeck[b.DeckId]; !ok {
