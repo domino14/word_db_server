@@ -802,27 +802,14 @@ func (s *Server) NextScheduledCountByDeck(ctx context.Context, req *connect.Requ
 		if err != nil {
 			return nil, err
 		}
-		perDeckBreakdown := make(map[uint64]map[string]uint32)
-
 		for _, row := range rows {
-			var s string
-			switch row.ScheduledDate.InfinityModifier {
-			case pgtype.Finite:
-				s = row.ScheduledDate.Time.Format("2006-01-02")
-			case pgtype.Infinity:
-				s = "infinity"
-			case pgtype.NegativeInfinity:
-				s = "overdue"
+			m := map[string]uint32{}
+			if err := json.Unmarshal(row.Breakdown, &m); err != nil {
+				return nil, err
 			}
-
-			deckId := uint64(row.DeckID)
-			if _, ok := perDeckBreakdown[deckId]; !ok {
-				perDeckBreakdown[deckId] = make(map[string]uint32)
-			}
-			perDeckBreakdown[deckId][s] = uint32(row.QuestionCount)
 			breakdowns = append(breakdowns, &pb.DeckBreakdown{
-				DeckId:    deckId,
-				Breakdown: perDeckBreakdown[deckId],
+				DeckId:    uint64(row.DeckID),
+				Breakdown: m,
 			})
 		}
 	}

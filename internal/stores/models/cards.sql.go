@@ -521,17 +521,25 @@ WITH scheduled_cards AS (
     FROM
         wordvault_cards
     WHERE user_id = $1 AND lexicon_name = $2
+),
+per_date AS (
+    SELECT
+        deck_id,
+        CASE
+            WHEN scheduled_date = '-infinity'::date THEN 'overdue'
+            WHEN scheduled_date = 'infinity'::date THEN 'infinity'
+            ELSE to_char(scheduled_date, 'YYYY-MM-DD')
+        END AS key,
+        COUNT(*) AS question_count
+    FROM scheduled_cards
+    GROUP BY deck_id, scheduled_date
 )
 SELECT
     deck_id,
-    scheduled_date,
-    COUNT(*) AS question_count
-FROM
-    scheduled_cards
-GROUP BY
-    deck_id, scheduled_date
-ORDER BY
-    scheduled_date
+    jsonb_object_agg(key, question_count) AS breakdown
+FROM per_date
+GROUP BY deck_id
+ORDER BY deck_id
 `
 
 type GetNextScheduledBreakdownByDeckParams struct {
@@ -542,9 +550,8 @@ type GetNextScheduledBreakdownByDeckParams struct {
 }
 
 type GetNextScheduledBreakdownByDeckRow struct {
-	DeckID        int64
-	ScheduledDate pgtype.Date
-	QuestionCount int64
+	DeckID    int64
+	Breakdown []byte
 }
 
 func (q *Queries) GetNextScheduledBreakdownByDeck(ctx context.Context, arg GetNextScheduledBreakdownByDeckParams) ([]GetNextScheduledBreakdownByDeckRow, error) {
@@ -561,7 +568,7 @@ func (q *Queries) GetNextScheduledBreakdownByDeck(ctx context.Context, arg GetNe
 	var items []GetNextScheduledBreakdownByDeckRow
 	for rows.Next() {
 		var i GetNextScheduledBreakdownByDeckRow
-		if err := rows.Scan(&i.DeckID, &i.ScheduledDate, &i.QuestionCount); err != nil {
+		if err := rows.Scan(&i.DeckID, &i.Breakdown); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

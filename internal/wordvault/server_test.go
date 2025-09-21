@@ -708,6 +708,7 @@ func TestOverdueCountByDeck(t *testing.T) {
 		}
 	}
 
+	is.Equal(len(res.Msg.Breakdowns), 2)
 	is.Equal(defaultCount, uint32(3))
 	is.Equal(testDeckCount, uint32(2))
 }
