@@ -712,6 +712,70 @@ func TestOverdueCountByDeck(t *testing.T) {
 	is.Equal(testDeckCount, uint32(2))
 }
 
+func TestNextScheduledCountByDeckBreakdown(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+	fakenower := &FakeNower{}
+	s.Nower = fakenower
+
+	// Create a separate deck
+	addedDeck, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Deck A",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+
+	// Add cards at t=2024-09-22T23:00:00Z
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO", "AEILNOR"},
+	}))
+	is.NoErr(err)
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"AEINSTU", "AELNSTW"},
+		DeckId:     uint64(addedDeck.Msg.Deck.Id),
+	}))
+	is.NoErr(err)
+
+	// Query with now set to one hour earlier so none are overdue; all bucketed to 2024-09-22
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-22T22:00:00Z")
+	resp, err := s.NextScheduledCountByDeck(ctx, connect.NewRequest(&pb.NextScheduledCountByDeckRequest{
+		OnlyOverdue: false,
+		Timezone:    "UTC",
+		Lexicon:     "NWL23",
+	}))
+	is.NoErr(err)
+
+	// Aggregate by deck
+	byDeck := map[uint64]map[string]uint32{}
+	for _, b := range resp.Msg.Breakdowns {
+		if _, ok := byDeck[b.DeckId]; !ok {
+			byDeck[b.DeckId] = map[string]uint32{}
+		}
+		for k, v := range b.Breakdown {
+			byDeck[b.DeckId][k] = v
+		}
+	}
+
+	is.Equal(byDeck[0]["2024-09-22"], uint32(3))
+	is.Equal(byDeck[uint64(addedDeck.Msg.Deck.Id)]["2024-09-22"], uint32(2))
+}
+
 func TestOverdueCount(t *testing.T) {
 	is := is.New(t)
 	err := RecreateTestDB()
