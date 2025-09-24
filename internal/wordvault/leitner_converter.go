@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -74,9 +75,9 @@ func LeitnerImport(ctx context.Context, searchServer *searchserver.Server, lexic
 			correct       int
 			incorrect     int
 			streak        int
-			lastCorrect   sql.NullInt32
+			lastCorrect   interface{}
 			cardbox       sql.NullInt32
-			nextScheduled sql.NullInt32
+			nextScheduled interface{}
 		)
 
 		if err := rows.Scan(&question, &correct, &incorrect, &streak, &lastCorrect, &cardbox, &nextScheduled); err != nil {
@@ -152,16 +153,54 @@ func LeitnerImport(ctx context.Context, searchServer *searchserver.Server, lexic
 	return totalInserted, unimportedAlphagrams, nil
 
 }
-func convertLeitnerToFsrs(correct, incorrect, streak int, lastCorrect, nextScheduled, cardbox sql.NullInt32,
+func convertLeitnerToFsrs(correct, incorrect, streak int, lastCorrect, nextScheduled interface{}, cardbox sql.NullInt32,
 	now time.Time) (stores.Card, []stores.ReviewLog, pgtype.Timestamptz) {
 
-	lc := lastCorrect.Int32
-	if !lastCorrect.Valid {
-		lc = 0
+	// Convert lastCorrect from interface{} to int64
+	var lc int64
+	if lastCorrect != nil {
+		switch v := lastCorrect.(type) {
+		case int64:
+			lc = v
+		case int32:
+			lc = int64(v)
+		case float64:
+			lc = int64(v)
+		case string:
+			// Try to parse as float first (handles scientific notation)
+			if f, err := strconv.ParseFloat(v, 64); err == nil {
+				lc = int64(f)
+			} else if i, err := strconv.ParseInt(v, 10, 64); err == nil {
+				lc = i
+			}
+		}
 	}
 
-	nextScheduledTime := time.Unix(int64(nextScheduled.Int32), 0).UTC()
-	if !nextScheduled.Valid || nextScheduled.Int32 == 0 {
+	// Convert nextScheduled from interface{} to time
+	var nextScheduledTime time.Time
+	if nextScheduled != nil {
+		var ts int64
+		switch v := nextScheduled.(type) {
+		case int64:
+			ts = v
+		case int32:
+			ts = int64(v)
+		case float64:
+			ts = int64(v)
+		case string:
+			// Try to parse as float first (handles scientific notation)
+			if f, err := strconv.ParseFloat(v, 64); err == nil {
+				ts = int64(f)
+			} else if i, err := strconv.ParseInt(v, 10, 64); err == nil {
+				ts = i
+			}
+		}
+		if ts > 0 {
+			nextScheduledTime = time.Unix(ts, 0).UTC()
+		} else {
+			nextScheduledTime = now
+		}
+	} else {
 		nextScheduledTime = now
 	}
 
@@ -170,7 +209,7 @@ func convertLeitnerToFsrs(correct, incorrect, streak int, lastCorrect, nextSched
 		cb = -1
 	}
 
-	lastCorrectTime := time.Unix(int64(lc), 0).UTC()
+	lastCorrectTime := time.Unix(lc, 0).UTC()
 	reviewLog := []stores.ReviewLog{{
 		ImportLog: &stores.ImportLog{
 			ImportedDate:    now,
