@@ -63,6 +63,19 @@ SELECT lexicon_name, count(*) as card_count FROM wordvault_cards
 WHERE user_id = $1
 GROUP BY lexicon_name;
 
+-- name: GetNumCardsInVaultByDeck :many
+SELECT
+    COALESCE(deck_id, 0) as deck_id,
+    COUNT(*) as card_count
+FROM
+    wordvault_cards
+WHERE
+    user_id = $1 AND lexicon_name = $2
+GROUP BY
+    deck_id
+ORDER BY
+    deck_id NULLS FIRST;
+
 -- name: UpdateCard :exec
 UPDATE wordvault_cards
 SET fsrs_card = $1, next_scheduled = $2, review_log = review_log || @review_log_item::jsonb
@@ -164,17 +177,25 @@ WITH scheduled_cards AS (
     FROM
         wordvault_cards
     WHERE user_id = $1 AND lexicon_name = $2
+),
+per_date AS (
+    SELECT
+        deck_id,
+        CASE
+            WHEN scheduled_date = '-infinity'::date THEN 'overdue'
+            WHEN scheduled_date = 'infinity'::date THEN 'infinity'
+            ELSE to_char(scheduled_date, 'YYYY-MM-DD')
+        END AS key,
+        COUNT(*) AS question_count
+    FROM scheduled_cards
+    GROUP BY deck_id, scheduled_date
 )
 SELECT
     deck_id,
-    scheduled_date,
-    COUNT(*) AS question_count
-FROM
-    scheduled_cards
-GROUP BY
-    deck_id, scheduled_date
-ORDER BY
-    scheduled_date;
+    jsonb_object_agg(key, question_count) AS breakdown
+FROM per_date
+GROUP BY deck_id
+ORDER BY deck_id;
 
 -- name: GetOverdueCount :one
 SELECT

@@ -708,8 +708,70 @@ func TestOverdueCountByDeck(t *testing.T) {
 		}
 	}
 
+	is.Equal(len(res.Msg.Breakdowns), 2)
 	is.Equal(defaultCount, uint32(3))
 	is.Equal(testDeckCount, uint32(2))
+}
+
+func TestNextScheduledCountByDeckBreakdown(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+	fakenower := &FakeNower{}
+	s.Nower = fakenower
+
+	addedDeck, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Deck A",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO", "AEILNOR"},
+	}))
+	is.NoErr(err)
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"AEINSTU", "AELNSTW"},
+		DeckId:     uint64(addedDeck.Msg.Deck.Id),
+	}))
+	is.NoErr(err)
+
+	// Query with now set to one hour earlier
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-22T22:00:00Z")
+	resp, err := s.NextScheduledCountByDeck(ctx, connect.NewRequest(&pb.NextScheduledCountByDeckRequest{
+		OnlyOverdue: false,
+		Timezone:    "UTC",
+		Lexicon:     "NWL23",
+	}))
+	is.NoErr(err)
+
+	byDeck := map[uint64]map[string]uint32{}
+	for _, b := range resp.Msg.Breakdowns {
+		if _, ok := byDeck[b.DeckId]; !ok {
+			byDeck[b.DeckId] = map[string]uint32{}
+		}
+		for k, v := range b.Breakdown {
+			byDeck[b.DeckId][k] = v
+		}
+	}
+
+	is.Equal(byDeck[0]["2024-09-22"], uint32(3))
+	is.Equal(byDeck[uint64(addedDeck.Msg.Deck.Id)]["2024-09-22"], uint32(2))
 }
 
 func TestOverdueCount(t *testing.T) {
@@ -1074,6 +1136,98 @@ func TestCardStats(t *testing.T) {
 	is.Equal(card.State, fsrs.Review)
 	is.Equal(card.Lapses, uint64(3))
 
+}
+
+func TestDailyProgressByDeck(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+	fakenower := &FakeNower{}
+	s.Nower = fakenower
+
+	// Create a deck
+	addedDeck, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Deck A",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	deckID := uint64(addedDeck.Msg.Deck.Id)
+
+	// Add one card to default deck and one to Deck A
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO"},
+	}))
+	is.NoErr(err)
+
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEHMMO"},
+		DeckId:     deckID,
+	}))
+	is.NoErr(err)
+
+	// Score both today: one new miss and one new easy
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
+
+	_, err = s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+		Score:     pb.Score_SCORE_AGAIN,
+		Lexicon:   "NWL23",
+		Alphagram: "ADEEGMMO",
+	}))
+	is.NoErr(err)
+
+	_, err = s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+		Score:     pb.Score_SCORE_EASY,
+		Lexicon:   "NWL23",
+		Alphagram: "ADEEHMMO",
+	}))
+	is.NoErr(err)
+
+	// Query by deck
+	resp, err := s.GetDailyProgressByDeck(ctx, connect.NewRequest(&pb.GetDailyProgressByDeckRequest{
+		Timezone: "UTC",
+	}))
+	is.NoErr(err)
+
+	// Build helper map deckId(string or "") -> stats
+	type stats struct{ New, Reviewed, NewMissed, NewEasy int32 }
+	got := map[string]stats{}
+	for _, it := range resp.Msg.Items {
+		key := ""
+		if it.DeckId != nil {
+			key = fmt.Sprintf("%d", it.DeckId.Value)
+		}
+		got[key] = stats{
+			New:       it.ProgressStats["New"],
+			Reviewed:  it.ProgressStats["Reviewed"],
+			NewMissed: it.ProgressStats["NewMissed"],
+			NewEasy:   it.ProgressStats["NewEasy"],
+		}
+	}
+
+	// Default deck should have 1 new, 1 new missed
+	is.Equal(got[""].New, int32(1))
+	is.Equal(got[""].NewMissed, int32(1))
+	is.Equal(got[""].Reviewed, int32(0))
+
+	// Deck A should have 1 new, 1 new easy
+	keyA := fmt.Sprintf("%d", addedDeck.Msg.Deck.Id)
+	is.Equal(got[keyA].New, int32(1))
+	is.Equal(got[keyA].NewEasy, int32(1))
+	is.Equal(got[keyA].Reviewed, int32(0))
 }
 
 func TestDelete(t *testing.T) {
@@ -1507,4 +1661,54 @@ func TestAddingAndMovingCardsWithOverlap(t *testing.T) {
 
 	is.Equal(deckMap["ADEEGMMO"], deckIDUint)
 	is.Equal(deckMap["ADEEHMMO"], uint64(0))
+}
+
+func TestCardCountByDeck(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+
+	addedDeck, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Test Deck",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+
+	// Add three cards to default, two to the deck
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO", "AEILNOR"},
+	}))
+	is.NoErr(err)
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"AEINSTU", "AELNSTW"},
+		DeckId:     uint64(addedDeck.Msg.Deck.Id),
+	}))
+	is.NoErr(err)
+
+	res, err := s.GetCardCountByDeck(ctx, connect.NewRequest(&pb.GetCardCountByDeckRequest{
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+
+	// Expect 2 entries: default=3, deck=2
+	counts := map[uint64]uint32{}
+	for _, it := range res.Msg.Items {
+		counts[it.DeckId] = it.Count
+	}
+	is.Equal(counts[0], uint32(3))
+	is.Equal(counts[uint64(addedDeck.Msg.Deck.Id)], uint32(2))
 }

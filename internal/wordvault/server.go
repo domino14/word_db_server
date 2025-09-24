@@ -19,6 +19,7 @@ import (
 	"github.com/open-spaced-repetition/go-fsrs/v3"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	searchpb "github.com/domino14/word_db_server/api/rpc/wordsearcher"
 	pb "github.com/domino14/word_db_server/api/rpc/wordvault"
@@ -671,6 +672,34 @@ func (s *Server) GetCardCount(ctx context.Context, req *connect.Request[pb.GetCa
 	}), nil
 }
 
+func (s *Server) GetCardCountByDeck(ctx context.Context, req *connect.Request[pb.GetCardCountByDeckRequest]) (
+	*connect.Response[pb.GetCardCountByDeckResponse], error) {
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+	if req.Msg.Lexicon == "" {
+		return nil, invalidArgError("must provide a lexicon")
+	}
+
+	rows, err := s.Queries.GetNumCardsInVaultByDeck(ctx, models.GetNumCardsInVaultByDeckParams{
+		UserID:      int64(user.DBID),
+		LexiconName: req.Msg.Lexicon,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]*pb.DeckCardCount, len(rows))
+	for i := range rows {
+		items[i] = &pb.DeckCardCount{
+			DeckId: uint64(rows[i].DeckID),
+			Count:  uint32(rows[i].CardCount),
+		}
+	}
+	return connect.NewResponse(&pb.GetCardCountByDeckResponse{Items: items}), nil
+}
+
 func (s *Server) NextScheduledCount(ctx context.Context, req *connect.Request[pb.NextScheduledCountRequest]) (
 	*connect.Response[pb.NextScheduledBreakdown], error) {
 	user := auth.UserFromContext(ctx)
@@ -773,27 +802,14 @@ func (s *Server) NextScheduledCountByDeck(ctx context.Context, req *connect.Requ
 		if err != nil {
 			return nil, err
 		}
-		perDeckBreakdown := make(map[uint64]map[string]uint32)
-
 		for _, row := range rows {
-			var s string
-			switch row.ScheduledDate.InfinityModifier {
-			case pgtype.Finite:
-				s = row.ScheduledDate.Time.Format("2006-01-02")
-			case pgtype.Infinity:
-				s = "infinity"
-			case pgtype.NegativeInfinity:
-				s = "overdue"
+			m := map[string]uint32{}
+			if err := json.Unmarshal(row.Breakdown, &m); err != nil {
+				return nil, err
 			}
-
-			deckId := uint64(row.DeckID)
-			if _, ok := perDeckBreakdown[deckId]; !ok {
-				perDeckBreakdown[deckId] = make(map[string]uint32)
-			}
-			perDeckBreakdown[deckId][s] = uint32(row.QuestionCount)
 			breakdowns = append(breakdowns, &pb.DeckBreakdown{
-				DeckId:    deckId,
-				Breakdown: perDeckBreakdown[deckId],
+				DeckId:    uint64(row.DeckID),
+				Breakdown: m,
 			})
 		}
 	}
@@ -996,6 +1012,49 @@ func (s *Server) GetDailyProgress(ctx context.Context, req *connect.Request[pb.G
 			"ReviewedEasy":   int32(progress.ReviewedRating4),
 		},
 	}), nil
+}
+
+func (s *Server) GetDailyProgressByDeck(ctx context.Context, req *connect.Request[pb.GetDailyProgressByDeckRequest]) (
+	*connect.Response[pb.GetDailyProgressByDeckResponse], error) {
+
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+
+	rows, err := s.Queries.GetDailyProgressByDeck(ctx, models.GetDailyProgressByDeckParams{
+		UserID:   int64(user.DBID),
+		Timezone: req.Msg.Timezone,
+		Now:      toPGTimestamp(s.Nower.Now()),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]*pb.DailyProgressByDeckItem, len(rows))
+	for i := range rows {
+		var deckID *wrapperspb.Int64Value
+		if rows[i].DeckID.Valid {
+			deckID = wrapperspb.Int64(rows[i].DeckID.Int64)
+		}
+		items[i] = &pb.DailyProgressByDeckItem{
+			DeckId: deckID,
+			ProgressStats: map[string]int32{
+				"New":            int32(rows[i].NewCards),
+				"Reviewed":       int32(rows[i].ReviewedCards),
+				"NewMissed":      int32(rows[i].NewRating1),
+				"NewHard":        int32(rows[i].NewRating2),
+				"NewGood":        int32(rows[i].NewRating3),
+				"NewEasy":        int32(rows[i].NewRating4),
+				"ReviewedMissed": int32(rows[i].ReviewedRating1),
+				"ReviewedHard":   int32(rows[i].ReviewedRating2),
+				"ReviewedGood":   int32(rows[i].ReviewedRating3),
+				"ReviewedEasy":   int32(rows[i].ReviewedRating4),
+			},
+		}
+	}
+
+	return connect.NewResponse(&pb.GetDailyProgressByDeckResponse{Items: items}), nil
 }
 
 func (s *Server) GetDailyLeaderboard(ctx context.Context, req *connect.Request[pb.GetDailyLeaderboardRequest]) (
