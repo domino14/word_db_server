@@ -144,13 +144,22 @@ message PostponeResponse { uint32 num_postponed = 1; }
 // TODO: make this deck-aware
 message DeleteRequest {
   string lexicon = 1;
-  // The following two conditions are mutually exclusive.
+  // The following three conditions are mutually exclusive.
   bool only_new_questions = 2;
   repeated string only_alphagrams = 3;
   bool all_questions = 4;
 }
 
 message DeleteResponse { uint32 num_deleted = 1; }
+
+message DeleteFromDeckRequest {
+  string lexicon = 1;
+  // The following three conditions are mutually exclusive.
+  bool only_new_questions = 2;
+  repeated string only_alphagrams = 3;
+  bool all_questions = 4;
+  uint64 deck_id = 5;
+}
 
 message GetDailyProgressRequest { string timezone = 1; }
 
@@ -258,6 +267,7 @@ service WordVaultService {
   rpc MoveCards(MoveCardsRequest) returns (MoveCardsResponse);
   rpc Postpone(PostponeRequest) returns (PostponeResponse);
   rpc Delete(DeleteRequest) returns (DeleteResponse);
+  rpc DeleteFromDeck(DeleteFromDeckRequest) returns (DeleteResponse);
   rpc GetDailyProgress(GetDailyProgressRequest)
       returns (GetDailyProgressResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;

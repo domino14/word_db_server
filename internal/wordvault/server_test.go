@@ -1276,6 +1276,33 @@ func TestDelete(t *testing.T) {
 		is.NoErr(err)
 	}
 
+	// Test mutual exclusivity validation
+	_, err = s.Delete(ctx, connect.NewRequest(&pb.DeleteRequest{
+		Lexicon:          "NWL23",
+		OnlyNewQuestions: true,
+		OnlyAlphagrams:   []string{"ABEGKOR"},
+	}))
+	is.True(err != nil) // should fail: only_new_questions and only_alphagrams are mutually exclusive
+
+	_, err = s.Delete(ctx, connect.NewRequest(&pb.DeleteRequest{
+		Lexicon:          "NWL23",
+		AllQuestions:     true,
+		OnlyNewQuestions: true,
+	}))
+	is.True(err != nil) // should fail: all_questions and only_new_questions are mutually exclusive
+
+	_, err = s.Delete(ctx, connect.NewRequest(&pb.DeleteRequest{
+		Lexicon:        "NWL23",
+		AllQuestions:   true,
+		OnlyAlphagrams: []string{"ABEGKOR"},
+	}))
+	is.True(err != nil) // should fail: all_questions and only_alphagrams are mutually exclusive
+
+	_, err = s.Delete(ctx, connect.NewRequest(&pb.DeleteRequest{
+		Lexicon: "NWL23",
+	}))
+	is.True(err != nil) // should fail: must specify one of the three options
+
 	res, err := s.Delete(ctx, connect.NewRequest(&pb.DeleteRequest{
 		Lexicon:        "NWL23",
 		OnlyAlphagrams: []string{"AVYYZZZ"},
@@ -1314,6 +1341,183 @@ func TestDelete(t *testing.T) {
 	}))
 	is.NoErr(err)
 	is.Equal(res.Msg.NumDeleted, uint32(299))
+}
+
+func TestDeleteFromDeck(t *testing.T) {
+	is := is.New(t)
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+	fakenower := &FakeNower{}
+	s.Nower = fakenower
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
+
+	resp, _ := s.WordSearchServer.Search(ctx, connect.NewRequest(
+		searchserver.WordSearch([]*searchpb.SearchRequest_SearchParam{
+			searchserver.SearchDescLexicon("NWL23"),
+			searchserver.SearchDescLength(7, 7),
+			searchserver.SearchDescProbRange(7601, 8000),
+		}, false)))
+
+	alphaStrs := []string{}
+	for i := range resp.Msg.Alphagrams {
+		alphaStrs = append(alphaStrs, resp.Msg.Alphagrams[i].Alphagram)
+	}
+
+	// Create two decks
+	deck1Resp, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Deck 1",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	deck1ID := uint64(deck1Resp.Msg.Deck.Id)
+
+	deck2Resp, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Deck 2",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	deck2ID := uint64(deck2Resp.Msg.Deck.Id)
+
+	// Add cards to default deck (deck_id = 0)
+	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: alphaStrs[:100],
+		DeckId:     0, // default deck
+	}))
+
+	// Add cards to deck 1
+	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: alphaStrs[100:200],
+		DeckId:     deck1ID,
+	}))
+
+	// Add cards to deck 2
+	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: alphaStrs[200:300],
+		DeckId:     deck2ID,
+	}))
+
+	// Score some cards in each deck to create a mix of new and reviewed cards
+	for _, alpha := range alphaStrs[:30] {
+		_, err := s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+			Score:     pb.Score(3),
+			Lexicon:   "NWL23",
+			Alphagram: alpha,
+		}))
+		is.NoErr(err)
+	}
+	for _, alpha := range alphaStrs[100:130] {
+		_, err := s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+			Score:     pb.Score(3),
+			Lexicon:   "NWL23",
+			Alphagram: alpha,
+		}))
+		is.NoErr(err)
+	}
+
+	// Test mutual exclusivity validation for DeleteFromDeck
+	_, err = s.DeleteFromDeck(ctx, connect.NewRequest(&pb.DeleteFromDeckRequest{
+		Lexicon:          "NWL23",
+		OnlyNewQuestions: true,
+		OnlyAlphagrams:   []string{"ABEGKOR"},
+		DeckId:           0,
+	}))
+	is.True(err != nil) // should fail: only_new_questions and only_alphagrams are mutually exclusive
+
+	_, err = s.DeleteFromDeck(ctx, connect.NewRequest(&pb.DeleteFromDeckRequest{
+		Lexicon:          "NWL23",
+		AllQuestions:     true,
+		OnlyNewQuestions: true,
+		DeckId:           0,
+	}))
+	is.True(err != nil) // should fail: all_questions and only_new_questions are mutually exclusive
+
+	_, err = s.DeleteFromDeck(ctx, connect.NewRequest(&pb.DeleteFromDeckRequest{
+		Lexicon: "NWL23",
+		DeckId:  0,
+	}))
+	is.True(err != nil) // should fail: must specify one of the three options
+
+	// Test deleting specific alphagrams from deck 1
+	res, err := s.DeleteFromDeck(ctx, connect.NewRequest(&pb.DeleteFromDeckRequest{
+		Lexicon:        "NWL23",
+		OnlyAlphagrams: []string{alphaStrs[100], alphaStrs[101]},
+		DeckId:         deck1ID,
+	}))
+	is.NoErr(err)
+	is.Equal(res.Msg.NumDeleted, uint32(2))
+
+	// Verify cards in other decks were not affected
+	countResp, err := s.GetCardCountByDeck(ctx, connect.NewRequest(&pb.GetCardCountByDeckRequest{
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	// Find counts for each deck
+	var defaultCount, deck1Count, deck2Count uint32
+	for _, item := range countResp.Msg.Items {
+		if item.DeckId == 0 {
+			defaultCount = item.Count
+		} else if item.DeckId == deck1ID {
+			deck1Count = item.Count
+		} else if item.DeckId == deck2ID {
+			deck2Count = item.Count
+		}
+	}
+	is.Equal(defaultCount, uint32(100)) // default deck unchanged
+	is.Equal(deck1Count, uint32(98))    // deck 1 has 2 cards deleted
+	is.Equal(deck2Count, uint32(100))   // deck 2 unchanged
+
+	// Test deleting only new questions from default deck (0)
+	res, err = s.DeleteFromDeck(ctx, connect.NewRequest(&pb.DeleteFromDeckRequest{
+		Lexicon:          "NWL23",
+		OnlyNewQuestions: true,
+		DeckId:           0,
+	}))
+	is.NoErr(err)
+	is.Equal(res.Msg.NumDeleted, uint32(70)) // 100 - 30 scored cards = 70 new cards
+
+	// Test deleting all questions from deck 2
+	res, err = s.DeleteFromDeck(ctx, connect.NewRequest(&pb.DeleteFromDeckRequest{
+		Lexicon:      "NWL23",
+		AllQuestions: true,
+		DeckId:       deck2ID,
+	}))
+	is.NoErr(err)
+	is.Equal(res.Msg.NumDeleted, uint32(100))
+
+	// Verify final counts
+	countResp, err = s.GetCardCountByDeck(ctx, connect.NewRequest(&pb.GetCardCountByDeckRequest{
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	defaultCount = 0
+	deck1Count = 0
+	deck2Count = 0
+	for _, item := range countResp.Msg.Items {
+		if item.DeckId == 0 {
+			defaultCount = item.Count
+		} else if item.DeckId == deck1ID {
+			deck1Count = item.Count
+		} else if item.DeckId == deck2ID {
+			deck2Count = item.Count
+		}
+	}
+	is.Equal(defaultCount, uint32(30)) // only scored cards remain in default deck
+	is.Equal(deck1Count, uint32(98))   // deck 1 still has 98 cards
+	is.Equal(deck2Count, uint32(0))    // deck 2 is empty
 }
 
 func TestSingleNextScheduled(t *testing.T) {

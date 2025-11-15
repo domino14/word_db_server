@@ -941,6 +941,23 @@ func (s *Server) Postpone(ctx context.Context, req *connect.Request[pb.PostponeR
 	return connect.NewResponse(&pb.PostponeResponse{NumPostponed: cnt}), nil
 }
 
+func validateDeleteParams(onlyNewQuestions bool, onlyAlphagrams []string, allQuestions bool) error {
+	if allQuestions {
+		if len(onlyAlphagrams) > 0 || onlyNewQuestions {
+			return invalidArgError("all_questions cannot be combined with only_alphagrams or only_new_questions")
+		}
+	} else if onlyNewQuestions {
+		if len(onlyAlphagrams) > 0 {
+			return invalidArgError("only_new_questions cannot be combined with only_alphagrams")
+		}
+	} else {
+		if len(onlyAlphagrams) == 0 {
+			return invalidArgError("must specify one of: only_new_questions, only_alphagrams, or all_questions")
+		}
+	}
+	return nil
+}
+
 func (s *Server) Delete(ctx context.Context, req *connect.Request[pb.DeleteRequest]) (
 	*connect.Response[pb.DeleteResponse], error) {
 
@@ -952,8 +969,8 @@ func (s *Server) Delete(ctx context.Context, req *connect.Request[pb.DeleteReque
 	if req.Msg.Lexicon == "" {
 		return nil, invalidArgError("need a lexicon")
 	}
-	if req.Msg.OnlyNewQuestions && len(req.Msg.OnlyAlphagrams) > 0 {
-		return nil, invalidArgError("cannot delete only new questions and a list of alphagrams")
+	if err := validateDeleteParams(req.Msg.OnlyNewQuestions, req.Msg.OnlyAlphagrams, req.Msg.AllQuestions); err != nil {
+		return nil, err
 	}
 	var err error
 	var deletedRows int64
@@ -975,6 +992,51 @@ func (s *Server) Delete(ctx context.Context, req *connect.Request[pb.DeleteReque
 		})
 	} else {
 		return nil, invalidArgError("invalid parameters for delete request")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&pb.DeleteResponse{NumDeleted: uint32(deletedRows)}), nil
+}
+
+func (s *Server) DeleteFromDeck(ctx context.Context, req *connect.Request[pb.DeleteFromDeckRequest]) (
+	*connect.Response[pb.DeleteResponse], error) {
+
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+
+	if req.Msg.Lexicon == "" {
+		return nil, invalidArgError("need a lexicon")
+	}
+	if err := validateDeleteParams(req.Msg.OnlyNewQuestions, req.Msg.OnlyAlphagrams, req.Msg.AllQuestions); err != nil {
+		return nil, err
+	}
+
+	var err error
+	var deletedRows int64
+	deckID := int64(req.Msg.DeckId)
+
+	if req.Msg.OnlyNewQuestions {
+		deletedRows, err = s.Queries.DeleteNewCardsFromDeck(ctx, models.DeleteNewCardsFromDeckParams{
+			UserID:      int64(user.DBID),
+			LexiconName: req.Msg.Lexicon,
+			DeckID:      deckID,
+		})
+	} else if req.Msg.AllQuestions {
+		deletedRows, err = s.Queries.DeleteCardsFromDeck(ctx, models.DeleteCardsFromDeckParams{
+			UserID:      int64(user.DBID),
+			LexiconName: req.Msg.Lexicon,
+			DeckID:      deckID,
+		})
+	} else if len(req.Msg.OnlyAlphagrams) > 0 {
+		deletedRows, err = s.Queries.DeleteCardsWithAlphagramsFromDeck(ctx, models.DeleteCardsWithAlphagramsFromDeckParams{
+			UserID:      int64(user.DBID),
+			LexiconName: req.Msg.Lexicon,
+			Alphagrams:  req.Msg.OnlyAlphagrams,
+			DeckID:      deckID,
+		})
 	}
 	if err != nil {
 		return nil, err
