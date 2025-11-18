@@ -111,7 +111,7 @@ WHERE user_id = $1
     AND COALESCE(deck_id, 0) <> sqlc.arg(deck_id)::BIGINT;
 
 -- name: GetCardsInOtherDecks :many
-SELECT id, alphagram, COALESCE(deck_id, 0) as deck_id
+SELECT alphagram, COALESCE(deck_id, 0) as deck_id
 FROM wordvault_cards
 WHERE user_id = $1
     AND lexicon_name = $2
