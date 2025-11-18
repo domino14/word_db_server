@@ -1600,7 +1600,6 @@ func (x *PostponeResponse) GetNumPostponed() uint32 {
 	return 0
 }
 
-// TODO: make this deck-aware
 type DeleteRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -1720,6 +1719,9 @@ func (x *DeleteResponse) GetNumDeleted() uint32 {
 	return 0
 }
 
+// Needs to be a separate request from the non-deck-aware delete request because
+// we need to be able to differentiate between no deck ID meaning default deck
+// vs. no deck ID meaning all decks
 type DeleteFromDeckRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

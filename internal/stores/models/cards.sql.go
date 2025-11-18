@@ -382,7 +382,7 @@ func (q *Queries) GetCards(ctx context.Context, arg GetCardsParams) ([]GetCardsR
 }
 
 const getCardsInOtherDecks = `-- name: GetCardsInOtherDecks :many
-SELECT id, alphagram, COALESCE(deck_id, 0) as deck_id
+SELECT alphagram, COALESCE(deck_id, 0) as deck_id
 FROM wordvault_cards
 WHERE user_id = $1
     AND lexicon_name = $2
@@ -400,7 +400,6 @@ type GetCardsInOtherDecksParams struct {
 }
 
 type GetCardsInOtherDecksRow struct {
-	ID        int64
 	Alphagram string
 	DeckID    int64
 }
@@ -420,7 +419,7 @@ func (q *Queries) GetCardsInOtherDecks(ctx context.Context, arg GetCardsInOtherD
 	var items []GetCardsInOtherDecksRow
 	for rows.Next() {
 		var i GetCardsInOtherDecksRow
-		if err := rows.Scan(&i.ID, &i.Alphagram, &i.DeckID); err != nil {
+		if err := rows.Scan(&i.Alphagram, &i.DeckID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
