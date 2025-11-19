@@ -172,6 +172,25 @@ func (q *Queries) DeleteCards(ctx context.Context, arg DeleteCardsParams) (int64
 	return result.RowsAffected(), nil
 }
 
+const deleteCardsFromDeck = `-- name: DeleteCardsFromDeck :execrows
+DELETE FROM wordvault_cards
+WHERE user_id = $1 AND lexicon_name = $2 AND COALESCE(deck_id, 0) = $3::bigint
+`
+
+type DeleteCardsFromDeckParams struct {
+	UserID      int64
+	LexiconName string
+	DeckID      int64
+}
+
+func (q *Queries) DeleteCardsFromDeck(ctx context.Context, arg DeleteCardsFromDeckParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteCardsFromDeck, arg.UserID, arg.LexiconName, arg.DeckID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteCardsWithAlphagrams = `-- name: DeleteCardsWithAlphagrams :execrows
 DELETE FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY($3::text[])
@@ -185,6 +204,32 @@ type DeleteCardsWithAlphagramsParams struct {
 
 func (q *Queries) DeleteCardsWithAlphagrams(ctx context.Context, arg DeleteCardsWithAlphagramsParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteCardsWithAlphagrams, arg.UserID, arg.LexiconName, arg.Alphagrams)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteCardsWithAlphagramsFromDeck = `-- name: DeleteCardsWithAlphagramsFromDeck :execrows
+DELETE FROM wordvault_cards
+WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY($3::text[])
+    AND COALESCE(deck_id, 0) = $4::bigint
+`
+
+type DeleteCardsWithAlphagramsFromDeckParams struct {
+	UserID      int64
+	LexiconName string
+	Alphagrams  []string
+	DeckID      int64
+}
+
+func (q *Queries) DeleteCardsWithAlphagramsFromDeck(ctx context.Context, arg DeleteCardsWithAlphagramsFromDeckParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteCardsWithAlphagramsFromDeck,
+		arg.UserID,
+		arg.LexiconName,
+		arg.Alphagrams,
+		arg.DeckID,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -213,6 +258,26 @@ type DeleteNewCardsParams struct {
 
 func (q *Queries) DeleteNewCards(ctx context.Context, arg DeleteNewCardsParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteNewCards, arg.UserID, arg.LexiconName)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteNewCardsFromDeck = `-- name: DeleteNewCardsFromDeck :execrows
+DELETE FROM wordvault_cards
+WHERE user_id = $1 AND lexicon_name = $2 AND jsonb_array_length(review_log) = 0
+    AND COALESCE(deck_id, 0) = $3::bigint
+`
+
+type DeleteNewCardsFromDeckParams struct {
+	UserID      int64
+	LexiconName string
+	DeckID      int64
+}
+
+func (q *Queries) DeleteNewCardsFromDeck(ctx context.Context, arg DeleteNewCardsFromDeckParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteNewCardsFromDeck, arg.UserID, arg.LexiconName, arg.DeckID)
 	if err != nil {
 		return 0, err
 	}
@@ -317,7 +382,7 @@ func (q *Queries) GetCards(ctx context.Context, arg GetCardsParams) ([]GetCardsR
 }
 
 const getCardsInOtherDecks = `-- name: GetCardsInOtherDecks :many
-SELECT id, alphagram, COALESCE(deck_id, 0) as deck_id
+SELECT alphagram, COALESCE(deck_id, 0) as deck_id
 FROM wordvault_cards
 WHERE user_id = $1
     AND lexicon_name = $2
@@ -335,7 +400,6 @@ type GetCardsInOtherDecksParams struct {
 }
 
 type GetCardsInOtherDecksRow struct {
-	ID        int64
 	Alphagram string
 	DeckID    int64
 }
@@ -355,7 +419,7 @@ func (q *Queries) GetCardsInOtherDecks(ctx context.Context, arg GetCardsInOtherD
 	var items []GetCardsInOtherDecksRow
 	for rows.Next() {
 		var i GetCardsInOtherDecksRow
-		if err := rows.Scan(&i.ID, &i.Alphagram, &i.DeckID); err != nil {
+		if err := rows.Scan(&i.Alphagram, &i.DeckID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

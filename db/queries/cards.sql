@@ -111,7 +111,7 @@ WHERE user_id = $1
     AND COALESCE(deck_id, 0) <> sqlc.arg(deck_id)::BIGINT;
 
 -- name: GetCardsInOtherDecks :many
-SELECT id, alphagram, COALESCE(deck_id, 0) as deck_id
+SELECT alphagram, COALESCE(deck_id, 0) as deck_id
 FROM wordvault_cards
 WHERE user_id = $1
     AND lexicon_name = $2
@@ -225,6 +225,20 @@ WHERE user_id = $1 AND lexicon_name = $2 AND jsonb_array_length(review_log) = 0;
 -- name: DeleteCardsWithAlphagrams :execrows
 DELETE FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY(@alphagrams::text[]);
+
+-- name: DeleteCardsFromDeck :execrows
+DELETE FROM wordvault_cards
+WHERE user_id = $1 AND lexicon_name = $2 AND COALESCE(deck_id, 0) = sqlc.arg(deck_id)::bigint;
+
+-- name: DeleteNewCardsFromDeck :execrows
+DELETE FROM wordvault_cards
+WHERE user_id = $1 AND lexicon_name = $2 AND jsonb_array_length(review_log) = 0
+    AND COALESCE(deck_id, 0) = sqlc.arg(deck_id)::bigint;
+
+-- name: DeleteCardsWithAlphagramsFromDeck :execrows
+DELETE FROM wordvault_cards
+WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY(@alphagrams::text[])
+    AND COALESCE(deck_id, 0) = sqlc.arg(deck_id)::bigint;
 
 -- name: BulkUpdateCards :exec
 WITH updated_values AS (
