@@ -852,18 +852,47 @@ WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY($4::text[])
 `
 
 type MoveCardsParams struct {
-	UserID      int64
-	LexiconName string
-	DeckID      int64
-	Alphagrams  []string
+	UserID       int64
+	LexiconName  string
+	TargetDeckID int64
+	Alphagrams   []string
 }
 
 func (q *Queries) MoveCards(ctx context.Context, arg MoveCardsParams) (int64, error) {
 	result, err := q.db.Exec(ctx, moveCards,
 		arg.UserID,
 		arg.LexiconName,
-		arg.DeckID,
+		arg.TargetDeckID,
 		arg.Alphagrams,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const moveCardsFromDeck = `-- name: MoveCardsFromDeck :execrows
+UPDATE wordvault_cards
+SET deck_id = NULLIF($3::BIGINT, 0)
+WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY($4::text[])
+    AND COALESCE(deck_id, 0) = $5::BIGINT
+`
+
+type MoveCardsFromDeckParams struct {
+	UserID       int64
+	LexiconName  string
+	TargetDeckID int64
+	Alphagrams   []string
+	SourceDeckID int64
+}
+
+func (q *Queries) MoveCardsFromDeck(ctx context.Context, arg MoveCardsFromDeckParams) (int64, error) {
+	result, err := q.db.Exec(ctx, moveCardsFromDeck,
+		arg.UserID,
+		arg.LexiconName,
+		arg.TargetDeckID,
+		arg.Alphagrams,
+		arg.SourceDeckID,
 	)
 	if err != nil {
 		return 0, err

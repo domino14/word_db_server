@@ -635,13 +635,34 @@ func (s *Server) MoveCards(ctx context.Context, req *connect.Request[pb.MoveCard
 		return nil, invalidArgError("need at least one card to move")
 	}
 
-	params := models.MoveCardsParams{
-		UserID:      int64(user.DBID),
-		LexiconName: req.Msg.Lexicon,
-		Alphagrams:  req.Msg.Alphagrams,
-		DeckID:      int64(req.Msg.DeckId),
+	var numMoved int64
+	var err error
+
+	if !req.Msg.FromAllDecks {
+		if req.Msg.SourceDeckId == req.Msg.TargetDeckId {
+			return nil, invalidArgError("source and target deck cannot be the same")
+		}
+		params := models.MoveCardsFromDeckParams{
+			UserID:       int64(user.DBID),
+			LexiconName:  req.Msg.Lexicon,
+			Alphagrams:   req.Msg.Alphagrams,
+			TargetDeckID: int64(req.Msg.TargetDeckId),
+			SourceDeckID: int64(req.Msg.SourceDeckId),
+		}
+		numMoved, err = s.Queries.MoveCardsFromDeck(ctx, params)
+	} else {
+		if req.Msg.SourceDeckId != 0 {
+			return nil, invalidArgError("cannot specify source_deck_id when from_all_decks is true")
+		}
+		params := models.MoveCardsParams{
+			UserID:       int64(user.DBID),
+			LexiconName:  req.Msg.Lexicon,
+			Alphagrams:   req.Msg.Alphagrams,
+			TargetDeckID: int64(req.Msg.TargetDeckId),
+		}
+		numMoved, err = s.Queries.MoveCards(ctx, params)
 	}
-	numMoved, err := s.Queries.MoveCards(ctx, params)
+
 	if err != nil {
 		return nil, err
 	}

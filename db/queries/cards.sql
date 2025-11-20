@@ -144,8 +144,14 @@ SELECT COUNT(*) FROM inserted_rows;
 
 -- name: MoveCards :execrows
 UPDATE wordvault_cards
-SET deck_id = NULLIF(sqlc.arg(deck_id)::BIGINT, 0)
+SET deck_id = NULLIF(sqlc.arg(target_deck_id)::BIGINT, 0)
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY(@alphagrams::text[]);
+
+-- name: MoveCardsFromDeck :execrows
+UPDATE wordvault_cards
+SET deck_id = NULLIF(sqlc.arg(target_deck_id)::BIGINT, 0)
+WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY(@alphagrams::text[])
+    AND COALESCE(deck_id, 0) = sqlc.arg(source_deck_id)::BIGINT;
 
 -- name: GetNextScheduledBreakdown :many
 WITH scheduled_cards AS (
