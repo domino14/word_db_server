@@ -79,7 +79,10 @@ message AddCardsResponse {
 message MoveCardsRequest {
   string lexicon = 1;
   repeated string alphagrams = 2;
-  uint64 deck_id = 3;
+  uint64 target_deck_id = 3;
+  // The following two fields are mutually exclusive.
+  bool from_all_decks = 4;
+  uint64 source_deck_id = 5;
 }
 
 message MoveCardsResponse {

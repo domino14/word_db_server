@@ -1835,17 +1835,20 @@ func TestAddingAndMovingCardsWithOverlap(t *testing.T) {
 	is.Equal(addResp.Msg.NumCardsAdded, uint32(1))
 
 	moveResp, err := s.MoveCards(ctx, connect.NewRequest(&pb.MoveCardsRequest{
-		Lexicon:    "NWL23",
-		Alphagrams: []string{"ADEEGMMO"},
-		DeckId:     deckIDUint,
+		Lexicon:      "NWL23",
+		Alphagrams:   []string{"ADEEGMMO"},
+		TargetDeckId: deckIDUint,
+		FromAllDecks: true,
 	}))
 
 	is.NoErr(err)
 	is.Equal(moveResp.Msg.NumCardsMoved, uint32(1))
 
 	moveResp, err = s.MoveCards(ctx, connect.NewRequest(&pb.MoveCardsRequest{
-		Lexicon:    "NWL23",
-		Alphagrams: []string{"ADEEHMMO"},
+		Lexicon:      "NWL23",
+		Alphagrams:   []string{"ADEEHMMO"},
+		TargetDeckId: 0,
+		FromAllDecks: true,
 	}))
 
 	is.NoErr(err)
@@ -1915,4 +1918,106 @@ func TestCardCountByDeck(t *testing.T) {
 	}
 	is.Equal(counts[0], uint32(3))
 	is.Equal(counts[uint64(addedDeck.Msg.Deck.Id)], uint32(2))
+}
+
+func TestMoveCardsWithDecks(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+
+	added, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Deck A",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	deckAID := uint64(added.Msg.Deck.Id)
+
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"AAAAAAA"},
+		DeckId:     0,
+	}))
+	is.NoErr(err)
+
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"BBBBBBB"},
+		DeckId:     deckAID,
+	}))
+	is.NoErr(err)
+
+	// AAAAAA is in default Deck, so moving from Deck A should do nothing
+	resp, err := s.MoveCards(ctx, connect.NewRequest(&pb.MoveCardsRequest{
+		Lexicon:      "NWL23",
+		Alphagrams:   []string{"AAAAAAA"},
+		TargetDeckId: 0,
+		SourceDeckId: deckAID,
+		FromAllDecks: false,
+	}))
+	is.NoErr(err)
+	is.Equal(resp.Msg.NumCardsMoved, uint32(0))
+
+	resp, err = s.MoveCards(ctx, connect.NewRequest(&pb.MoveCardsRequest{
+		Lexicon:      "NWL23",
+		Alphagrams:   []string{"AAAAAAA"},
+		TargetDeckId: deckAID,
+		SourceDeckId: 0,
+		FromAllDecks: false,
+	}))
+	is.NoErr(err)
+	is.Equal(resp.Msg.NumCardsMoved, uint32(1))
+
+	info, err := s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"AAAAAAA"},
+	}))
+	is.NoErr(err)
+	is.Equal(info.Msg.Cards[0].DeckId, deckAID)
+
+	resp, err = s.MoveCards(ctx, connect.NewRequest(&pb.MoveCardsRequest{
+		Lexicon:      "NWL23",
+		Alphagrams:   []string{"BBBBBBB"},
+		TargetDeckId: 0,
+		FromAllDecks: true,
+	}))
+	is.NoErr(err)
+	is.Equal(resp.Msg.NumCardsMoved, uint32(1))
+
+	info, err = s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"BBBBBBB"},
+	}))
+	is.NoErr(err)
+	is.Equal(info.Msg.Cards[0].DeckId, uint64(0))
+
+	// Error: Source == Target
+	_, err = s.MoveCards(ctx, connect.NewRequest(&pb.MoveCardsRequest{
+		Lexicon:      "NWL23",
+		Alphagrams:   []string{"AAAAAAA"},
+		TargetDeckId: deckAID,
+		SourceDeckId: deckAID,
+		FromAllDecks: false,
+	}))
+	is.True(err != nil)
+	// Error: Source deck and FromAllDecks are mutually exclusive
+	_, err = s.MoveCards(ctx, connect.NewRequest(&pb.MoveCardsRequest{
+		Lexicon:      "NWL23",
+		Alphagrams:   []string{"BBBBBBB"},
+		TargetDeckId: deckAID,
+		SourceDeckId: 99999, // Specific source deck provided
+		FromAllDecks: true,  // Should be error because source deck is specified
+	}))
+	is.True(err != nil) // Should be error
 }
