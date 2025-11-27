@@ -2021,3 +2021,78 @@ func TestMoveCardsWithDecks(t *testing.T) {
 	}))
 	is.True(err != nil) // Should be error
 }
+
+func TestDeleteDeck(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+
+	deck1, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Empty Deck",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	deck1ID := deck1.Msg.Deck.Id
+
+	deck2, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Deck With Cards",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	deck2ID := deck2.Msg.Deck.Id
+
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO"},
+		DeckId:     uint64(deck2ID),
+	}))
+	is.NoErr(err)
+
+	_, err = s.DeleteDeck(ctx, connect.NewRequest(&pb.DeleteDeckRequest{
+		Id: 0,
+	}))
+	is.True(err.Error() == "invalid_argument: need a deck")
+
+	_, err = s.DeleteDeck(ctx, connect.NewRequest(&pb.DeleteDeckRequest{
+		Id: deck2ID,
+	}))
+	is.True(err.Error() == "invalid_argument: cannot delete deck with cards in it")
+
+	_, err = s.DeleteDeck(ctx, connect.NewRequest(&pb.DeleteDeckRequest{
+		Id: deck1ID,
+	}))
+	is.NoErr(err)
+
+	decks, err := s.GetDecks(ctx, connect.NewRequest(&pb.GetDecksRequest{}))
+	is.NoErr(err)
+	is.Equal(len(decks.Msg.Decks), 1)
+	is.Equal(decks.Msg.Decks[0].Id, deck2ID)
+
+	_, err = s.DeleteFromDeck(ctx, connect.NewRequest(&pb.DeleteFromDeckRequest{
+		Lexicon:      "NWL23",
+		AllQuestions: true,
+		DeckId:       uint64(deck2ID),
+	}))
+	is.NoErr(err)
+
+	_, err = s.DeleteDeck(ctx, connect.NewRequest(&pb.DeleteDeckRequest{
+		Id: deck2ID,
+	}))
+	is.NoErr(err)
+
+	decks, err = s.GetDecks(ctx, connect.NewRequest(&pb.GetDecksRequest{}))
+	is.NoErr(err)
+	is.Equal(len(decks.Msg.Decks), 0)
+}

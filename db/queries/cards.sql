@@ -24,9 +24,14 @@ SET name = $2
 WHERE id = $1 AND user_id = $3
 RETURNING *;
 
+-- name: CountCardsInDeck :one
+SELECT COUNT(*)
+FROM wordvault_cards
+WHERE COALESCE(deck_id, 0) = sqlc.arg(deck_id)::bigint AND user_id = sqlc.arg(user_id)::bigint;
+
 -- name: DeleteDeck :exec
 DELETE FROM wordvault_decks
-WHERE id = $1;
+WHERE id = $1 AND user_id = $2;
 
 -- name: GetNextScheduled :many
 SELECT alphagram, next_scheduled, fsrs_card, COALESCE(deck_id, 0) as deck_id

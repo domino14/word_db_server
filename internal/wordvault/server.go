@@ -1344,6 +1344,41 @@ func (s *Server) EditDeck(ctx context.Context, req *connect.Request[pb.EditDeckR
 	}), nil
 }
 
+func (s *Server) DeleteDeck(ctx context.Context, req *connect.Request[pb.DeleteDeckRequest]) (
+	*connect.Response[pb.DeleteDeckResponse], error) {
+
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+
+	if req.Msg.Id == 0 {
+		return nil, invalidArgError("need a deck")
+	}
+
+	cardCount, err := s.Queries.CountCardsInDeck(ctx, models.CountCardsInDeckParams{
+		DeckID: req.Msg.Id,
+		UserID: int64(user.DBID),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if cardCount > 0 {
+		return nil, invalidArgError("cannot delete deck with cards in it")
+	}
+
+	err = s.Queries.DeleteDeck(ctx, models.DeleteDeckParams{
+		ID:     req.Msg.Id,
+		UserID: int64(user.DBID),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return connect.NewResponse(&pb.DeleteDeckResponse{}), nil
+}
+
 // The fsrs library fuzzes only by day. It tends to ask questions at the same
 // hour and minute that they were asked last. We want to add a little bit of a fuzz
 // to allow for more randomness.
