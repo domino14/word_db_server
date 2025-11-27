@@ -246,6 +246,12 @@ message EditDeckResponse {
   Deck deck = 1;
 }
 
+message DeleteDeckRequest {
+  int64 id = 1;
+}
+
+message DeleteDeckResponse {}
+
 message EditFsrsParametersResponse {}
 
 service WordVaultService {
@@ -296,4 +302,5 @@ service WordVaultService {
   rpc AddDeck(AddDeckRequest) returns (AddDeckResponse);
   rpc GetDecks(GetDecksRequest) returns (GetDecksResponse);
   rpc EditDeck(EditDeckRequest) returns (EditDeckResponse);
+  rpc DeleteDeck(DeleteDeckRequest) returns (DeleteDeckResponse);
 }
