@@ -27,7 +27,7 @@ RETURNING *;
 -- name: CountCardsInDeck :one
 SELECT COUNT(*)
 FROM wordvault_cards
-WHERE COALESCE(deck_id, 0) = sqlc.arg(deck_id)::bigint AND user_id = $2;
+WHERE COALESCE(deck_id, 0) = sqlc.arg(deck_id)::bigint AND user_id = sqlc.arg(user_id)::bigint;
 
 -- name: DeleteDeck :exec
 DELETE FROM wordvault_decks
