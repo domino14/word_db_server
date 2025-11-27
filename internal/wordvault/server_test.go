@@ -2039,7 +2039,6 @@ func TestDeleteDeck(t *testing.T) {
 
 	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
 
-	// Create two decks
 	deck1, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
 		Name:    "Empty Deck",
 		Lexicon: "NWL23",
@@ -2054,7 +2053,6 @@ func TestDeleteDeck(t *testing.T) {
 	is.NoErr(err)
 	deck2ID := deck2.Msg.Deck.Id
 
-	// Add cards to deck2
 	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
 		Lexicon:    "NWL23",
 		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO"},
@@ -2062,31 +2060,26 @@ func TestDeleteDeck(t *testing.T) {
 	}))
 	is.NoErr(err)
 
-	// Test: Cannot delete deck with invalid ID (0)
 	_, err = s.DeleteDeck(ctx, connect.NewRequest(&pb.DeleteDeckRequest{
 		Id: 0,
 	}))
 	is.True(err.Error() == "invalid_argument: need a deck")
 
-	// Test: Cannot delete deck with cards in it
 	_, err = s.DeleteDeck(ctx, connect.NewRequest(&pb.DeleteDeckRequest{
 		Id: deck2ID,
 	}))
 	is.True(err.Error() == "invalid_argument: cannot delete deck with cards in it")
 
-	// Test: Can delete empty deck
 	_, err = s.DeleteDeck(ctx, connect.NewRequest(&pb.DeleteDeckRequest{
 		Id: deck1ID,
 	}))
 	is.NoErr(err)
 
-	// Verify deck1 is deleted
 	decks, err := s.GetDecks(ctx, connect.NewRequest(&pb.GetDecksRequest{}))
 	is.NoErr(err)
 	is.Equal(len(decks.Msg.Decks), 1)
 	is.Equal(decks.Msg.Decks[0].Id, deck2ID)
 
-	// Delete all cards from deck2
 	_, err = s.DeleteFromDeck(ctx, connect.NewRequest(&pb.DeleteFromDeckRequest{
 		Lexicon:      "NWL23",
 		AllQuestions: true,
@@ -2094,13 +2087,11 @@ func TestDeleteDeck(t *testing.T) {
 	}))
 	is.NoErr(err)
 
-	// Now we should be able to delete deck2
 	_, err = s.DeleteDeck(ctx, connect.NewRequest(&pb.DeleteDeckRequest{
 		Id: deck2ID,
 	}))
 	is.NoErr(err)
 
-	// Verify all decks are deleted
 	decks, err = s.GetDecks(ctx, connect.NewRequest(&pb.GetDecksRequest{}))
 	is.NoErr(err)
 	is.Equal(len(decks.Msg.Decks), 0)

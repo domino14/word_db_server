@@ -1356,7 +1356,6 @@ func (s *Server) DeleteDeck(ctx context.Context, req *connect.Request[pb.DeleteD
 		return nil, invalidArgError("need a deck")
 	}
 
-	// Check if there are any cards in this deck
 	cardCount, err := s.Queries.CountCardsInDeck(ctx, models.CountCardsInDeckParams{
 		DeckID: req.Msg.Id,
 		UserID: int64(user.DBID),
@@ -1369,7 +1368,6 @@ func (s *Server) DeleteDeck(ctx context.Context, req *connect.Request[pb.DeleteD
 		return nil, invalidArgError("cannot delete deck with cards in it")
 	}
 
-	// Delete the deck
 	err = s.Queries.DeleteDeck(ctx, models.DeleteDeckParams{
 		ID:     req.Msg.Id,
 		UserID: int64(user.DBID),
