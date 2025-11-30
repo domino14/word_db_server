@@ -126,6 +126,24 @@ func (q *Queries) BulkUpdateCards(ctx context.Context, arg BulkUpdateCardsParams
 	return err
 }
 
+const countCardsInDeck = `-- name: CountCardsInDeck :one
+SELECT COUNT(*)
+FROM wordvault_cards
+WHERE COALESCE(deck_id, 0) = $1::bigint AND user_id = $2::bigint
+`
+
+type CountCardsInDeckParams struct {
+	DeckID int64
+	UserID int64
+}
+
+func (q *Queries) CountCardsInDeck(ctx context.Context, arg CountCardsInDeckParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countCardsInDeck, arg.DeckID, arg.UserID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countCardsInOtherDecks = `-- name: CountCardsInOtherDecks :one
 SELECT COUNT(*)
 FROM wordvault_cards
@@ -238,11 +256,16 @@ func (q *Queries) DeleteCardsWithAlphagramsFromDeck(ctx context.Context, arg Del
 
 const deleteDeck = `-- name: DeleteDeck :exec
 DELETE FROM wordvault_decks
-WHERE id = $1
+WHERE id = $1 AND user_id = $2
 `
 
-func (q *Queries) DeleteDeck(ctx context.Context, id int64) error {
-	_, err := q.db.Exec(ctx, deleteDeck, id)
+type DeleteDeckParams struct {
+	ID     int64
+	UserID int64
+}
+
+func (q *Queries) DeleteDeck(ctx context.Context, arg DeleteDeckParams) error {
+	_, err := q.db.Exec(ctx, deleteDeck, arg.ID, arg.UserID)
 	return err
 }
 
