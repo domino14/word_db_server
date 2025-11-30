@@ -219,6 +219,14 @@ func LexiconMappings(dataPath string) LexiconMap {
 			DescriptiveName:    "Scrabble®-Turnierliste - based on Duden 28th edition",
 			LetterDistribution: germanLD,
 		},
+		{
+			LexiconName:        "RD29",
+			LexiconFilename:    filepath.Join(lexiconPath, "RD29.txt"),
+			KWG:                loadKWG(dataPath, "RD29"),
+			LexiconIndex:       27,
+			DescriptiveName:    "Scrabble®-Turnierliste - based on Duden 29th edition",
+			LetterDistribution: germanLD,
+		},
 	}
 
 	frenchFamily := []*LexiconInfo{
