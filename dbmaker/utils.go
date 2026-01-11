@@ -208,6 +208,14 @@ func LexiconMappings(dataPath string) LexiconMap {
 			DescriptiveName:    "Polska Federacja Scrabble - Update 50",
 			LetterDistribution: polishLD,
 		},
+		{
+			LexiconName:        "OSPS51",
+			LexiconFilename:    filepath.Join(lexiconPath, "OSPS51.txt"),
+			KWG:                loadKWG(dataPath, "OSPS51"),
+			LexiconIndex:       28,
+			DescriptiveName:    "Polska Federacja Scrabble - Update 51",
+			LetterDistribution: polishLD,
+		},
 	}
 
 	deutschFamily := []*LexiconInfo{
