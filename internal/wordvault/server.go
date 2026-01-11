@@ -80,7 +80,7 @@ func (s *Server) GetCardInformation(ctx context.Context, req *connect.Request[pb
 	if err != nil {
 		return nil, err
 	}
-	f := fsrs.NewFSRS(params) // cache this later!
+	f := fsrs.NewFSRS(params)
 
 	rows, err := s.Queries.GetCards(ctx, models.GetCardsParams{
 		UserID:      int64(user.DBID),
@@ -281,6 +281,9 @@ func (s *Server) fsrsParams(ctx context.Context, dbid int64, maybeQ *models.Quer
 // fsrsParamsForDeck returns FSRS parameters for a specific deck.
 // It first checks for a deck-specific override, then falls back to global user params.
 // If deckID is 0 (default deck), it uses global params directly.
+//
+// Accepts optional `maybeQ` instance of Queries for transactional consistency
+// if there is an ongoing transaction.
 func (s *Server) fsrsParamsForDeck(ctx context.Context, dbid int64, deckID int64, maybeQ *models.Queries) (fsrs.Parameters, error) {
 	if deckID == 0 {
 		// Default deck uses global params
@@ -292,16 +295,11 @@ func (s *Server) fsrsParamsForDeck(ctx context.Context, dbid int64, deckID int64
 		q = maybeQ
 	}
 
-	// Try to get deck-specific override
 	deck, err := q.GetDeck(ctx, models.GetDeckParams{
 		ID:     deckID,
 		UserID: dbid,
 	})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			// Deck not found, fall back to global params
-			return s.fsrsParams(ctx, dbid, maybeQ)
-		}
 		return fsrs.Parameters{}, err
 	}
 
@@ -313,7 +311,7 @@ func (s *Server) fsrsParamsForDeck(ctx context.Context, dbid int64, deckID int64
 		return params, nil
 	}
 
-	// No override, fall back to global params
+	// Fall back to global if no override
 	return s.fsrsParams(ctx, dbid, maybeQ)
 }
 
@@ -391,7 +389,7 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 		return nil, err
 	}
 
-	f := fsrs.NewFSRS(params) // cache this later!
+	f := fsrs.NewFSRS(params)
 
 	card := cardrow.FsrsCard
 	revlog := cardrow.ReviewLog
@@ -494,7 +492,7 @@ func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.Edit
 	if err != nil {
 		return nil, err
 	}
-	f := fsrs.NewFSRS(params) // cache this later!
+	f := fsrs.NewFSRS(params)
 
 	card := fsrs.Card{}
 	err = json.Unmarshal(req.Msg.LastCardRepr, &card)
@@ -1291,32 +1289,12 @@ func (s *Server) GetDeckFsrsParameters(ctx context.Context, req *connect.Request
 		return nil, invalidArgError("deck_id is required")
 	}
 
-	// Fetch the deck to check ownership and get override
-	deck, err := s.Queries.GetDeck(ctx, models.GetDeckParams{
-		ID:     req.Msg.DeckId,
-		UserID: int64(user.DBID),
-	})
+	dbparams, err := s.fsrsParamsForDeck(ctx, int64(user.DBID), req.Msg.DeckId, nil)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, invalidArgError("deck not found")
 		}
 		return nil, err
-	}
-
-	hasOverride := len(deck.FsrsParamsOverride) > 0
-	var dbparams fsrs.Parameters
-
-	if hasOverride {
-		// Parse the override
-		if err := json.Unmarshal(deck.FsrsParamsOverride, &dbparams); err != nil {
-			return nil, err
-		}
-	} else {
-		// Fall back to global params
-		dbparams, err = s.fsrsParams(ctx, int64(user.DBID), nil)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	params := &pb.FsrsParameters{
@@ -1329,8 +1307,7 @@ func (s *Server) GetDeckFsrsParameters(ctx context.Context, req *connect.Request
 	}
 
 	return connect.NewResponse(&pb.GetDeckFsrsParametersResponse{
-		Parameters:  params,
-		HasOverride: hasOverride,
+		Parameters: params,
 	}), nil
 }
 

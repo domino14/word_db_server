@@ -263,8 +263,6 @@ message GetDeckFsrsParametersRequest {
 message GetDeckFsrsParametersResponse {
     // The effective parameters for this deck (either override or global fallback)
     FsrsParameters parameters = 1;
-    // Whether this deck has custom parameters (true) or uses global (false)
-    bool has_override = 2;
 }
 
 service WordVaultService {
