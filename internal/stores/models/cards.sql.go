@@ -311,7 +311,7 @@ func (q *Queries) EditDeck(ctx context.Context, arg EditDeckParams) (WordvaultDe
 }
 
 const getCard = `-- name: GetCard :one
-SELECT next_scheduled, fsrs_card, review_log
+SELECT next_scheduled, fsrs_card, review_log, COALESCE(deck_id, 0) as deck_id
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = $3
 `
@@ -326,12 +326,18 @@ type GetCardRow struct {
 	NextScheduled pgtype.Timestamptz
 	FsrsCard      stores.Card
 	ReviewLog     []stores.ReviewLog
+	DeckID        int64
 }
 
 func (q *Queries) GetCard(ctx context.Context, arg GetCardParams) (GetCardRow, error) {
 	row := q.db.QueryRow(ctx, getCard, arg.UserID, arg.LexiconName, arg.Alphagram)
 	var i GetCardRow
-	err := row.Scan(&i.NextScheduled, &i.FsrsCard, &i.ReviewLog)
+	err := row.Scan(
+		&i.NextScheduled,
+		&i.FsrsCard,
+		&i.ReviewLog,
+		&i.DeckID,
+	)
 	return i, err
 }
 
@@ -428,6 +434,30 @@ func (q *Queries) GetCardsInOtherDecks(ctx context.Context, arg GetCardsInOtherD
 		return nil, err
 	}
 	return items, nil
+}
+
+const getDeck = `-- name: GetDeck :one
+SELECT id, user_id, lexicon_name, fsrs_params_override, name
+FROM wordvault_decks
+WHERE id = $1 AND user_id = $2
+`
+
+type GetDeckParams struct {
+	ID     int64
+	UserID int64
+}
+
+func (q *Queries) GetDeck(ctx context.Context, arg GetDeckParams) (WordvaultDeck, error) {
+	row := q.db.QueryRow(ctx, getDeck, arg.ID, arg.UserID)
+	var i WordvaultDeck
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.LexiconName,
+		&i.FsrsParamsOverride,
+		&i.Name,
+	)
+	return i, err
 }
 
 const getDecks = `-- name: GetDecks :many
@@ -937,6 +967,23 @@ func (q *Queries) PostponementQuery(ctx context.Context, arg PostponementQueryPa
 		return nil, err
 	}
 	return items, nil
+}
+
+const setDeckFsrsParams = `-- name: SetDeckFsrsParams :exec
+UPDATE wordvault_decks
+SET fsrs_params_override = $2
+WHERE id = $1 AND user_id = $3
+`
+
+type SetDeckFsrsParamsParams struct {
+	ID                 int64
+	FsrsParamsOverride []byte
+	UserID             int64
+}
+
+func (q *Queries) SetDeckFsrsParams(ctx context.Context, arg SetDeckFsrsParamsParams) error {
+	_, err := q.db.Exec(ctx, setDeckFsrsParams, arg.ID, arg.FsrsParamsOverride, arg.UserID)
+	return err
 }
 
 const setFsrsParams = `-- name: SetFsrsParams :exec

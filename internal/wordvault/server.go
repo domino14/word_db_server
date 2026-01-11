@@ -200,7 +200,7 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 		return nil, ErrMaintenance
 	}
 
-	params, err := s.fsrsParams(ctx, int64(user.DBID), nil)
+	params, err := s.fsrsParamsForDeck(ctx, int64(user.DBID), int64(req.Msg.DeckId), nil)
 
 	if err != nil {
 		return nil, err
@@ -278,6 +278,45 @@ func (s *Server) fsrsParams(ctx context.Context, dbid int64, maybeQ *models.Quer
 	return params, nil
 }
 
+// fsrsParamsForDeck returns FSRS parameters for a specific deck.
+// It first checks for a deck-specific override, then falls back to global user params.
+// If deckID is 0 (default deck), it uses global params directly.
+func (s *Server) fsrsParamsForDeck(ctx context.Context, dbid int64, deckID int64, maybeQ *models.Queries) (fsrs.Parameters, error) {
+	if deckID == 0 {
+		// Default deck uses global params
+		return s.fsrsParams(ctx, dbid, maybeQ)
+	}
+
+	q := s.Queries
+	if maybeQ != nil {
+		q = maybeQ
+	}
+
+	// Try to get deck-specific override
+	deck, err := q.GetDeck(ctx, models.GetDeckParams{
+		ID:     deckID,
+		UserID: dbid,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Deck not found, fall back to global params
+			return s.fsrsParams(ctx, dbid, maybeQ)
+		}
+		return fsrs.Parameters{}, err
+	}
+
+	if len(deck.FsrsParamsOverride) > 0 {
+		var params fsrs.Parameters
+		if err := json.Unmarshal(deck.FsrsParamsOverride, &params); err != nil {
+			return fsrs.Parameters{}, err
+		}
+		return params, nil
+	}
+
+	// No override, fall back to global params
+	return s.fsrsParams(ctx, dbid, maybeQ)
+}
+
 func (s *Server) appMaintenance(ctx context.Context) (bool, error) {
 	var exists bool
 
@@ -335,13 +374,6 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 	defer tx.Rollback(ctx)
 	qtx := s.Queries.WithTx(tx)
 
-	params, err := s.fsrsParams(ctx, int64(user.DBID), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	f := fsrs.NewFSRS(params) // cache this later!
-
 	cardrow, err := qtx.GetCard(ctx, models.GetCardParams{
 		UserID:      int64(user.DBID),
 		LexiconName: req.Msg.Lexicon,
@@ -353,6 +385,14 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 			return nil, err
 		}
 	}
+
+	params, err := s.fsrsParamsForDeck(ctx, int64(user.DBID), cardrow.DeckID, qtx)
+	if err != nil {
+		return nil, err
+	}
+
+	f := fsrs.NewFSRS(params) // cache this later!
+
 	card := cardrow.FsrsCard
 	revlog := cardrow.ReviewLog
 	if len(revlog) > 0 && s.Nower.Now().Sub(revlog[len(revlog)-1].Review) < JustReviewedInterval {
@@ -434,13 +474,6 @@ func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.Edit
 	defer tx.Rollback(ctx)
 	qtx := s.Queries.WithTx(tx)
 
-	// Load from user params
-	params, err := s.fsrsParams(ctx, int64(user.DBID), nil)
-	if err != nil {
-		return nil, err
-	}
-	f := fsrs.NewFSRS(params) // cache this later!
-
 	cardrow, err := qtx.GetCard(ctx, models.GetCardParams{
 		UserID:      int64(user.DBID),
 		LexiconName: req.Msg.Lexicon,
@@ -455,6 +488,13 @@ func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.Edit
 	if len(cardrow.ReviewLog) == 0 {
 		return nil, invalidArgError("this card has no review history")
 	}
+
+	// Load params for this card's deck
+	params, err := s.fsrsParamsForDeck(ctx, int64(user.DBID), cardrow.DeckID, qtx)
+	if err != nil {
+		return nil, err
+	}
+	f := fsrs.NewFSRS(params) // cache this later!
 
 	card := fsrs.Card{}
 	err = json.Unmarshal(req.Msg.LastCardRepr, &card)
@@ -1238,6 +1278,115 @@ func (s *Server) EditFsrsParameters(ctx context.Context, req *connect.Request[pb
 		return nil, err
 	}
 	return connect.NewResponse(&pb.EditFsrsParametersResponse{}), nil
+}
+
+func (s *Server) GetDeckFsrsParameters(ctx context.Context, req *connect.Request[pb.GetDeckFsrsParametersRequest]) (
+	*connect.Response[pb.GetDeckFsrsParametersResponse], error) {
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+
+	if req.Msg.DeckId == 0 {
+		return nil, invalidArgError("deck_id is required")
+	}
+
+	// Fetch the deck to check ownership and get override
+	deck, err := s.Queries.GetDeck(ctx, models.GetDeckParams{
+		ID:     req.Msg.DeckId,
+		UserID: int64(user.DBID),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, invalidArgError("deck not found")
+		}
+		return nil, err
+	}
+
+	hasOverride := len(deck.FsrsParamsOverride) > 0
+	var dbparams fsrs.Parameters
+
+	if hasOverride {
+		// Parse the override
+		if err := json.Unmarshal(deck.FsrsParamsOverride, &dbparams); err != nil {
+			return nil, err
+		}
+	} else {
+		// Fall back to global params
+		dbparams, err = s.fsrsParams(ctx, int64(user.DBID), nil)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	params := &pb.FsrsParameters{
+		Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM,
+		RequestRetention: dbparams.RequestRetention,
+	}
+
+	if dbparams.EnableShortTerm {
+		params.Scheduler = pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM
+	}
+
+	return connect.NewResponse(&pb.GetDeckFsrsParametersResponse{
+		Parameters:  params,
+		HasOverride: hasOverride,
+	}), nil
+}
+
+func (s *Server) EditDeckFsrsParameters(ctx context.Context, req *connect.Request[pb.EditDeckFsrsParametersRequest]) (
+	*connect.Response[pb.EditDeckFsrsParametersResponse], error) {
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+
+	if req.Msg.DeckId == 0 {
+		return nil, invalidArgError("deck_id is required")
+	}
+
+	// If parameters is nil, we clear the override
+	var paramsBytes []byte
+	if req.Msg.Parameters != nil {
+		if req.Msg.Parameters.RequestRetention < 0.7 || req.Msg.Parameters.RequestRetention > 0.97 {
+			return nil, invalidArgError("invalid retention value")
+		}
+
+		if req.Msg.Parameters.Scheduler != pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM &&
+			req.Msg.Parameters.Scheduler != pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM {
+			return nil, invalidArgError("invalid scheduler value")
+		}
+
+		// Start with defaults and apply the request values
+		params := fsrs.DefaultParam()
+		params.EnableFuzz = true
+		params.MaximumInterval = 365 * 5
+
+		if req.Msg.Parameters.Scheduler == pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM {
+			params.EnableShortTerm = true
+		} else {
+			params.EnableShortTerm = false
+		}
+		params.RequestRetention = req.Msg.Parameters.RequestRetention
+
+		var err error
+		paramsBytes, err = json.Marshal(params)
+		if err != nil {
+			return nil, err
+		}
+	}
+	// If paramsBytes is nil, the override will be cleared
+
+	err := s.Queries.SetDeckFsrsParams(ctx, models.SetDeckFsrsParamsParams{
+		ID:                 req.Msg.DeckId,
+		FsrsParamsOverride: paramsBytes,
+		UserID:             int64(user.DBID),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return connect.NewResponse(&pb.EditDeckFsrsParametersResponse{}), nil
 }
 
 func (s *Server) AddDeck(ctx context.Context, req *connect.Request[pb.AddDeckRequest]) (
