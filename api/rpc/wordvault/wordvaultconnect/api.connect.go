@@ -104,6 +104,9 @@ const (
 	// WordVaultServiceEditDeckProcedure is the fully-qualified name of the WordVaultService's EditDeck
 	// RPC.
 	WordVaultServiceEditDeckProcedure = "/wordvault.WordVaultService/EditDeck"
+	// WordVaultServiceDeleteDeckProcedure is the fully-qualified name of the WordVaultService's
+	// DeleteDeck RPC.
+	WordVaultServiceDeleteDeckProcedure = "/wordvault.WordVaultService/DeleteDeck"
 )
 
 // These variables are the protoreflect.Descriptor objects for the RPCs defined in this package.
@@ -133,6 +136,7 @@ var (
 	wordVaultServiceAddDeckMethodDescriptor                  = wordVaultServiceServiceDescriptor.Methods().ByName("AddDeck")
 	wordVaultServiceGetDecksMethodDescriptor                 = wordVaultServiceServiceDescriptor.Methods().ByName("GetDecks")
 	wordVaultServiceEditDeckMethodDescriptor                 = wordVaultServiceServiceDescriptor.Methods().ByName("EditDeck")
+	wordVaultServiceDeleteDeckMethodDescriptor               = wordVaultServiceServiceDescriptor.Methods().ByName("DeleteDeck")
 )
 
 // WordVaultServiceClient is a client for the wordvault.WordVaultService service.
@@ -161,6 +165,7 @@ type WordVaultServiceClient interface {
 	AddDeck(context.Context, *connect.Request[wordvault.AddDeckRequest]) (*connect.Response[wordvault.AddDeckResponse], error)
 	GetDecks(context.Context, *connect.Request[wordvault.GetDecksRequest]) (*connect.Response[wordvault.GetDecksResponse], error)
 	EditDeck(context.Context, *connect.Request[wordvault.EditDeckRequest]) (*connect.Response[wordvault.EditDeckResponse], error)
+	DeleteDeck(context.Context, *connect.Request[wordvault.DeleteDeckRequest]) (*connect.Response[wordvault.DeleteDeckResponse], error)
 }
 
 // NewWordVaultServiceClient constructs a client for the wordvault.WordVaultService service. By
@@ -327,6 +332,12 @@ func NewWordVaultServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(wordVaultServiceEditDeckMethodDescriptor),
 			connect.WithClientOptions(opts...),
 		),
+		deleteDeck: connect.NewClient[wordvault.DeleteDeckRequest, wordvault.DeleteDeckResponse](
+			httpClient,
+			baseURL+WordVaultServiceDeleteDeckProcedure,
+			connect.WithSchema(wordVaultServiceDeleteDeckMethodDescriptor),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -356,6 +367,7 @@ type wordVaultServiceClient struct {
 	addDeck                  *connect.Client[wordvault.AddDeckRequest, wordvault.AddDeckResponse]
 	getDecks                 *connect.Client[wordvault.GetDecksRequest, wordvault.GetDecksResponse]
 	editDeck                 *connect.Client[wordvault.EditDeckRequest, wordvault.EditDeckResponse]
+	deleteDeck               *connect.Client[wordvault.DeleteDeckRequest, wordvault.DeleteDeckResponse]
 }
 
 // GetCardCount calls wordvault.WordVaultService.GetCardCount.
@@ -478,6 +490,11 @@ func (c *wordVaultServiceClient) EditDeck(ctx context.Context, req *connect.Requ
 	return c.editDeck.CallUnary(ctx, req)
 }
 
+// DeleteDeck calls wordvault.WordVaultService.DeleteDeck.
+func (c *wordVaultServiceClient) DeleteDeck(ctx context.Context, req *connect.Request[wordvault.DeleteDeckRequest]) (*connect.Response[wordvault.DeleteDeckResponse], error) {
+	return c.deleteDeck.CallUnary(ctx, req)
+}
+
 // WordVaultServiceHandler is an implementation of the wordvault.WordVaultService service.
 type WordVaultServiceHandler interface {
 	GetCardCount(context.Context, *connect.Request[wordvault.GetCardCountRequest]) (*connect.Response[wordvault.CardCountResponse], error)
@@ -504,6 +521,7 @@ type WordVaultServiceHandler interface {
 	AddDeck(context.Context, *connect.Request[wordvault.AddDeckRequest]) (*connect.Response[wordvault.AddDeckResponse], error)
 	GetDecks(context.Context, *connect.Request[wordvault.GetDecksRequest]) (*connect.Response[wordvault.GetDecksResponse], error)
 	EditDeck(context.Context, *connect.Request[wordvault.EditDeckRequest]) (*connect.Response[wordvault.EditDeckResponse], error)
+	DeleteDeck(context.Context, *connect.Request[wordvault.DeleteDeckRequest]) (*connect.Response[wordvault.DeleteDeckResponse], error)
 }
 
 // NewWordVaultServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -666,6 +684,12 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 		connect.WithSchema(wordVaultServiceEditDeckMethodDescriptor),
 		connect.WithHandlerOptions(opts...),
 	)
+	wordVaultServiceDeleteDeckHandler := connect.NewUnaryHandler(
+		WordVaultServiceDeleteDeckProcedure,
+		svc.DeleteDeck,
+		connect.WithSchema(wordVaultServiceDeleteDeckMethodDescriptor),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/wordvault.WordVaultService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case WordVaultServiceGetCardCountProcedure:
@@ -716,6 +740,8 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 			wordVaultServiceGetDecksHandler.ServeHTTP(w, r)
 		case WordVaultServiceEditDeckProcedure:
 			wordVaultServiceEditDeckHandler.ServeHTTP(w, r)
+		case WordVaultServiceDeleteDeckProcedure:
+			wordVaultServiceDeleteDeckHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -819,4 +845,8 @@ func (UnimplementedWordVaultServiceHandler) GetDecks(context.Context, *connect.R
 
 func (UnimplementedWordVaultServiceHandler) EditDeck(context.Context, *connect.Request[wordvault.EditDeckRequest]) (*connect.Response[wordvault.EditDeckResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.EditDeck is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) DeleteDeck(context.Context, *connect.Request[wordvault.DeleteDeckRequest]) (*connect.Response[wordvault.DeleteDeckResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.DeleteDeck is not implemented"))
 }
