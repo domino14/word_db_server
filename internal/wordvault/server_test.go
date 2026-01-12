@@ -1555,7 +1555,7 @@ func TestSingleNextScheduled(t *testing.T) {
 	is.Equal(res.Msg.OverdueCount, uint32(3))
 }
 
-func TestGetAndSetFsrsParams(t *testing.T) {
+func TestSetFsrsParams(t *testing.T) {
 	is := is.New(t)
 
 	err := RecreateTestDB()
@@ -1572,13 +1572,6 @@ func TestGetAndSetFsrsParams(t *testing.T) {
 
 	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
 
-	// Get default params first
-	getres, err := s.GetFsrsParameters(ctx, connect.NewRequest(&pb.GetFsrsParametersRequest{}))
-
-	is.NoErr(err)
-	is.Equal(getres.Msg.Parameters.RequestRetention, float64(0.9))
-	is.Equal(getres.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM)
-
 	editres, err := s.EditFsrsParameters(ctx, connect.NewRequest(&pb.EditFsrsParametersRequest{
 		Parameters: &pb.FsrsParameters{
 			RequestRetention: 0.85,
@@ -1588,10 +1581,11 @@ func TestGetAndSetFsrsParams(t *testing.T) {
 	_ = editres
 	is.NoErr(err)
 
-	getres, err = s.GetFsrsParameters(ctx, connect.NewRequest(&pb.GetFsrsParametersRequest{}))
+	// Verify by loading params directly from database
+	params, err := q.LoadFsrsParams(ctx, 42)
 	is.NoErr(err)
-	is.Equal(getres.Msg.Parameters.RequestRetention, float64(0.85))
-	is.Equal(getres.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM)
+	is.Equal(params.RequestRetention, float64(0.85))
+	is.True(params.EnableShortTerm)
 
 	editres, err = s.EditFsrsParameters(ctx, connect.NewRequest(&pb.EditFsrsParametersRequest{
 		Parameters: &pb.FsrsParameters{
@@ -1611,11 +1605,11 @@ func TestGetAndSetFsrsParams(t *testing.T) {
 	_ = editres
 	is.Equal(err.Error(), "invalid_argument: invalid scheduler value")
 
-	// Test params are unchanged
-	getres, err = s.GetFsrsParameters(ctx, connect.NewRequest(&pb.GetFsrsParametersRequest{}))
+	// Test params are unchanged after failed edits
+	params, err = q.LoadFsrsParams(ctx, 42)
 	is.NoErr(err)
-	is.Equal(getres.Msg.Parameters.RequestRetention, float64(0.85))
-	is.Equal(getres.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM)
+	is.Equal(params.RequestRetention, float64(0.85))
+	is.True(params.EnableShortTerm)
 }
 
 func TestDecks(t *testing.T) {
@@ -1683,10 +1677,13 @@ func TestDecks(t *testing.T) {
 	// Verify first deck
 	is.Equal(deckMap[firstDeckID].Name, "My First Deck")
 	is.Equal(deckMap[firstDeckID].Lexicon, "NWL23")
+	// FsrsParametersOverride should be nil when using global settings
+	is.True(deckMap[firstDeckID].FsrsParametersOverride == nil)
 
 	// Verify second deck
 	is.Equal(deckMap[secondDeckID].Name, "My Second Deck")
 	is.Equal(deckMap[secondDeckID].Lexicon, "CSW21")
+	is.True(deckMap[secondDeckID].FsrsParametersOverride == nil)
 
 	_, err = s.EditDeck(ctx, connect.NewRequest(&pb.EditDeckRequest{
 		Id:   0,

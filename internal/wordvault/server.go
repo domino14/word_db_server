@@ -1163,34 +1163,6 @@ func (s *Server) GetDailyLeaderboard(ctx context.Context, req *connect.Request[p
 	return connect.NewResponse(resp), nil
 }
 
-func (s *Server) GetFsrsParameters(ctx context.Context, req *connect.Request[pb.GetFsrsParametersRequest]) (
-	*connect.Response[pb.GetFsrsParametersResponse], error) {
-	user := auth.UserFromContext(ctx)
-	if user == nil {
-		return nil, unauthenticated("user not authenticated")
-	}
-
-	dbparams, err := s.fsrsParams(ctx, int64(user.DBID), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	params := &pb.FsrsParameters{
-		Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM,
-		RequestRetention: dbparams.RequestRetention,
-	}
-
-	if dbparams.EnableShortTerm {
-		params.Scheduler = pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM
-	}
-
-	resp := &pb.GetFsrsParametersResponse{
-		Parameters: params,
-	}
-
-	return connect.NewResponse(resp), nil
-}
-
 func (s *Server) EditFsrsParameters(ctx context.Context, req *connect.Request[pb.EditFsrsParametersRequest]) (
 	*connect.Response[pb.EditFsrsParametersResponse], error) {
 	user := auth.UserFromContext(ctx)
@@ -1301,6 +1273,20 @@ func (s *Server) GetDecks(ctx context.Context, req *connect.Request[pb.GetDecksR
 			Id:      decks[i].ID,
 			Name:    decks[i].Name,
 			Lexicon: decks[i].LexiconName,
+		}
+		// Only populate FsrsParametersOverride if the deck has custom settings
+		if decks[i].FsrsParamsOverride != nil {
+			var params fsrs.Parameters
+			if err := json.Unmarshal(decks[i].FsrsParamsOverride, &params); err != nil {
+				return nil, err
+			}
+			resp.Decks[i].FsrsParametersOverride = &pb.FsrsParameters{
+				Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM,
+				RequestRetention: params.RequestRetention,
+			}
+			if params.EnableShortTerm {
+				resp.Decks[i].FsrsParametersOverride.Scheduler = pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM
+			}
 		}
 	}
 

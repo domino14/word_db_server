@@ -206,12 +206,6 @@ message FsrsParameters {
     double request_retention = 2;
 }
 
-message GetFsrsParametersRequest {}
-
-message GetFsrsParametersResponse {
-    FsrsParameters parameters = 1;
-}
-
 message EditFsrsParametersRequest {
     FsrsParameters parameters = 1;
 }
@@ -220,6 +214,8 @@ message Deck {
   int64 id = 1;
   string lexicon = 2;
   string name = 3;
+  // Nil if the deck is using global settings.
+  FsrsParameters fsrs_parameters_override = 4;
 }
 
 message AddDeckRequest {
@@ -292,10 +288,6 @@ service WordVaultService {
   };
   rpc GetDailyLeaderboard(GetDailyLeaderboardRequest)
       returns (GetDailyLeaderboardResponse) {
-    option idempotency_level = NO_SIDE_EFFECTS;
-  };
-  rpc GetFsrsParameters(GetFsrsParametersRequest)
-      returns (GetFsrsParametersResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   };
   rpc EditFsrsParameters(EditFsrsParametersRequest) returns (EditFsrsParametersResponse);
