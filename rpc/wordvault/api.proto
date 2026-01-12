@@ -206,6 +206,18 @@ message FsrsParameters {
     double request_retention = 2;
 }
 
+message GetFsrsParametersRequest {}
+
+message GetFsrsParametersResponse {
+    FsrsParameters parameters = 1;
+}
+
+message EditFsrsParametersRequest {
+    FsrsParameters parameters = 1;
+}
+
+message EditFsrsParametersResponse {}
+
 message Deck {
   int64 id = 1;
   string lexicon = 2;
@@ -286,6 +298,11 @@ service WordVaultService {
       returns (GetDailyLeaderboardResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   };
+  rpc GetFsrsParameters(GetFsrsParametersRequest)
+      returns (GetFsrsParametersResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  };
+  rpc EditFsrsParameters(EditFsrsParametersRequest) returns (EditFsrsParametersResponse);
   rpc AddDeck(AddDeckRequest) returns (AddDeckResponse);
   rpc GetDecks(GetDecksRequest) returns (GetDecksResponse);
   rpc EditDeck(EditDeckRequest) returns (EditDeckResponse);

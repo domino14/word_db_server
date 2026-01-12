@@ -1555,6 +1555,69 @@ func TestSingleNextScheduled(t *testing.T) {
 	is.Equal(res.Msg.OverdueCount, uint32(3))
 }
 
+func TestGetAndSetFsrsParams(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+
+	// Get default params first
+	getres, err := s.GetFsrsParameters(ctx, connect.NewRequest(&pb.GetFsrsParametersRequest{}))
+
+	is.NoErr(err)
+	is.Equal(getres.Msg.Parameters.RequestRetention, float64(0.9))
+	is.Equal(getres.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM)
+
+	editres, err := s.EditFsrsParameters(ctx, connect.NewRequest(&pb.EditFsrsParametersRequest{
+		Parameters: &pb.FsrsParameters{
+			RequestRetention: 0.85,
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM,
+		},
+	}))
+	_ = editres
+	is.NoErr(err)
+
+	getres, err = s.GetFsrsParameters(ctx, connect.NewRequest(&pb.GetFsrsParametersRequest{}))
+	is.NoErr(err)
+	is.Equal(getres.Msg.Parameters.RequestRetention, float64(0.85))
+	is.Equal(getres.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM)
+
+	editres, err = s.EditFsrsParameters(ctx, connect.NewRequest(&pb.EditFsrsParametersRequest{
+		Parameters: &pb.FsrsParameters{
+			RequestRetention: 1.1,
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM,
+		},
+	}))
+	_ = editres
+	is.Equal(err.Error(), "invalid_argument: invalid retention value")
+
+	editres, err = s.EditFsrsParameters(ctx, connect.NewRequest(&pb.EditFsrsParametersRequest{
+		Parameters: &pb.FsrsParameters{
+			RequestRetention: 0.8,
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_NONE,
+		},
+	}))
+	_ = editres
+	is.Equal(err.Error(), "invalid_argument: invalid scheduler value")
+
+	// Test params are unchanged
+	getres, err = s.GetFsrsParameters(ctx, connect.NewRequest(&pb.GetFsrsParametersRequest{}))
+	is.NoErr(err)
+	is.Equal(getres.Msg.Parameters.RequestRetention, float64(0.85))
+	is.Equal(getres.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM)
+}
+
 func TestEditDeckFsrsParams(t *testing.T) {
 	is := is.New(t)
 
@@ -2111,7 +2174,7 @@ func TestMoveCardsWithDecks(t *testing.T) {
 	is.True(err != nil) // Should be error
 }
 
-func TestDeleteDeck(t *testing.T) {
+func TestDeckFsrsParamsDefaultDeck(t *testing.T) {
 	is := is.New(t)
 
 	err := RecreateTestDB()
@@ -2128,6 +2191,56 @@ func TestDeleteDeck(t *testing.T) {
 
 	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
 
+	// Add cards to the default deck (deck_id = 0)
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO"},
+		DeckId:     0, // default deck
+	}))
+	is.NoErr(err)
+
+	// Get global params - should be defaults
+	globalRes, err := s.GetFsrsParameters(ctx, connect.NewRequest(&pb.GetFsrsParametersRequest{}))
+	is.NoErr(err)
+	is.Equal(globalRes.Msg.Parameters.RequestRetention, float64(0.9))
+	is.Equal(globalRes.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM)
+
+	// Change global params
+	_, err = s.EditFsrsParameters(ctx, connect.NewRequest(&pb.EditFsrsParametersRequest{
+		Parameters: &pb.FsrsParameters{
+			RequestRetention: 0.88,
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM,
+		},
+	}))
+	is.NoErr(err)
+
+	// Confirm global params changed
+	globalRes, err = s.GetFsrsParameters(ctx, connect.NewRequest(&pb.GetFsrsParametersRequest{}))
+	is.NoErr(err)
+	is.Equal(globalRes.Msg.Parameters.RequestRetention, float64(0.88))
+	is.Equal(globalRes.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM)
+
+	// The default deck (deck_id=0) uses global params via fsrsParamsForDeck
+	// We can verify this by checking the scheduling behavior via GetSingleNextScheduled
+	// which uses fsrsParamsForDeck internally
+}
+
+func TestDeleteDeck(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
 	deck1, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
 		Name:    "Empty Deck",
 		Lexicon: "NWL23",

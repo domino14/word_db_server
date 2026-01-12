@@ -1,5 +1,5 @@
 -- name: GetCard :one
-SELECT next_scheduled, fsrs_card, review_log
+SELECT next_scheduled, fsrs_card, review_log, COALESCE(deck_id, 0) as deck_id
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = $3;
 
@@ -23,6 +23,16 @@ UPDATE wordvault_decks
 SET name = $2, fsrs_params_override = $3
 WHERE id = $1 AND user_id = $4
 RETURNING *;
+
+-- name: GetDeck :one
+SELECT id, user_id, lexicon_name, fsrs_params_override, name
+FROM wordvault_decks
+WHERE id = $1 AND user_id = $2;
+
+-- name: SetDeckFsrsParams :exec
+UPDATE wordvault_decks
+SET fsrs_params_override = $2
+WHERE id = $1 AND user_id = $3;
 
 -- name: CountCardsInDeck :one
 SELECT COUNT(*)
