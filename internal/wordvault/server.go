@@ -332,7 +332,8 @@ func (s *Server) appMaintenance(ctx context.Context) (bool, error) {
 		// Check if the error is related to the table not existing.
 		// If so, don't return an error. We want to make this app as
 		// independent as we can.
-		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "42P01" {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "42P01" {
 			log.Info().AnErr("pg-err", pgErr).Msg("waffle-table-not-defined")
 			return false, nil
 		}
