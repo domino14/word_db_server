@@ -1555,7 +1555,7 @@ func TestSingleNextScheduled(t *testing.T) {
 	is.Equal(res.Msg.OverdueCount, uint32(3))
 }
 
-func TestSetFsrsParams(t *testing.T) {
+func TestEditDeckFsrsParams(t *testing.T) {
 	is := is.New(t)
 
 	err := RecreateTestDB()
@@ -1572,44 +1572,136 @@ func TestSetFsrsParams(t *testing.T) {
 
 	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
 
-	editres, err := s.EditFsrsParameters(ctx, connect.NewRequest(&pb.EditFsrsParametersRequest{
-		Parameters: &pb.FsrsParameters{
+	// Create a deck first
+	added, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Test Deck",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	deckID := added.Msg.Deck.Id
+
+	// Initially the deck should have no FSRS override
+	is.True(added.Msg.Deck.FsrsParametersOverride == nil)
+
+	// Edit deck with FSRS parameters
+	edited, err := s.EditDeck(ctx, connect.NewRequest(&pb.EditDeckRequest{
+		Id:   deckID,
+		Name: "Test Deck",
+		FsrsParametersOverride: &pb.FsrsParameters{
 			RequestRetention: 0.85,
 			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM,
 		},
 	}))
-	_ = editres
 	is.NoErr(err)
+	is.True(edited.Msg.Deck.FsrsParametersOverride != nil)
+	is.Equal(edited.Msg.Deck.FsrsParametersOverride.RequestRetention, float64(0.85))
+	is.Equal(edited.Msg.Deck.FsrsParametersOverride.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM)
 
-	// Verify by loading params directly from database
-	params, err := q.LoadFsrsParams(ctx, 42)
+	// Verify via GetDecks
+	decks, err := s.GetDecks(ctx, connect.NewRequest(&pb.GetDecksRequest{}))
 	is.NoErr(err)
-	is.Equal(params.RequestRetention, float64(0.85))
-	is.True(params.EnableShortTerm)
+	var testDeck *pb.Deck
+	for _, d := range decks.Msg.Decks {
+		if d.Id == deckID {
+			testDeck = d
+			break
+		}
+	}
+	is.True(testDeck != nil)
+	is.True(testDeck.FsrsParametersOverride != nil)
+	is.Equal(testDeck.FsrsParametersOverride.RequestRetention, float64(0.85))
+	is.Equal(testDeck.FsrsParametersOverride.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM)
 
-	editres, err = s.EditFsrsParameters(ctx, connect.NewRequest(&pb.EditFsrsParametersRequest{
-		Parameters: &pb.FsrsParameters{
+	// Test invalid retention value (too high)
+	_, err = s.EditDeck(ctx, connect.NewRequest(&pb.EditDeckRequest{
+		Id:   deckID,
+		Name: "Test Deck",
+		FsrsParametersOverride: &pb.FsrsParameters{
 			RequestRetention: 1.1,
 			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM,
 		},
 	}))
-	_ = editres
 	is.Equal(err.Error(), "invalid_argument: invalid retention value")
 
-	editres, err = s.EditFsrsParameters(ctx, connect.NewRequest(&pb.EditFsrsParametersRequest{
-		Parameters: &pb.FsrsParameters{
+	// Test invalid retention value (too low)
+	_, err = s.EditDeck(ctx, connect.NewRequest(&pb.EditDeckRequest{
+		Id:   deckID,
+		Name: "Test Deck",
+		FsrsParametersOverride: &pb.FsrsParameters{
+			RequestRetention: 0.5,
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM,
+		},
+	}))
+	is.Equal(err.Error(), "invalid_argument: invalid retention value")
+
+	// Test invalid scheduler value
+	_, err = s.EditDeck(ctx, connect.NewRequest(&pb.EditDeckRequest{
+		Id:   deckID,
+		Name: "Test Deck",
+		FsrsParametersOverride: &pb.FsrsParameters{
 			RequestRetention: 0.8,
 			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_NONE,
 		},
 	}))
-	_ = editres
 	is.Equal(err.Error(), "invalid_argument: invalid scheduler value")
 
-	// Test params are unchanged after failed edits
-	params, err = q.LoadFsrsParams(ctx, 42)
+	// Verify params are unchanged after failed edits
+	decks, err = s.GetDecks(ctx, connect.NewRequest(&pb.GetDecksRequest{}))
 	is.NoErr(err)
-	is.Equal(params.RequestRetention, float64(0.85))
-	is.True(params.EnableShortTerm)
+	for _, d := range decks.Msg.Decks {
+		if d.Id == deckID {
+			testDeck = d
+			break
+		}
+	}
+	is.Equal(testDeck.FsrsParametersOverride.RequestRetention, float64(0.85))
+	is.Equal(testDeck.FsrsParametersOverride.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM)
+
+	// Test changing to long-term scheduler
+	edited, err = s.EditDeck(ctx, connect.NewRequest(&pb.EditDeckRequest{
+		Id:   deckID,
+		Name: "Test Deck",
+		FsrsParametersOverride: &pb.FsrsParameters{
+			RequestRetention: 0.9,
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM,
+		},
+	}))
+	is.NoErr(err)
+	is.Equal(edited.Msg.Deck.FsrsParametersOverride.RequestRetention, float64(0.9))
+	is.Equal(edited.Msg.Deck.FsrsParametersOverride.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM)
+
+	// Test clearing FSRS parameters by passing nil
+	edited, err = s.EditDeck(ctx, connect.NewRequest(&pb.EditDeckRequest{
+		Id:                     deckID,
+		Name:                   "Test Deck",
+		FsrsParametersOverride: nil, // nil means clear the override
+	}))
+	is.NoErr(err)
+	is.True(edited.Msg.Deck.FsrsParametersOverride == nil)
+
+	// Verify cleared via GetDecks
+	decks, err = s.GetDecks(ctx, connect.NewRequest(&pb.GetDecksRequest{}))
+	is.NoErr(err)
+	for _, d := range decks.Msg.Decks {
+		if d.Id == deckID {
+			testDeck = d
+			break
+		}
+	}
+	is.True(testDeck.FsrsParametersOverride == nil)
+
+	// Test that setting params after clearing works
+	edited, err = s.EditDeck(ctx, connect.NewRequest(&pb.EditDeckRequest{
+		Id:   deckID,
+		Name: "Test Deck",
+		FsrsParametersOverride: &pb.FsrsParameters{
+			RequestRetention: 0.75,
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM,
+		},
+	}))
+	is.NoErr(err)
+	is.True(edited.Msg.Deck.FsrsParametersOverride != nil)
+	is.Equal(edited.Msg.Deck.FsrsParametersOverride.RequestRetention, float64(0.75))
 }
 
 func TestDecks(t *testing.T) {

@@ -1163,55 +1163,6 @@ func (s *Server) GetDailyLeaderboard(ctx context.Context, req *connect.Request[p
 	return connect.NewResponse(resp), nil
 }
 
-func (s *Server) EditFsrsParameters(ctx context.Context, req *connect.Request[pb.EditFsrsParametersRequest]) (
-	*connect.Response[pb.EditFsrsParametersResponse], error) {
-	user := auth.UserFromContext(ctx)
-	if user == nil {
-		return nil, unauthenticated("user not authenticated")
-	}
-
-	if req.Msg.Parameters.RequestRetention < 0.7 || req.Msg.Parameters.RequestRetention > 0.97 {
-		return nil, invalidArgError("invalid retention value")
-	}
-
-	if req.Msg.Parameters.Scheduler != pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM && req.Msg.Parameters.Scheduler != pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM {
-		return nil, invalidArgError("invalid scheduler value")
-	}
-
-	tx, err := s.DBPool.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback(ctx)
-	qtx := s.Queries.WithTx(tx)
-
-	params, err := s.fsrsParams(ctx, int64(user.DBID), qtx)
-	if err != nil {
-		return nil, err
-	}
-
-	if req.Msg.Parameters.Scheduler == pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM {
-		params.EnableShortTerm = true
-	} else {
-		params.EnableShortTerm = false
-	}
-	params.RequestRetention = req.Msg.Parameters.RequestRetention
-
-	err = qtx.SetFsrsParams(ctx, models.SetFsrsParamsParams{
-		Params: params,
-		UserID: int64(user.DBID),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	err = tx.Commit(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return connect.NewResponse(&pb.EditFsrsParametersResponse{}), nil
-}
-
 func (s *Server) AddDeck(ctx context.Context, req *connect.Request[pb.AddDeckRequest]) (
 	*connect.Response[pb.AddDeckResponse], error) {
 
@@ -1309,9 +1260,34 @@ func (s *Server) EditDeck(ctx context.Context, req *connect.Request[pb.EditDeckR
 		return nil, invalidArgError("need a name")
 	}
 
+	// Handle FSRS parameters - nil means clear the override
+	var fsrsParamsOverride []byte
+	if req.Msg.FsrsParametersOverride != nil {
+		// Validate the parameters
+		if req.Msg.FsrsParametersOverride.RequestRetention < 0.7 || req.Msg.FsrsParametersOverride.RequestRetention > 0.97 {
+			return nil, invalidArgError("invalid retention value")
+		}
+		if req.Msg.FsrsParametersOverride.Scheduler != pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM &&
+			req.Msg.FsrsParametersOverride.Scheduler != pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM {
+			return nil, invalidArgError("invalid scheduler value")
+		}
+
+		// Convert proto to fsrs.Parameters
+		params := fsrs.DefaultParam()
+		params.RequestRetention = req.Msg.FsrsParametersOverride.RequestRetention
+		params.EnableShortTerm = req.Msg.FsrsParametersOverride.Scheduler == pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM
+
+		var err error
+		fsrsParamsOverride, err = json.Marshal(params)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	deck, err := s.Queries.EditDeck(ctx, models.EditDeckParams{
-		ID:   req.Msg.Id,
-		Name: req.Msg.Name,
+		ID:                 req.Msg.Id,
+		Name:               req.Msg.Name,
+		FsrsParamsOverride: fsrsParamsOverride,
 		// We provide user ID just to stop users from spoofing
 		// the ID of another deck that they don't own.
 		UserID: int64(user.DBID),
@@ -1321,13 +1297,30 @@ func (s *Server) EditDeck(ctx context.Context, req *connect.Request[pb.EditDeckR
 		return nil, err
 	}
 
-	return connect.NewResponse(&pb.EditDeckResponse{
+	resp := &pb.EditDeckResponse{
 		Deck: &pb.Deck{
 			Id:      deck.ID,
 			Name:    deck.Name,
 			Lexicon: deck.LexiconName,
 		},
-	}), nil
+	}
+
+	// Populate FsrsParametersOverride in response if the deck has custom settings
+	if deck.FsrsParamsOverride != nil {
+		var params fsrs.Parameters
+		if err := json.Unmarshal(deck.FsrsParamsOverride, &params); err != nil {
+			return nil, err
+		}
+		resp.Deck.FsrsParametersOverride = &pb.FsrsParameters{
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM,
+			RequestRetention: params.RequestRetention,
+		}
+		if params.EnableShortTerm {
+			resp.Deck.FsrsParametersOverride.Scheduler = pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM
+		}
+	}
+
+	return connect.NewResponse(resp), nil
 }
 
 func (s *Server) DeleteDeck(ctx context.Context, req *connect.Request[pb.DeleteDeckRequest]) (

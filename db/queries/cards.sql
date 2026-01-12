@@ -20,8 +20,8 @@ RETURNING *;
 
 -- name: EditDeck :one
 UPDATE wordvault_decks
-SET name = $2
-WHERE id = $1 AND user_id = $3
+SET name = $2, fsrs_params_override = $3
+WHERE id = $1 AND user_id = $4
 RETURNING *;
 
 -- name: CountCardsInDeck :one
