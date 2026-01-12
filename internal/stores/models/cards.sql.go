@@ -309,19 +309,25 @@ func (q *Queries) DeleteNewCardsFromDeck(ctx context.Context, arg DeleteNewCards
 
 const editDeck = `-- name: EditDeck :one
 UPDATE wordvault_decks
-SET name = $2
-WHERE id = $1 AND user_id = $3
+SET name = $2, fsrs_params_override = $3
+WHERE id = $1 AND user_id = $4
 RETURNING id, user_id, lexicon_name, fsrs_params_override, name
 `
 
 type EditDeckParams struct {
-	ID     int64
-	Name   string
-	UserID int64
+	ID                 int64
+	Name               string
+	FsrsParamsOverride []byte
+	UserID             int64
 }
 
 func (q *Queries) EditDeck(ctx context.Context, arg EditDeckParams) (WordvaultDeck, error) {
-	row := q.db.QueryRow(ctx, editDeck, arg.ID, arg.Name, arg.UserID)
+	row := q.db.QueryRow(ctx, editDeck,
+		arg.ID,
+		arg.Name,
+		arg.FsrsParamsOverride,
+		arg.UserID,
+	)
 	var i WordvaultDeck
 	err := row.Scan(
 		&i.ID,

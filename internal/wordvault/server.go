@@ -1279,94 +1279,6 @@ func (s *Server) EditFsrsParameters(ctx context.Context, req *connect.Request[pb
 	return connect.NewResponse(&pb.EditFsrsParametersResponse{}), nil
 }
 
-func (s *Server) GetDeckFsrsParameters(ctx context.Context, req *connect.Request[pb.GetDeckFsrsParametersRequest]) (
-	*connect.Response[pb.GetDeckFsrsParametersResponse], error) {
-	user := auth.UserFromContext(ctx)
-	if user == nil {
-		return nil, unauthenticated("user not authenticated")
-	}
-
-	if req.Msg.DeckId == 0 {
-		return nil, invalidArgError("deck_id is required")
-	}
-
-	dbparams, err := s.fsrsParamsForDeck(ctx, int64(user.DBID), req.Msg.DeckId, nil)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, invalidArgError("deck not found")
-		}
-		return nil, err
-	}
-
-	params := &pb.FsrsParameters{
-		Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM,
-		RequestRetention: dbparams.RequestRetention,
-	}
-
-	if dbparams.EnableShortTerm {
-		params.Scheduler = pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM
-	}
-
-	return connect.NewResponse(&pb.GetDeckFsrsParametersResponse{
-		Parameters: params,
-	}), nil
-}
-
-func (s *Server) EditDeckFsrsParameters(ctx context.Context, req *connect.Request[pb.EditDeckFsrsParametersRequest]) (
-	*connect.Response[pb.EditDeckFsrsParametersResponse], error) {
-	user := auth.UserFromContext(ctx)
-	if user == nil {
-		return nil, unauthenticated("user not authenticated")
-	}
-
-	if req.Msg.DeckId == 0 {
-		return nil, invalidArgError("deck_id is required")
-	}
-
-	// If parameters is nil, we clear the override
-	var paramsBytes []byte
-	if req.Msg.Parameters != nil {
-		if req.Msg.Parameters.RequestRetention < 0.7 || req.Msg.Parameters.RequestRetention > 0.97 {
-			return nil, invalidArgError("invalid retention value")
-		}
-
-		if req.Msg.Parameters.Scheduler != pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM &&
-			req.Msg.Parameters.Scheduler != pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM {
-			return nil, invalidArgError("invalid scheduler value")
-		}
-
-		// Start with defaults and apply the request values
-		params := fsrs.DefaultParam()
-		params.EnableFuzz = true
-		params.MaximumInterval = 365 * 5
-
-		if req.Msg.Parameters.Scheduler == pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM {
-			params.EnableShortTerm = true
-		} else {
-			params.EnableShortTerm = false
-		}
-		params.RequestRetention = req.Msg.Parameters.RequestRetention
-
-		var err error
-		paramsBytes, err = json.Marshal(params)
-		if err != nil {
-			return nil, err
-		}
-	}
-	// If paramsBytes is nil, the override will be cleared
-
-	err := s.Queries.SetDeckFsrsParams(ctx, models.SetDeckFsrsParamsParams{
-		ID:                 req.Msg.DeckId,
-		FsrsParamsOverride: paramsBytes,
-		UserID:             int64(user.DBID),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return connect.NewResponse(&pb.EditDeckFsrsParametersResponse{}), nil
-}
-
 func (s *Server) AddDeck(ctx context.Context, req *connect.Request[pb.AddDeckRequest]) (
 	*connect.Response[pb.AddDeckResponse], error) {
 
@@ -1429,6 +1341,20 @@ func (s *Server) GetDecks(ctx context.Context, req *connect.Request[pb.GetDecksR
 			Name:    decks[i].Name,
 			Lexicon: decks[i].LexiconName,
 		}
+		// Only populate FsrsParametersOverride if the deck has custom settings
+		if decks[i].FsrsParamsOverride != nil {
+			var params fsrs.Parameters
+			if err := json.Unmarshal(decks[i].FsrsParamsOverride, &params); err != nil {
+				return nil, err
+			}
+			resp.Decks[i].FsrsParametersOverride = &pb.FsrsParameters{
+				Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM,
+				RequestRetention: params.RequestRetention,
+			}
+			if params.EnableShortTerm {
+				resp.Decks[i].FsrsParametersOverride.Scheduler = pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM
+			}
+		}
 	}
 
 	return connect.NewResponse(resp), nil
@@ -1450,9 +1376,34 @@ func (s *Server) EditDeck(ctx context.Context, req *connect.Request[pb.EditDeckR
 		return nil, invalidArgError("need a name")
 	}
 
+	// Handle FSRS parameters - nil means clear the override
+	var fsrsParamsOverride []byte
+	if req.Msg.FsrsParametersOverride != nil {
+		// Validate the parameters
+		if req.Msg.FsrsParametersOverride.RequestRetention < 0.7 || req.Msg.FsrsParametersOverride.RequestRetention > 0.97 {
+			return nil, invalidArgError("invalid retention value")
+		}
+		if req.Msg.FsrsParametersOverride.Scheduler != pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM &&
+			req.Msg.FsrsParametersOverride.Scheduler != pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM {
+			return nil, invalidArgError("invalid scheduler value")
+		}
+
+		// Convert proto to fsrs.Parameters
+		params := fsrs.DefaultParam()
+		params.RequestRetention = req.Msg.FsrsParametersOverride.RequestRetention
+		params.EnableShortTerm = req.Msg.FsrsParametersOverride.Scheduler == pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM
+
+		var err error
+		fsrsParamsOverride, err = json.Marshal(params)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	deck, err := s.Queries.EditDeck(ctx, models.EditDeckParams{
-		ID:   req.Msg.Id,
-		Name: req.Msg.Name,
+		ID:                 req.Msg.Id,
+		Name:               req.Msg.Name,
+		FsrsParamsOverride: fsrsParamsOverride,
 		// We provide user ID just to stop users from spoofing
 		// the ID of another deck that they don't own.
 		UserID: int64(user.DBID),
@@ -1462,13 +1413,30 @@ func (s *Server) EditDeck(ctx context.Context, req *connect.Request[pb.EditDeckR
 		return nil, err
 	}
 
-	return connect.NewResponse(&pb.EditDeckResponse{
+	resp := &pb.EditDeckResponse{
 		Deck: &pb.Deck{
 			Id:      deck.ID,
 			Name:    deck.Name,
 			Lexicon: deck.LexiconName,
 		},
-	}), nil
+	}
+
+	// Populate FsrsParametersOverride in response if the deck has custom settings
+	if deck.FsrsParamsOverride != nil {
+		var params fsrs.Parameters
+		if err := json.Unmarshal(deck.FsrsParamsOverride, &params); err != nil {
+			return nil, err
+		}
+		resp.Deck.FsrsParametersOverride = &pb.FsrsParameters{
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM,
+			RequestRetention: params.RequestRetention,
+		}
+		if params.EnableShortTerm {
+			resp.Deck.FsrsParametersOverride.Scheduler = pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM
+		}
+	}
+
+	return connect.NewResponse(resp), nil
 }
 
 func (s *Server) DeleteDeck(ctx context.Context, req *connect.Request[pb.DeleteDeckRequest]) (

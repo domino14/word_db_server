@@ -216,10 +216,14 @@ message EditFsrsParametersRequest {
     FsrsParameters parameters = 1;
 }
 
+message EditFsrsParametersResponse {}
+
 message Deck {
   int64 id = 1;
   string lexicon = 2;
   string name = 3;
+  // Nil if the deck is using global settings.
+  FsrsParameters fsrs_parameters_override = 4;
 }
 
 message AddDeckRequest {
@@ -240,6 +244,8 @@ message GetDecksResponse {
 message EditDeckRequest {
   int64 id = 1;
   string name = 2;
+  // Nil means clear the FSRS parameters (use global settings).
+  FsrsParameters fsrs_parameters_override = 3;
 }
 
 message EditDeckResponse {
@@ -251,25 +257,6 @@ message DeleteDeckRequest {
 }
 
 message DeleteDeckResponse {}
-
-message EditFsrsParametersResponse {}
-
-message EditDeckFsrsParametersRequest {
-    int64 deck_id = 1;
-    // If null, clears the override and uses global settings
-    FsrsParameters parameters = 2;
-}
-
-message EditDeckFsrsParametersResponse {}
-
-message GetDeckFsrsParametersRequest {
-    int64 deck_id = 1;
-}
-
-message GetDeckFsrsParametersResponse {
-    // The effective parameters for this deck (either override or global fallback)
-    FsrsParameters parameters = 1;
-}
 
 service WordVaultService {
   rpc GetCardCount(GetCardCountRequest) returns (CardCountResponse) {
@@ -316,10 +303,6 @@ service WordVaultService {
     option idempotency_level = NO_SIDE_EFFECTS;
   };
   rpc EditFsrsParameters(EditFsrsParametersRequest) returns (EditFsrsParametersResponse);
-  rpc GetDeckFsrsParameters(GetDeckFsrsParametersRequest) returns (GetDeckFsrsParametersResponse) {
-    option idempotency_level = NO_SIDE_EFFECTS;
-  };
-  rpc EditDeckFsrsParameters(EditDeckFsrsParametersRequest) returns (EditDeckFsrsParametersResponse);
   rpc AddDeck(AddDeckRequest) returns (AddDeckResponse);
   rpc GetDecks(GetDecksRequest) returns (GetDecksResponse);
   rpc EditDeck(EditDeckRequest) returns (EditDeckResponse);

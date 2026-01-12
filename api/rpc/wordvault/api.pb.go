@@ -2344,6 +2344,44 @@ func (x *EditFsrsParametersRequest) GetParameters() *FsrsParameters {
 	return nil
 }
 
+type EditFsrsParametersResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *EditFsrsParametersResponse) Reset() {
+	*x = EditFsrsParametersResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_rpc_wordvault_api_proto_msgTypes[40]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *EditFsrsParametersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EditFsrsParametersResponse) ProtoMessage() {}
+
+func (x *EditFsrsParametersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_rpc_wordvault_api_proto_msgTypes[40]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EditFsrsParametersResponse.ProtoReflect.Descriptor instead.
+func (*EditFsrsParametersResponse) Descriptor() ([]byte, []int) {
+	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{40}
+}
+
 type Deck struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -2352,12 +2390,14 @@ type Deck struct {
 	Id      int64  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	Lexicon string `protobuf:"bytes,2,opt,name=lexicon,proto3" json:"lexicon,omitempty"`
 	Name    string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	// Nil if the deck is using global settings.
+	FsrsParametersOverride *FsrsParameters `protobuf:"bytes,4,opt,name=fsrs_parameters_override,json=fsrsParametersOverride,proto3" json:"fsrs_parameters_override,omitempty"`
 }
 
 func (x *Deck) Reset() {
 	*x = Deck{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_rpc_wordvault_api_proto_msgTypes[40]
+		mi := &file_rpc_wordvault_api_proto_msgTypes[41]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2370,7 +2410,7 @@ func (x *Deck) String() string {
 func (*Deck) ProtoMessage() {}
 
 func (x *Deck) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_wordvault_api_proto_msgTypes[40]
+	mi := &file_rpc_wordvault_api_proto_msgTypes[41]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2383,7 +2423,7 @@ func (x *Deck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Deck.ProtoReflect.Descriptor instead.
 func (*Deck) Descriptor() ([]byte, []int) {
-	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{40}
+	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *Deck) GetId() int64 {
@@ -2407,6 +2447,13 @@ func (x *Deck) GetName() string {
 	return ""
 }
 
+func (x *Deck) GetFsrsParametersOverride() *FsrsParameters {
+	if x != nil {
+		return x.FsrsParametersOverride
+	}
+	return nil
+}
+
 type AddDeckRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -2419,7 +2466,7 @@ type AddDeckRequest struct {
 func (x *AddDeckRequest) Reset() {
 	*x = AddDeckRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_rpc_wordvault_api_proto_msgTypes[41]
+		mi := &file_rpc_wordvault_api_proto_msgTypes[42]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2432,7 +2479,7 @@ func (x *AddDeckRequest) String() string {
 func (*AddDeckRequest) ProtoMessage() {}
 
 func (x *AddDeckRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_wordvault_api_proto_msgTypes[41]
+	mi := &file_rpc_wordvault_api_proto_msgTypes[42]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2445,7 +2492,7 @@ func (x *AddDeckRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddDeckRequest.ProtoReflect.Descriptor instead.
 func (*AddDeckRequest) Descriptor() ([]byte, []int) {
-	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{41}
+	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *AddDeckRequest) GetName() string {
@@ -2473,7 +2520,7 @@ type AddDeckResponse struct {
 func (x *AddDeckResponse) Reset() {
 	*x = AddDeckResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_rpc_wordvault_api_proto_msgTypes[42]
+		mi := &file_rpc_wordvault_api_proto_msgTypes[43]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2486,7 +2533,7 @@ func (x *AddDeckResponse) String() string {
 func (*AddDeckResponse) ProtoMessage() {}
 
 func (x *AddDeckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_wordvault_api_proto_msgTypes[42]
+	mi := &file_rpc_wordvault_api_proto_msgTypes[43]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2499,7 +2546,7 @@ func (x *AddDeckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddDeckResponse.ProtoReflect.Descriptor instead.
 func (*AddDeckResponse) Descriptor() ([]byte, []int) {
-	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{42}
+	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *AddDeckResponse) GetDeck() *Deck {
@@ -2518,7 +2565,7 @@ type GetDecksRequest struct {
 func (x *GetDecksRequest) Reset() {
 	*x = GetDecksRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_rpc_wordvault_api_proto_msgTypes[43]
+		mi := &file_rpc_wordvault_api_proto_msgTypes[44]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2531,7 +2578,7 @@ func (x *GetDecksRequest) String() string {
 func (*GetDecksRequest) ProtoMessage() {}
 
 func (x *GetDecksRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_wordvault_api_proto_msgTypes[43]
+	mi := &file_rpc_wordvault_api_proto_msgTypes[44]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2544,7 +2591,7 @@ func (x *GetDecksRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDecksRequest.ProtoReflect.Descriptor instead.
 func (*GetDecksRequest) Descriptor() ([]byte, []int) {
-	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{43}
+	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{44}
 }
 
 type GetDecksResponse struct {
@@ -2558,7 +2605,7 @@ type GetDecksResponse struct {
 func (x *GetDecksResponse) Reset() {
 	*x = GetDecksResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_rpc_wordvault_api_proto_msgTypes[44]
+		mi := &file_rpc_wordvault_api_proto_msgTypes[45]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2571,7 +2618,7 @@ func (x *GetDecksResponse) String() string {
 func (*GetDecksResponse) ProtoMessage() {}
 
 func (x *GetDecksResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_wordvault_api_proto_msgTypes[44]
+	mi := &file_rpc_wordvault_api_proto_msgTypes[45]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2584,7 +2631,7 @@ func (x *GetDecksResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDecksResponse.ProtoReflect.Descriptor instead.
 func (*GetDecksResponse) Descriptor() ([]byte, []int) {
-	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{44}
+	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *GetDecksResponse) GetDecks() []*Deck {
@@ -2601,12 +2648,14 @@ type EditDeckRequest struct {
 
 	Id   int64  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// Nil means clear the FSRS parameters (use global settings).
+	FsrsParametersOverride *FsrsParameters `protobuf:"bytes,3,opt,name=fsrs_parameters_override,json=fsrsParametersOverride,proto3" json:"fsrs_parameters_override,omitempty"`
 }
 
 func (x *EditDeckRequest) Reset() {
 	*x = EditDeckRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_rpc_wordvault_api_proto_msgTypes[45]
+		mi := &file_rpc_wordvault_api_proto_msgTypes[46]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2619,7 +2668,7 @@ func (x *EditDeckRequest) String() string {
 func (*EditDeckRequest) ProtoMessage() {}
 
 func (x *EditDeckRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_wordvault_api_proto_msgTypes[45]
+	mi := &file_rpc_wordvault_api_proto_msgTypes[46]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2632,7 +2681,7 @@ func (x *EditDeckRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EditDeckRequest.ProtoReflect.Descriptor instead.
 func (*EditDeckRequest) Descriptor() ([]byte, []int) {
-	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{45}
+	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *EditDeckRequest) GetId() int64 {
@@ -2649,6 +2698,13 @@ func (x *EditDeckRequest) GetName() string {
 	return ""
 }
 
+func (x *EditDeckRequest) GetFsrsParametersOverride() *FsrsParameters {
+	if x != nil {
+		return x.FsrsParametersOverride
+	}
+	return nil
+}
+
 type EditDeckResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -2660,7 +2716,7 @@ type EditDeckResponse struct {
 func (x *EditDeckResponse) Reset() {
 	*x = EditDeckResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_rpc_wordvault_api_proto_msgTypes[46]
+		mi := &file_rpc_wordvault_api_proto_msgTypes[47]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2673,7 +2729,7 @@ func (x *EditDeckResponse) String() string {
 func (*EditDeckResponse) ProtoMessage() {}
 
 func (x *EditDeckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_wordvault_api_proto_msgTypes[46]
+	mi := &file_rpc_wordvault_api_proto_msgTypes[47]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2686,7 +2742,7 @@ func (x *EditDeckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EditDeckResponse.ProtoReflect.Descriptor instead.
 func (*EditDeckResponse) Descriptor() ([]byte, []int) {
-	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{46}
+	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *EditDeckResponse) GetDeck() *Deck {
@@ -2707,7 +2763,7 @@ type DeleteDeckRequest struct {
 func (x *DeleteDeckRequest) Reset() {
 	*x = DeleteDeckRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_rpc_wordvault_api_proto_msgTypes[47]
+		mi := &file_rpc_wordvault_api_proto_msgTypes[48]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2720,7 +2776,7 @@ func (x *DeleteDeckRequest) String() string {
 func (*DeleteDeckRequest) ProtoMessage() {}
 
 func (x *DeleteDeckRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_wordvault_api_proto_msgTypes[47]
+	mi := &file_rpc_wordvault_api_proto_msgTypes[48]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2733,7 +2789,7 @@ func (x *DeleteDeckRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteDeckRequest.ProtoReflect.Descriptor instead.
 func (*DeleteDeckRequest) Descriptor() ([]byte, []int) {
-	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{47}
+	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *DeleteDeckRequest) GetId() int64 {
@@ -2752,7 +2808,7 @@ type DeleteDeckResponse struct {
 func (x *DeleteDeckResponse) Reset() {
 	*x = DeleteDeckResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_rpc_wordvault_api_proto_msgTypes[48]
+		mi := &file_rpc_wordvault_api_proto_msgTypes[49]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2765,7 +2821,7 @@ func (x *DeleteDeckResponse) String() string {
 func (*DeleteDeckResponse) ProtoMessage() {}
 
 func (x *DeleteDeckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_wordvault_api_proto_msgTypes[48]
+	mi := &file_rpc_wordvault_api_proto_msgTypes[49]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2778,234 +2834,7 @@ func (x *DeleteDeckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteDeckResponse.ProtoReflect.Descriptor instead.
 func (*DeleteDeckResponse) Descriptor() ([]byte, []int) {
-	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{48}
-}
-
-type EditFsrsParametersResponse struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-}
-
-func (x *EditFsrsParametersResponse) Reset() {
-	*x = EditFsrsParametersResponse{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_rpc_wordvault_api_proto_msgTypes[49]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *EditFsrsParametersResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*EditFsrsParametersResponse) ProtoMessage() {}
-
-func (x *EditFsrsParametersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_wordvault_api_proto_msgTypes[49]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use EditFsrsParametersResponse.ProtoReflect.Descriptor instead.
-func (*EditFsrsParametersResponse) Descriptor() ([]byte, []int) {
 	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{49}
-}
-
-type EditDeckFsrsParametersRequest struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	DeckId int64 `protobuf:"varint,1,opt,name=deck_id,json=deckId,proto3" json:"deck_id,omitempty"`
-	// If null, clears the override and uses global settings
-	Parameters *FsrsParameters `protobuf:"bytes,2,opt,name=parameters,proto3" json:"parameters,omitempty"`
-}
-
-func (x *EditDeckFsrsParametersRequest) Reset() {
-	*x = EditDeckFsrsParametersRequest{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_rpc_wordvault_api_proto_msgTypes[50]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *EditDeckFsrsParametersRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*EditDeckFsrsParametersRequest) ProtoMessage() {}
-
-func (x *EditDeckFsrsParametersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_wordvault_api_proto_msgTypes[50]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use EditDeckFsrsParametersRequest.ProtoReflect.Descriptor instead.
-func (*EditDeckFsrsParametersRequest) Descriptor() ([]byte, []int) {
-	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{50}
-}
-
-func (x *EditDeckFsrsParametersRequest) GetDeckId() int64 {
-	if x != nil {
-		return x.DeckId
-	}
-	return 0
-}
-
-func (x *EditDeckFsrsParametersRequest) GetParameters() *FsrsParameters {
-	if x != nil {
-		return x.Parameters
-	}
-	return nil
-}
-
-type EditDeckFsrsParametersResponse struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-}
-
-func (x *EditDeckFsrsParametersResponse) Reset() {
-	*x = EditDeckFsrsParametersResponse{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_rpc_wordvault_api_proto_msgTypes[51]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *EditDeckFsrsParametersResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*EditDeckFsrsParametersResponse) ProtoMessage() {}
-
-func (x *EditDeckFsrsParametersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_wordvault_api_proto_msgTypes[51]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use EditDeckFsrsParametersResponse.ProtoReflect.Descriptor instead.
-func (*EditDeckFsrsParametersResponse) Descriptor() ([]byte, []int) {
-	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{51}
-}
-
-type GetDeckFsrsParametersRequest struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	DeckId int64 `protobuf:"varint,1,opt,name=deck_id,json=deckId,proto3" json:"deck_id,omitempty"`
-}
-
-func (x *GetDeckFsrsParametersRequest) Reset() {
-	*x = GetDeckFsrsParametersRequest{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_rpc_wordvault_api_proto_msgTypes[52]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *GetDeckFsrsParametersRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetDeckFsrsParametersRequest) ProtoMessage() {}
-
-func (x *GetDeckFsrsParametersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_wordvault_api_proto_msgTypes[52]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetDeckFsrsParametersRequest.ProtoReflect.Descriptor instead.
-func (*GetDeckFsrsParametersRequest) Descriptor() ([]byte, []int) {
-	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{52}
-}
-
-func (x *GetDeckFsrsParametersRequest) GetDeckId() int64 {
-	if x != nil {
-		return x.DeckId
-	}
-	return 0
-}
-
-type GetDeckFsrsParametersResponse struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	// The effective parameters for this deck (either override or global fallback)
-	Parameters *FsrsParameters `protobuf:"bytes,1,opt,name=parameters,proto3" json:"parameters,omitempty"`
-}
-
-func (x *GetDeckFsrsParametersResponse) Reset() {
-	*x = GetDeckFsrsParametersResponse{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_rpc_wordvault_api_proto_msgTypes[53]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *GetDeckFsrsParametersResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetDeckFsrsParametersResponse) ProtoMessage() {}
-
-func (x *GetDeckFsrsParametersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_wordvault_api_proto_msgTypes[53]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetDeckFsrsParametersResponse.ProtoReflect.Descriptor instead.
-func (*GetDeckFsrsParametersResponse) Descriptor() ([]byte, []int) {
-	return file_rpc_wordvault_api_proto_rawDescGZIP(), []int{53}
-}
-
-func (x *GetDeckFsrsParametersResponse) GetParameters() *FsrsParameters {
-	if x != nil {
-		return x.Parameters
-	}
-	return nil
 }
 
 type GetDailyLeaderboardResponse_LeaderboardItem struct {
@@ -3020,7 +2849,7 @@ type GetDailyLeaderboardResponse_LeaderboardItem struct {
 func (x *GetDailyLeaderboardResponse_LeaderboardItem) Reset() {
 	*x = GetDailyLeaderboardResponse_LeaderboardItem{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_rpc_wordvault_api_proto_msgTypes[59]
+		mi := &file_rpc_wordvault_api_proto_msgTypes[55]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3033,7 +2862,7 @@ func (x *GetDailyLeaderboardResponse_LeaderboardItem) String() string {
 func (*GetDailyLeaderboardResponse_LeaderboardItem) ProtoMessage() {}
 
 func (x *GetDailyLeaderboardResponse_LeaderboardItem) ProtoReflect() protoreflect.Message {
-	mi := &file_rpc_wordvault_api_proto_msgTypes[59]
+	mi := &file_rpc_wordvault_api_proto_msgTypes[55]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3359,55 +3188,47 @@ var file_rpc_wordvault_api_proto_rawDesc = []byte{
 	0x65, 0x73, 0x74, 0x12, 0x39, 0x0a, 0x0a, 0x70, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72,
 	0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x77, 0x6f, 0x72, 0x64, 0x76, 0x61,
 	0x75, 0x6c, 0x74, 0x2e, 0x46, 0x73, 0x72, 0x73, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65,
-	0x72, 0x73, 0x52, 0x0a, 0x70, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x22, 0x44,
-	0x0a, 0x04, 0x44, 0x65, 0x63, 0x6b, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01,
-	0x28, 0x03, 0x52, 0x02, 0x69, 0x64, 0x12, 0x18, 0x0a, 0x07, 0x6c, 0x65, 0x78, 0x69, 0x63, 0x6f,
-	0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x6c, 0x65, 0x78, 0x69, 0x63, 0x6f, 0x6e,
-	0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04,
-	0x6e, 0x61, 0x6d, 0x65, 0x22, 0x3e, 0x0a, 0x0e, 0x41, 0x64, 0x64, 0x44, 0x65, 0x63, 0x6b, 0x52,
-	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01,
-	0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x6c, 0x65,
-	0x78, 0x69, 0x63, 0x6f, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x6c, 0x65, 0x78,
-	0x69, 0x63, 0x6f, 0x6e, 0x22, 0x36, 0x0a, 0x0f, 0x41, 0x64, 0x64, 0x44, 0x65, 0x63, 0x6b, 0x52,
-	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x23, 0x0a, 0x04, 0x64, 0x65, 0x63, 0x6b, 0x18,
-	0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x77, 0x6f, 0x72, 0x64, 0x76, 0x61, 0x75, 0x6c,
-	0x74, 0x2e, 0x44, 0x65, 0x63, 0x6b, 0x52, 0x04, 0x64, 0x65, 0x63, 0x6b, 0x22, 0x11, 0x0a, 0x0f,
-	0x47, 0x65, 0x74, 0x44, 0x65, 0x63, 0x6b, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22,
-	0x39, 0x0a, 0x10, 0x47, 0x65, 0x74, 0x44, 0x65, 0x63, 0x6b, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f,
-	0x6e, 0x73, 0x65, 0x12, 0x25, 0x0a, 0x05, 0x64, 0x65, 0x63, 0x6b, 0x73, 0x18, 0x01, 0x20, 0x03,
-	0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x77, 0x6f, 0x72, 0x64, 0x76, 0x61, 0x75, 0x6c, 0x74, 0x2e, 0x44,
-	0x65, 0x63, 0x6b, 0x52, 0x05, 0x64, 0x65, 0x63, 0x6b, 0x73, 0x22, 0x35, 0x0a, 0x0f, 0x45, 0x64,
-	0x69, 0x74, 0x44, 0x65, 0x63, 0x6b, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x0e, 0x0a,
-	0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x02, 0x69, 0x64, 0x12, 0x12, 0x0a,
-	0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d,
-	0x65, 0x22, 0x37, 0x0a, 0x10, 0x45, 0x64, 0x69, 0x74, 0x44, 0x65, 0x63, 0x6b, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x23, 0x0a, 0x04, 0x64, 0x65, 0x63, 0x6b, 0x18, 0x01, 0x20,
-	0x01, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x77, 0x6f, 0x72, 0x64, 0x76, 0x61, 0x75, 0x6c, 0x74, 0x2e,
-	0x44, 0x65, 0x63, 0x6b, 0x52, 0x04, 0x64, 0x65, 0x63, 0x6b, 0x22, 0x23, 0x0a, 0x11, 0x44, 0x65,
-	0x6c, 0x65, 0x74, 0x65, 0x44, 0x65, 0x63, 0x6b, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12,
-	0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x02, 0x69, 0x64, 0x22,
-	0x14, 0x0a, 0x12, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x44, 0x65, 0x63, 0x6b, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x1c, 0x0a, 0x1a, 0x45, 0x64, 0x69, 0x74, 0x46, 0x73, 0x72,
-	0x73, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f,
-	0x6e, 0x73, 0x65, 0x22, 0x73, 0x0a, 0x1d, 0x45, 0x64, 0x69, 0x74, 0x44, 0x65, 0x63, 0x6b, 0x46,
-	0x73, 0x72, 0x73, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x52, 0x65, 0x71,
-	0x75, 0x65, 0x73, 0x74, 0x12, 0x17, 0x0a, 0x07, 0x64, 0x65, 0x63, 0x6b, 0x5f, 0x69, 0x64, 0x18,
-	0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x06, 0x64, 0x65, 0x63, 0x6b, 0x49, 0x64, 0x12, 0x39, 0x0a,
-	0x0a, 0x70, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x18, 0x02, 0x20, 0x01, 0x28,
-	0x0b, 0x32, 0x19, 0x2e, 0x77, 0x6f, 0x72, 0x64, 0x76, 0x61, 0x75, 0x6c, 0x74, 0x2e, 0x46, 0x73,
-	0x72, 0x73, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x52, 0x0a, 0x70, 0x61,
-	0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x22, 0x20, 0x0a, 0x1e, 0x45, 0x64, 0x69, 0x74,
-	0x44, 0x65, 0x63, 0x6b, 0x46, 0x73, 0x72, 0x73, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65,
-	0x72, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x37, 0x0a, 0x1c, 0x47, 0x65,
-	0x74, 0x44, 0x65, 0x63, 0x6b, 0x46, 0x73, 0x72, 0x73, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74,
-	0x65, 0x72, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x17, 0x0a, 0x07, 0x64, 0x65,
-	0x63, 0x6b, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x06, 0x64, 0x65, 0x63,
-	0x6b, 0x49, 0x64, 0x22, 0x5a, 0x0a, 0x1d, 0x47, 0x65, 0x74, 0x44, 0x65, 0x63, 0x6b, 0x46, 0x73,
-	0x72, 0x73, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x39, 0x0a, 0x0a, 0x70, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65,
-	0x72, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x77, 0x6f, 0x72, 0x64, 0x76,
+	0x72, 0x73, 0x52, 0x0a, 0x70, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x22, 0x1c,
+	0x0a, 0x1a, 0x45, 0x64, 0x69, 0x74, 0x46, 0x73, 0x72, 0x73, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65,
+	0x74, 0x65, 0x72, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x99, 0x01, 0x0a,
+	0x04, 0x44, 0x65, 0x63, 0x6b, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x03, 0x52, 0x02, 0x69, 0x64, 0x12, 0x18, 0x0a, 0x07, 0x6c, 0x65, 0x78, 0x69, 0x63, 0x6f, 0x6e,
+	0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x6c, 0x65, 0x78, 0x69, 0x63, 0x6f, 0x6e, 0x12,
+	0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e,
+	0x61, 0x6d, 0x65, 0x12, 0x53, 0x0a, 0x18, 0x66, 0x73, 0x72, 0x73, 0x5f, 0x70, 0x61, 0x72, 0x61,
+	0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x5f, 0x6f, 0x76, 0x65, 0x72, 0x72, 0x69, 0x64, 0x65, 0x18,
+	0x04, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x77, 0x6f, 0x72, 0x64, 0x76, 0x61, 0x75, 0x6c,
+	0x74, 0x2e, 0x46, 0x73, 0x72, 0x73, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73,
+	0x52, 0x16, 0x66, 0x73, 0x72, 0x73, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73,
+	0x4f, 0x76, 0x65, 0x72, 0x72, 0x69, 0x64, 0x65, 0x22, 0x3e, 0x0a, 0x0e, 0x41, 0x64, 0x64, 0x44,
+	0x65, 0x63, 0x6b, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61,
+	0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x18,
+	0x0a, 0x07, 0x6c, 0x65, 0x78, 0x69, 0x63, 0x6f, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x07, 0x6c, 0x65, 0x78, 0x69, 0x63, 0x6f, 0x6e, 0x22, 0x36, 0x0a, 0x0f, 0x41, 0x64, 0x64, 0x44,
+	0x65, 0x63, 0x6b, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x23, 0x0a, 0x04, 0x64,
+	0x65, 0x63, 0x6b, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x77, 0x6f, 0x72, 0x64,
+	0x76, 0x61, 0x75, 0x6c, 0x74, 0x2e, 0x44, 0x65, 0x63, 0x6b, 0x52, 0x04, 0x64, 0x65, 0x63, 0x6b,
+	0x22, 0x11, 0x0a, 0x0f, 0x47, 0x65, 0x74, 0x44, 0x65, 0x63, 0x6b, 0x73, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x22, 0x39, 0x0a, 0x10, 0x47, 0x65, 0x74, 0x44, 0x65, 0x63, 0x6b, 0x73, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x25, 0x0a, 0x05, 0x64, 0x65, 0x63, 0x6b, 0x73,
+	0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x77, 0x6f, 0x72, 0x64, 0x76, 0x61, 0x75,
+	0x6c, 0x74, 0x2e, 0x44, 0x65, 0x63, 0x6b, 0x52, 0x05, 0x64, 0x65, 0x63, 0x6b, 0x73, 0x22, 0x8a,
+	0x01, 0x0a, 0x0f, 0x45, 0x64, 0x69, 0x74, 0x44, 0x65, 0x63, 0x6b, 0x52, 0x65, 0x71, 0x75, 0x65,
+	0x73, 0x74, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x02,
+	0x69, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x53, 0x0a, 0x18, 0x66, 0x73, 0x72, 0x73, 0x5f, 0x70,
+	0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x5f, 0x6f, 0x76, 0x65, 0x72, 0x72, 0x69,
+	0x64, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x77, 0x6f, 0x72, 0x64, 0x76,
 	0x61, 0x75, 0x6c, 0x74, 0x2e, 0x46, 0x73, 0x72, 0x73, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74,
-	0x65, 0x72, 0x73, 0x52, 0x0a, 0x70, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x2a,
+	0x65, 0x72, 0x73, 0x52, 0x16, 0x66, 0x73, 0x72, 0x73, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74,
+	0x65, 0x72, 0x73, 0x4f, 0x76, 0x65, 0x72, 0x72, 0x69, 0x64, 0x65, 0x22, 0x37, 0x0a, 0x10, 0x45,
+	0x64, 0x69, 0x74, 0x44, 0x65, 0x63, 0x6b, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
+	0x23, 0x0a, 0x04, 0x64, 0x65, 0x63, 0x6b, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0f, 0x2e,
+	0x77, 0x6f, 0x72, 0x64, 0x76, 0x61, 0x75, 0x6c, 0x74, 0x2e, 0x44, 0x65, 0x63, 0x6b, 0x52, 0x04,
+	0x64, 0x65, 0x63, 0x6b, 0x22, 0x23, 0x0a, 0x11, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x44, 0x65,
+	0x63, 0x6b, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x02, 0x69, 0x64, 0x22, 0x14, 0x0a, 0x12, 0x44, 0x65, 0x6c,
+	0x65, 0x74, 0x65, 0x44, 0x65, 0x63, 0x6b, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2a,
 	0x58, 0x0a, 0x05, 0x53, 0x63, 0x6f, 0x72, 0x65, 0x12, 0x0e, 0x0a, 0x0a, 0x53, 0x43, 0x4f, 0x52,
 	0x45, 0x5f, 0x4e, 0x4f, 0x4e, 0x45, 0x10, 0x00, 0x12, 0x0f, 0x0a, 0x0b, 0x53, 0x43, 0x4f, 0x52,
 	0x45, 0x5f, 0x41, 0x47, 0x41, 0x49, 0x4e, 0x10, 0x01, 0x12, 0x0e, 0x0a, 0x0a, 0x53, 0x43, 0x4f,
@@ -3420,7 +3241,7 @@ var file_rpc_wordvault_api_proto_rawDesc = []byte{
 	0x44, 0x55, 0x4c, 0x45, 0x52, 0x5f, 0x4c, 0x4f, 0x4e, 0x47, 0x5f, 0x54, 0x45, 0x52, 0x4d, 0x10,
 	0x01, 0x12, 0x1d, 0x0a, 0x19, 0x46, 0x53, 0x52, 0x53, 0x5f, 0x53, 0x43, 0x48, 0x45, 0x44, 0x55,
 	0x4c, 0x45, 0x52, 0x5f, 0x53, 0x48, 0x4f, 0x52, 0x54, 0x5f, 0x54, 0x45, 0x52, 0x4d, 0x10, 0x02,
-	0x32, 0xa8, 0x11, 0x0a, 0x10, 0x57, 0x6f, 0x72, 0x64, 0x56, 0x61, 0x75, 0x6c, 0x74, 0x53, 0x65,
+	0x32, 0xc8, 0x0f, 0x0a, 0x10, 0x57, 0x6f, 0x72, 0x64, 0x56, 0x61, 0x75, 0x6c, 0x74, 0x53, 0x65,
 	0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x51, 0x0a, 0x0c, 0x47, 0x65, 0x74, 0x43, 0x61, 0x72, 0x64,
 	0x43, 0x6f, 0x75, 0x6e, 0x74, 0x12, 0x1e, 0x2e, 0x77, 0x6f, 0x72, 0x64, 0x76, 0x61, 0x75, 0x6c,
 	0x74, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x61, 0x72, 0x64, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x52, 0x65,
@@ -3527,20 +3348,6 @@ var file_rpc_wordvault_api_proto_rawDesc = []byte{
 	0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x25, 0x2e,
 	0x77, 0x6f, 0x72, 0x64, 0x76, 0x61, 0x75, 0x6c, 0x74, 0x2e, 0x45, 0x64, 0x69, 0x74, 0x46, 0x73,
 	0x72, 0x73, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x6f, 0x0a, 0x15, 0x47, 0x65, 0x74, 0x44, 0x65, 0x63, 0x6b, 0x46,
-	0x73, 0x72, 0x73, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x12, 0x27, 0x2e,
-	0x77, 0x6f, 0x72, 0x64, 0x76, 0x61, 0x75, 0x6c, 0x74, 0x2e, 0x47, 0x65, 0x74, 0x44, 0x65, 0x63,
-	0x6b, 0x46, 0x73, 0x72, 0x73, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x52,
-	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x28, 0x2e, 0x77, 0x6f, 0x72, 0x64, 0x76, 0x61, 0x75,
-	0x6c, 0x74, 0x2e, 0x47, 0x65, 0x74, 0x44, 0x65, 0x63, 0x6b, 0x46, 0x73, 0x72, 0x73, 0x50, 0x61,
-	0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
-	0x22, 0x03, 0x90, 0x02, 0x01, 0x12, 0x6d, 0x0a, 0x16, 0x45, 0x64, 0x69, 0x74, 0x44, 0x65, 0x63,
-	0x6b, 0x46, 0x73, 0x72, 0x73, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x12,
-	0x28, 0x2e, 0x77, 0x6f, 0x72, 0x64, 0x76, 0x61, 0x75, 0x6c, 0x74, 0x2e, 0x45, 0x64, 0x69, 0x74,
-	0x44, 0x65, 0x63, 0x6b, 0x46, 0x73, 0x72, 0x73, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65,
-	0x72, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x29, 0x2e, 0x77, 0x6f, 0x72, 0x64,
-	0x76, 0x61, 0x75, 0x6c, 0x74, 0x2e, 0x45, 0x64, 0x69, 0x74, 0x44, 0x65, 0x63, 0x6b, 0x46, 0x73,
-	0x72, 0x73, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x52, 0x65, 0x73, 0x70,
 	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x40, 0x0a, 0x07, 0x41, 0x64, 0x64, 0x44, 0x65, 0x63, 0x6b, 0x12,
 	0x19, 0x2e, 0x77, 0x6f, 0x72, 0x64, 0x76, 0x61, 0x75, 0x6c, 0x74, 0x2e, 0x41, 0x64, 0x64, 0x44,
 	0x65, 0x63, 0x6b, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1a, 0x2e, 0x77, 0x6f, 0x72,
@@ -3584,7 +3391,7 @@ func file_rpc_wordvault_api_proto_rawDescGZIP() []byte {
 }
 
 var file_rpc_wordvault_api_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_rpc_wordvault_api_proto_msgTypes = make([]protoimpl.MessageInfo, 60)
+var file_rpc_wordvault_api_proto_msgTypes = make([]protoimpl.MessageInfo, 56)
 var file_rpc_wordvault_api_proto_goTypes = []interface{}{
 	(Score)(0),                                          // 0: wordvault.Score
 	(FsrsScheduler)(0),                                  // 1: wordvault.FsrsScheduler
@@ -3628,56 +3435,52 @@ var file_rpc_wordvault_api_proto_goTypes = []interface{}{
 	(*GetFsrsParametersRequest)(nil),                    // 39: wordvault.GetFsrsParametersRequest
 	(*GetFsrsParametersResponse)(nil),                   // 40: wordvault.GetFsrsParametersResponse
 	(*EditFsrsParametersRequest)(nil),                   // 41: wordvault.EditFsrsParametersRequest
-	(*Deck)(nil),                                        // 42: wordvault.Deck
-	(*AddDeckRequest)(nil),                              // 43: wordvault.AddDeckRequest
-	(*AddDeckResponse)(nil),                             // 44: wordvault.AddDeckResponse
-	(*GetDecksRequest)(nil),                             // 45: wordvault.GetDecksRequest
-	(*GetDecksResponse)(nil),                            // 46: wordvault.GetDecksResponse
-	(*EditDeckRequest)(nil),                             // 47: wordvault.EditDeckRequest
-	(*EditDeckResponse)(nil),                            // 48: wordvault.EditDeckResponse
-	(*DeleteDeckRequest)(nil),                           // 49: wordvault.DeleteDeckRequest
-	(*DeleteDeckResponse)(nil),                          // 50: wordvault.DeleteDeckResponse
-	(*EditFsrsParametersResponse)(nil),                  // 51: wordvault.EditFsrsParametersResponse
-	(*EditDeckFsrsParametersRequest)(nil),               // 52: wordvault.EditDeckFsrsParametersRequest
-	(*EditDeckFsrsParametersResponse)(nil),              // 53: wordvault.EditDeckFsrsParametersResponse
-	(*GetDeckFsrsParametersRequest)(nil),                // 54: wordvault.GetDeckFsrsParametersRequest
-	(*GetDeckFsrsParametersResponse)(nil),               // 55: wordvault.GetDeckFsrsParametersResponse
-	nil,                                                 // 56: wordvault.CardCountResponse.NumCardsEntry
-	nil,                                                 // 57: wordvault.NextScheduledBreakdown.BreakdownEntry
-	nil,                                                 // 58: wordvault.DeckBreakdown.BreakdownEntry
-	nil,                                                 // 59: wordvault.GetDailyProgressResponse.ProgressStatsEntry
-	nil,                                                 // 60: wordvault.DailyProgressByDeckItem.ProgressStatsEntry
-	(*GetDailyLeaderboardResponse_LeaderboardItem)(nil), // 61: wordvault.GetDailyLeaderboardResponse.LeaderboardItem
-	(*wordsearcher.Alphagram)(nil),                      // 62: wordsearcher.Alphagram
-	(*timestamppb.Timestamp)(nil),                       // 63: google.protobuf.Timestamp
-	(*wrapperspb.Int64Value)(nil),                       // 64: google.protobuf.Int64Value
+	(*EditFsrsParametersResponse)(nil),                  // 42: wordvault.EditFsrsParametersResponse
+	(*Deck)(nil),                                        // 43: wordvault.Deck
+	(*AddDeckRequest)(nil),                              // 44: wordvault.AddDeckRequest
+	(*AddDeckResponse)(nil),                             // 45: wordvault.AddDeckResponse
+	(*GetDecksRequest)(nil),                             // 46: wordvault.GetDecksRequest
+	(*GetDecksResponse)(nil),                            // 47: wordvault.GetDecksResponse
+	(*EditDeckRequest)(nil),                             // 48: wordvault.EditDeckRequest
+	(*EditDeckResponse)(nil),                            // 49: wordvault.EditDeckResponse
+	(*DeleteDeckRequest)(nil),                           // 50: wordvault.DeleteDeckRequest
+	(*DeleteDeckResponse)(nil),                          // 51: wordvault.DeleteDeckResponse
+	nil,                                                 // 52: wordvault.CardCountResponse.NumCardsEntry
+	nil,                                                 // 53: wordvault.NextScheduledBreakdown.BreakdownEntry
+	nil,                                                 // 54: wordvault.DeckBreakdown.BreakdownEntry
+	nil,                                                 // 55: wordvault.GetDailyProgressResponse.ProgressStatsEntry
+	nil,                                                 // 56: wordvault.DailyProgressByDeckItem.ProgressStatsEntry
+	(*GetDailyLeaderboardResponse_LeaderboardItem)(nil), // 57: wordvault.GetDailyLeaderboardResponse.LeaderboardItem
+	(*wordsearcher.Alphagram)(nil),                      // 58: wordsearcher.Alphagram
+	(*timestamppb.Timestamp)(nil),                       // 59: google.protobuf.Timestamp
+	(*wrapperspb.Int64Value)(nil),                       // 60: google.protobuf.Int64Value
 }
 var file_rpc_wordvault_api_proto_depIdxs = []int32{
-	62, // 0: wordvault.Card.alphagram:type_name -> wordsearcher.Alphagram
+	58, // 0: wordvault.Card.alphagram:type_name -> wordsearcher.Alphagram
 	2,  // 1: wordvault.GetSingleNextScheduledResponse.card:type_name -> wordvault.Card
 	2,  // 2: wordvault.Cards.cards:type_name -> wordvault.Card
 	0,  // 3: wordvault.ScoreCardRequest.score:type_name -> wordvault.Score
-	63, // 4: wordvault.ScoreCardResponse.next_scheduled:type_name -> google.protobuf.Timestamp
+	59, // 4: wordvault.ScoreCardResponse.next_scheduled:type_name -> google.protobuf.Timestamp
 	3,  // 5: wordvault.AddCardsResponse.cards_in_other_decks_preview:type_name -> wordvault.CardPreview
 	0,  // 6: wordvault.EditLastScoreRequest.new_score:type_name -> wordvault.Score
-	56, // 7: wordvault.CardCountResponse.num_cards:type_name -> wordvault.CardCountResponse.NumCardsEntry
+	52, // 7: wordvault.CardCountResponse.num_cards:type_name -> wordvault.CardCountResponse.NumCardsEntry
 	19, // 8: wordvault.GetCardCountByDeckResponse.items:type_name -> wordvault.DeckCardCount
-	57, // 9: wordvault.NextScheduledBreakdown.breakdown:type_name -> wordvault.NextScheduledBreakdown.BreakdownEntry
-	58, // 10: wordvault.DeckBreakdown.breakdown:type_name -> wordvault.DeckBreakdown.BreakdownEntry
+	53, // 9: wordvault.NextScheduledBreakdown.breakdown:type_name -> wordvault.NextScheduledBreakdown.BreakdownEntry
+	54, // 10: wordvault.DeckBreakdown.breakdown:type_name -> wordvault.DeckBreakdown.BreakdownEntry
 	24, // 11: wordvault.NextScheduledCountByDeckResponse.breakdowns:type_name -> wordvault.DeckBreakdown
-	59, // 12: wordvault.GetDailyProgressResponse.progress_stats:type_name -> wordvault.GetDailyProgressResponse.ProgressStatsEntry
-	64, // 13: wordvault.DailyProgressByDeckItem.deck_id:type_name -> google.protobuf.Int64Value
-	60, // 14: wordvault.DailyProgressByDeckItem.progress_stats:type_name -> wordvault.DailyProgressByDeckItem.ProgressStatsEntry
+	55, // 12: wordvault.GetDailyProgressResponse.progress_stats:type_name -> wordvault.GetDailyProgressResponse.ProgressStatsEntry
+	60, // 13: wordvault.DailyProgressByDeckItem.deck_id:type_name -> google.protobuf.Int64Value
+	56, // 14: wordvault.DailyProgressByDeckItem.progress_stats:type_name -> wordvault.DailyProgressByDeckItem.ProgressStatsEntry
 	34, // 15: wordvault.GetDailyProgressByDeckResponse.items:type_name -> wordvault.DailyProgressByDeckItem
-	61, // 16: wordvault.GetDailyLeaderboardResponse.items:type_name -> wordvault.GetDailyLeaderboardResponse.LeaderboardItem
+	57, // 16: wordvault.GetDailyLeaderboardResponse.items:type_name -> wordvault.GetDailyLeaderboardResponse.LeaderboardItem
 	1,  // 17: wordvault.FsrsParameters.scheduler:type_name -> wordvault.FsrsScheduler
 	38, // 18: wordvault.GetFsrsParametersResponse.parameters:type_name -> wordvault.FsrsParameters
 	38, // 19: wordvault.EditFsrsParametersRequest.parameters:type_name -> wordvault.FsrsParameters
-	42, // 20: wordvault.AddDeckResponse.deck:type_name -> wordvault.Deck
-	42, // 21: wordvault.GetDecksResponse.decks:type_name -> wordvault.Deck
-	42, // 22: wordvault.EditDeckResponse.deck:type_name -> wordvault.Deck
-	38, // 23: wordvault.EditDeckFsrsParametersRequest.parameters:type_name -> wordvault.FsrsParameters
-	38, // 24: wordvault.GetDeckFsrsParametersResponse.parameters:type_name -> wordvault.FsrsParameters
+	38, // 20: wordvault.Deck.fsrs_parameters_override:type_name -> wordvault.FsrsParameters
+	43, // 21: wordvault.AddDeckResponse.deck:type_name -> wordvault.Deck
+	43, // 22: wordvault.GetDecksResponse.decks:type_name -> wordvault.Deck
+	38, // 23: wordvault.EditDeckRequest.fsrs_parameters_override:type_name -> wordvault.FsrsParameters
+	43, // 24: wordvault.EditDeckResponse.deck:type_name -> wordvault.Deck
 	16, // 25: wordvault.WordVaultService.GetCardCount:input_type -> wordvault.GetCardCountRequest
 	18, // 26: wordvault.WordVaultService.GetCardCountByDeck:input_type -> wordvault.GetCardCountByDeckRequest
 	4,  // 27: wordvault.WordVaultService.GetCardInformation:input_type -> wordvault.GetCardInfoRequest
@@ -3697,39 +3500,35 @@ var file_rpc_wordvault_api_proto_depIdxs = []int32{
 	36, // 41: wordvault.WordVaultService.GetDailyLeaderboard:input_type -> wordvault.GetDailyLeaderboardRequest
 	39, // 42: wordvault.WordVaultService.GetFsrsParameters:input_type -> wordvault.GetFsrsParametersRequest
 	41, // 43: wordvault.WordVaultService.EditFsrsParameters:input_type -> wordvault.EditFsrsParametersRequest
-	54, // 44: wordvault.WordVaultService.GetDeckFsrsParameters:input_type -> wordvault.GetDeckFsrsParametersRequest
-	52, // 45: wordvault.WordVaultService.EditDeckFsrsParameters:input_type -> wordvault.EditDeckFsrsParametersRequest
-	43, // 46: wordvault.WordVaultService.AddDeck:input_type -> wordvault.AddDeckRequest
-	45, // 47: wordvault.WordVaultService.GetDecks:input_type -> wordvault.GetDecksRequest
-	47, // 48: wordvault.WordVaultService.EditDeck:input_type -> wordvault.EditDeckRequest
-	49, // 49: wordvault.WordVaultService.DeleteDeck:input_type -> wordvault.DeleteDeckRequest
-	17, // 50: wordvault.WordVaultService.GetCardCount:output_type -> wordvault.CardCountResponse
-	20, // 51: wordvault.WordVaultService.GetCardCountByDeck:output_type -> wordvault.GetCardCountByDeckResponse
-	8,  // 52: wordvault.WordVaultService.GetCardInformation:output_type -> wordvault.Cards
-	8,  // 53: wordvault.WordVaultService.GetNextScheduled:output_type -> wordvault.Cards
-	7,  // 54: wordvault.WordVaultService.GetSingleNextScheduled:output_type -> wordvault.GetSingleNextScheduledResponse
-	22, // 55: wordvault.WordVaultService.NextScheduledCount:output_type -> wordvault.NextScheduledBreakdown
-	25, // 56: wordvault.WordVaultService.NextScheduledCountByDeck:output_type -> wordvault.NextScheduledCountByDeckResponse
-	10, // 57: wordvault.WordVaultService.ScoreCard:output_type -> wordvault.ScoreCardResponse
-	10, // 58: wordvault.WordVaultService.EditLastScore:output_type -> wordvault.ScoreCardResponse
-	12, // 59: wordvault.WordVaultService.AddCards:output_type -> wordvault.AddCardsResponse
-	14, // 60: wordvault.WordVaultService.MoveCards:output_type -> wordvault.MoveCardsResponse
-	27, // 61: wordvault.WordVaultService.Postpone:output_type -> wordvault.PostponeResponse
-	29, // 62: wordvault.WordVaultService.Delete:output_type -> wordvault.DeleteResponse
-	29, // 63: wordvault.WordVaultService.DeleteFromDeck:output_type -> wordvault.DeleteResponse
-	32, // 64: wordvault.WordVaultService.GetDailyProgress:output_type -> wordvault.GetDailyProgressResponse
-	35, // 65: wordvault.WordVaultService.GetDailyProgressByDeck:output_type -> wordvault.GetDailyProgressByDeckResponse
-	37, // 66: wordvault.WordVaultService.GetDailyLeaderboard:output_type -> wordvault.GetDailyLeaderboardResponse
-	40, // 67: wordvault.WordVaultService.GetFsrsParameters:output_type -> wordvault.GetFsrsParametersResponse
-	51, // 68: wordvault.WordVaultService.EditFsrsParameters:output_type -> wordvault.EditFsrsParametersResponse
-	55, // 69: wordvault.WordVaultService.GetDeckFsrsParameters:output_type -> wordvault.GetDeckFsrsParametersResponse
-	53, // 70: wordvault.WordVaultService.EditDeckFsrsParameters:output_type -> wordvault.EditDeckFsrsParametersResponse
-	44, // 71: wordvault.WordVaultService.AddDeck:output_type -> wordvault.AddDeckResponse
-	46, // 72: wordvault.WordVaultService.GetDecks:output_type -> wordvault.GetDecksResponse
-	48, // 73: wordvault.WordVaultService.EditDeck:output_type -> wordvault.EditDeckResponse
-	50, // 74: wordvault.WordVaultService.DeleteDeck:output_type -> wordvault.DeleteDeckResponse
-	50, // [50:75] is the sub-list for method output_type
-	25, // [25:50] is the sub-list for method input_type
+	44, // 44: wordvault.WordVaultService.AddDeck:input_type -> wordvault.AddDeckRequest
+	46, // 45: wordvault.WordVaultService.GetDecks:input_type -> wordvault.GetDecksRequest
+	48, // 46: wordvault.WordVaultService.EditDeck:input_type -> wordvault.EditDeckRequest
+	50, // 47: wordvault.WordVaultService.DeleteDeck:input_type -> wordvault.DeleteDeckRequest
+	17, // 48: wordvault.WordVaultService.GetCardCount:output_type -> wordvault.CardCountResponse
+	20, // 49: wordvault.WordVaultService.GetCardCountByDeck:output_type -> wordvault.GetCardCountByDeckResponse
+	8,  // 50: wordvault.WordVaultService.GetCardInformation:output_type -> wordvault.Cards
+	8,  // 51: wordvault.WordVaultService.GetNextScheduled:output_type -> wordvault.Cards
+	7,  // 52: wordvault.WordVaultService.GetSingleNextScheduled:output_type -> wordvault.GetSingleNextScheduledResponse
+	22, // 53: wordvault.WordVaultService.NextScheduledCount:output_type -> wordvault.NextScheduledBreakdown
+	25, // 54: wordvault.WordVaultService.NextScheduledCountByDeck:output_type -> wordvault.NextScheduledCountByDeckResponse
+	10, // 55: wordvault.WordVaultService.ScoreCard:output_type -> wordvault.ScoreCardResponse
+	10, // 56: wordvault.WordVaultService.EditLastScore:output_type -> wordvault.ScoreCardResponse
+	12, // 57: wordvault.WordVaultService.AddCards:output_type -> wordvault.AddCardsResponse
+	14, // 58: wordvault.WordVaultService.MoveCards:output_type -> wordvault.MoveCardsResponse
+	27, // 59: wordvault.WordVaultService.Postpone:output_type -> wordvault.PostponeResponse
+	29, // 60: wordvault.WordVaultService.Delete:output_type -> wordvault.DeleteResponse
+	29, // 61: wordvault.WordVaultService.DeleteFromDeck:output_type -> wordvault.DeleteResponse
+	32, // 62: wordvault.WordVaultService.GetDailyProgress:output_type -> wordvault.GetDailyProgressResponse
+	35, // 63: wordvault.WordVaultService.GetDailyProgressByDeck:output_type -> wordvault.GetDailyProgressByDeckResponse
+	37, // 64: wordvault.WordVaultService.GetDailyLeaderboard:output_type -> wordvault.GetDailyLeaderboardResponse
+	40, // 65: wordvault.WordVaultService.GetFsrsParameters:output_type -> wordvault.GetFsrsParametersResponse
+	42, // 66: wordvault.WordVaultService.EditFsrsParameters:output_type -> wordvault.EditFsrsParametersResponse
+	45, // 67: wordvault.WordVaultService.AddDeck:output_type -> wordvault.AddDeckResponse
+	47, // 68: wordvault.WordVaultService.GetDecks:output_type -> wordvault.GetDecksResponse
+	49, // 69: wordvault.WordVaultService.EditDeck:output_type -> wordvault.EditDeckResponse
+	51, // 70: wordvault.WordVaultService.DeleteDeck:output_type -> wordvault.DeleteDeckResponse
+	48, // [48:71] is the sub-list for method output_type
+	25, // [25:48] is the sub-list for method input_type
 	25, // [25:25] is the sub-list for extension type_name
 	25, // [25:25] is the sub-list for extension extendee
 	0,  // [0:25] is the sub-list for field type_name
@@ -4222,114 +4021,6 @@ func file_rpc_wordvault_api_proto_init() {
 			}
 		}
 		file_rpc_wordvault_api_proto_msgTypes[40].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Deck); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_rpc_wordvault_api_proto_msgTypes[41].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*AddDeckRequest); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_rpc_wordvault_api_proto_msgTypes[42].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*AddDeckResponse); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_rpc_wordvault_api_proto_msgTypes[43].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetDecksRequest); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_rpc_wordvault_api_proto_msgTypes[44].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetDecksResponse); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_rpc_wordvault_api_proto_msgTypes[45].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*EditDeckRequest); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_rpc_wordvault_api_proto_msgTypes[46].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*EditDeckResponse); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_rpc_wordvault_api_proto_msgTypes[47].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteDeckRequest); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_rpc_wordvault_api_proto_msgTypes[48].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteDeckResponse); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_rpc_wordvault_api_proto_msgTypes[49].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*EditFsrsParametersResponse); i {
 			case 0:
 				return &v.state
@@ -4341,8 +4032,8 @@ func file_rpc_wordvault_api_proto_init() {
 				return nil
 			}
 		}
-		file_rpc_wordvault_api_proto_msgTypes[50].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*EditDeckFsrsParametersRequest); i {
+		file_rpc_wordvault_api_proto_msgTypes[41].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Deck); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -4353,8 +4044,8 @@ func file_rpc_wordvault_api_proto_init() {
 				return nil
 			}
 		}
-		file_rpc_wordvault_api_proto_msgTypes[51].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*EditDeckFsrsParametersResponse); i {
+		file_rpc_wordvault_api_proto_msgTypes[42].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*AddDeckRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -4365,8 +4056,8 @@ func file_rpc_wordvault_api_proto_init() {
 				return nil
 			}
 		}
-		file_rpc_wordvault_api_proto_msgTypes[52].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetDeckFsrsParametersRequest); i {
+		file_rpc_wordvault_api_proto_msgTypes[43].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*AddDeckResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -4377,8 +4068,8 @@ func file_rpc_wordvault_api_proto_init() {
 				return nil
 			}
 		}
-		file_rpc_wordvault_api_proto_msgTypes[53].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetDeckFsrsParametersResponse); i {
+		file_rpc_wordvault_api_proto_msgTypes[44].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetDecksRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -4389,7 +4080,67 @@ func file_rpc_wordvault_api_proto_init() {
 				return nil
 			}
 		}
-		file_rpc_wordvault_api_proto_msgTypes[59].Exporter = func(v interface{}, i int) interface{} {
+		file_rpc_wordvault_api_proto_msgTypes[45].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetDecksResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_rpc_wordvault_api_proto_msgTypes[46].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*EditDeckRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_rpc_wordvault_api_proto_msgTypes[47].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*EditDeckResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_rpc_wordvault_api_proto_msgTypes[48].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DeleteDeckRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_rpc_wordvault_api_proto_msgTypes[49].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DeleteDeckResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_rpc_wordvault_api_proto_msgTypes[55].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetDailyLeaderboardResponse_LeaderboardItem); i {
 			case 0:
 				return &v.state
@@ -4408,7 +4159,7 @@ func file_rpc_wordvault_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_rpc_wordvault_api_proto_rawDesc,
 			NumEnums:      2,
-			NumMessages:   60,
+			NumMessages:   56,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
