@@ -2022,7 +2022,7 @@ func TestMoveCardsWithDecks(t *testing.T) {
 	is.True(err != nil) // Should be error
 }
 
-func TestDeleteDeck(t *testing.T) {
+func TestDeckFsrsParams(t *testing.T) {
 	is := is.New(t)
 
 	err := RecreateTestDB()
@@ -2039,6 +2039,301 @@ func TestDeleteDeck(t *testing.T) {
 
 	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
 
+	// Create a deck
+	added, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Test Deck",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	deckID := added.Msg.Deck.Id
+
+	// Get deck params - should return defaults (same as global)
+	getRes, err := s.GetDeckFsrsParameters(ctx, connect.NewRequest(&pb.GetDeckFsrsParametersRequest{
+		DeckId: deckID,
+	}))
+	is.NoErr(err)
+	is.Equal(getRes.Msg.Parameters.RequestRetention, float64(0.9))
+	is.Equal(getRes.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM)
+
+	// Set deck-specific params
+	_, err = s.EditDeckFsrsParameters(ctx, connect.NewRequest(&pb.EditDeckFsrsParametersRequest{
+		DeckId: deckID,
+		Parameters: &pb.FsrsParameters{
+			RequestRetention: 0.85,
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM,
+		},
+	}))
+	is.NoErr(err)
+
+	// Confirm params are now deck-specific
+	getRes, err = s.GetDeckFsrsParameters(ctx, connect.NewRequest(&pb.GetDeckFsrsParametersRequest{
+		DeckId: deckID,
+	}))
+	is.NoErr(err)
+	is.Equal(getRes.Msg.Parameters.RequestRetention, float64(0.85))
+	is.Equal(getRes.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM)
+
+	// Update deck params again
+	_, err = s.EditDeckFsrsParameters(ctx, connect.NewRequest(&pb.EditDeckFsrsParametersRequest{
+		DeckId: deckID,
+		Parameters: &pb.FsrsParameters{
+			RequestRetention: 0.92,
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM,
+		},
+	}))
+	is.NoErr(err)
+
+	// Confirm params are updated
+	getRes, err = s.GetDeckFsrsParameters(ctx, connect.NewRequest(&pb.GetDeckFsrsParametersRequest{
+		DeckId: deckID,
+	}))
+	is.NoErr(err)
+	is.Equal(getRes.Msg.Parameters.RequestRetention, float64(0.92))
+	is.Equal(getRes.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM)
+
+	// Clear deck override by passing nil parameters
+	_, err = s.EditDeckFsrsParameters(ctx, connect.NewRequest(&pb.EditDeckFsrsParametersRequest{
+		DeckId:     deckID,
+		Parameters: nil,
+	}))
+	is.NoErr(err)
+
+	// Confirm params are back to defaults
+	getRes, err = s.GetDeckFsrsParameters(ctx, connect.NewRequest(&pb.GetDeckFsrsParametersRequest{
+		DeckId: deckID,
+	}))
+	is.NoErr(err)
+	is.Equal(getRes.Msg.Parameters.RequestRetention, float64(0.9))
+	is.Equal(getRes.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM)
+}
+
+func TestDeckFsrsParamsGlobalFallback(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+
+	// Create two decks
+	deckWithOverride, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Deck With Override",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	deckWithOverrideID := deckWithOverride.Msg.Deck.Id
+
+	deckWithoutOverride, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Deck Without Override",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	deckWithoutOverrideID := deckWithoutOverride.Msg.Deck.Id
+
+	// Set override on first deck
+	_, err = s.EditDeckFsrsParameters(ctx, connect.NewRequest(&pb.EditDeckFsrsParametersRequest{
+		DeckId: deckWithOverrideID,
+		Parameters: &pb.FsrsParameters{
+			RequestRetention: 0.75,
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM,
+		},
+	}))
+	is.NoErr(err)
+
+	// Change global params
+	_, err = s.EditFsrsParameters(ctx, connect.NewRequest(&pb.EditFsrsParametersRequest{
+		Parameters: &pb.FsrsParameters{
+			RequestRetention: 0.80,
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM,
+		},
+	}))
+	is.NoErr(err)
+
+	// Deck with override should NOT be affected by global change
+	getRes, err := s.GetDeckFsrsParameters(ctx, connect.NewRequest(&pb.GetDeckFsrsParametersRequest{
+		DeckId: deckWithOverrideID,
+	}))
+	is.NoErr(err)
+	is.Equal(getRes.Msg.Parameters.RequestRetention, float64(0.75))
+	is.Equal(getRes.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM)
+
+	// Deck without override SHOULD use the new global params
+	getRes, err = s.GetDeckFsrsParameters(ctx, connect.NewRequest(&pb.GetDeckFsrsParametersRequest{
+		DeckId: deckWithoutOverrideID,
+	}))
+	is.NoErr(err)
+	is.Equal(getRes.Msg.Parameters.RequestRetention, float64(0.80))
+	is.Equal(getRes.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM)
+
+	// Global params should also be updated
+	globalRes, err := s.GetFsrsParameters(ctx, connect.NewRequest(&pb.GetFsrsParametersRequest{}))
+	is.NoErr(err)
+	is.Equal(globalRes.Msg.Parameters.RequestRetention, float64(0.80))
+	is.Equal(globalRes.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM)
+}
+
+func TestDeckFsrsParamsDefaultDeck(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+
+	// Add cards to the default deck (deck_id = 0)
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO"},
+		DeckId:     0, // default deck
+	}))
+	is.NoErr(err)
+
+	// Get global params - should be defaults
+	globalRes, err := s.GetFsrsParameters(ctx, connect.NewRequest(&pb.GetFsrsParametersRequest{}))
+	is.NoErr(err)
+	is.Equal(globalRes.Msg.Parameters.RequestRetention, float64(0.9))
+	is.Equal(globalRes.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM)
+
+	// Change global params
+	_, err = s.EditFsrsParameters(ctx, connect.NewRequest(&pb.EditFsrsParametersRequest{
+		Parameters: &pb.FsrsParameters{
+			RequestRetention: 0.88,
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM,
+		},
+	}))
+	is.NoErr(err)
+
+	// Confirm global params changed
+	globalRes, err = s.GetFsrsParameters(ctx, connect.NewRequest(&pb.GetFsrsParametersRequest{}))
+	is.NoErr(err)
+	is.Equal(globalRes.Msg.Parameters.RequestRetention, float64(0.88))
+	is.Equal(globalRes.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM)
+
+	// The default deck (deck_id=0) uses global params via fsrsParamsForDeck
+	// We can verify this by checking the scheduling behavior via GetSingleNextScheduled
+	// which uses fsrsParamsForDeck internally
+}
+
+func TestDeckFsrsParamsErrors(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+
+	// Create a deck for testing
+	added, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Test Deck",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	deckID := added.Msg.Deck.Id
+
+	// Error: deck_id is required for GetDeckFsrsParameters
+	_, err = s.GetDeckFsrsParameters(ctx, connect.NewRequest(&pb.GetDeckFsrsParametersRequest{
+		DeckId: 0,
+	}))
+	is.Equal(err.Error(), "invalid_argument: deck_id is required")
+
+	// Error: deck_id is required for EditDeckFsrsParameters
+	_, err = s.EditDeckFsrsParameters(ctx, connect.NewRequest(&pb.EditDeckFsrsParametersRequest{
+		DeckId: 0,
+		Parameters: &pb.FsrsParameters{
+			RequestRetention: 0.85,
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM,
+		},
+	}))
+	is.Equal(err.Error(), "invalid_argument: deck_id is required")
+
+	// Error: deck not found
+	_, err = s.GetDeckFsrsParameters(ctx, connect.NewRequest(&pb.GetDeckFsrsParametersRequest{
+		DeckId: 99999,
+	}))
+	is.Equal(err.Error(), "invalid_argument: deck not found")
+
+	// Error: invalid retention value (too high)
+	_, err = s.EditDeckFsrsParameters(ctx, connect.NewRequest(&pb.EditDeckFsrsParametersRequest{
+		DeckId: deckID,
+		Parameters: &pb.FsrsParameters{
+			RequestRetention: 1.1,
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM,
+		},
+	}))
+	is.Equal(err.Error(), "invalid_argument: invalid retention value")
+
+	// Error: invalid retention value (too low)
+	_, err = s.EditDeckFsrsParameters(ctx, connect.NewRequest(&pb.EditDeckFsrsParametersRequest{
+		DeckId: deckID,
+		Parameters: &pb.FsrsParameters{
+			RequestRetention: 0.5,
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM,
+		},
+	}))
+	is.Equal(err.Error(), "invalid_argument: invalid retention value")
+
+	// Error: invalid scheduler value
+	_, err = s.EditDeckFsrsParameters(ctx, connect.NewRequest(&pb.EditDeckFsrsParametersRequest{
+		DeckId: deckID,
+		Parameters: &pb.FsrsParameters{
+			RequestRetention: 0.85,
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_NONE,
+		},
+	}))
+	is.Equal(err.Error(), "invalid_argument: invalid scheduler value")
+
+	// Verify deck params are still default after all failed edits
+	getRes, err := s.GetDeckFsrsParameters(ctx, connect.NewRequest(&pb.GetDeckFsrsParametersRequest{
+		DeckId: deckID,
+	}))
+	is.NoErr(err)
+	is.Equal(getRes.Msg.Parameters.RequestRetention, float64(0.9))
+	is.Equal(getRes.Msg.Parameters.Scheduler, pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM)
+}
+
+func TestDeleteDeck(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
 	deck1, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
 		Name:    "Empty Deck",
 		Lexicon: "NWL23",
