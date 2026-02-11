@@ -209,11 +209,11 @@ func LexiconMappings(dataPath string) LexiconMap {
 			LetterDistribution: polishLD,
 		},
 		{
-			LexiconName:        "OSPS51",
-			LexiconFilename:    filepath.Join(lexiconPath, "OSPS51.txt"),
-			KWG:                loadKWG(dataPath, "OSPS51"),
-			LexiconIndex:       28,
-			DescriptiveName:    "Polska Federacja Scrabble - Update 51",
+			LexiconName:        "OSPS52",
+			LexiconFilename:    filepath.Join(lexiconPath, "OSPS52.txt"),
+			KWG:                loadKWG(dataPath, "OSPS52"),
+			LexiconIndex:       29,
+			DescriptiveName:    "Polska Federacja Scrabble - Update 52",
 			LetterDistribution: polishLD,
 		},
 	}
