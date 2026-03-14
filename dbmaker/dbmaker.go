@@ -610,7 +610,6 @@ func migrateToV4(db *sql.DB) {
 		if err := rows.Scan(&word, &alph, &lexiconSymbols); err != nil {
 			log.Fatal().Err(err).Msg("")
 		}
-		//log.Println(word, alph, lexiconSymbols)
 
 		if alph != lastAlph && lastAlph != "" {
 			// We have a new alphagram.
