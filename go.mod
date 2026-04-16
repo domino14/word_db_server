@@ -1,6 +1,6 @@
 module github.com/domino14/word_db_server
 
-go 1.24.2
+go 1.25.0
 
 require (
 	connectrpc.com/connect v1.19.1
@@ -9,7 +9,7 @@ require (
 	github.com/domino14/word-golib v0.2.18
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/golang-migrate/migrate/v4 v4.19.1
-	github.com/jackc/pgx/v5 v5.8.0
+	github.com/jackc/pgx/v5 v5.9.0
 	github.com/justinas/alice v1.2.0
 	github.com/matryer/is v1.4.1
 	github.com/mattn/go-sqlite3 v1.14.33
