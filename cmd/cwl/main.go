@@ -14,6 +14,7 @@ import (
 
 	wglconfig "github.com/domino14/word-golib/config"
 	pb "github.com/domino14/word_db_server/api/rpc/wordsearcher"
+	wdbconfig "github.com/domino14/word_db_server/config"
 	"github.com/domino14/word_db_server/internal/anagramserver"
 )
 
@@ -80,7 +81,8 @@ func main() {
 	log.Debug().Interface("config", cfg).Str("rack", cfg.rack).Bool("build", cfg.buildMode).Msg("input")
 
 	s := &anagramserver.Server{
-		Config: &wglconfig.Config{DataPath: cfg.dataPath},
+		Config:    &wglconfig.Config{DataPath: cfg.dataPath},
+		WDBConfig: &wdbconfig.Config{DataPath: cfg.dataPath},
 	}
 
 	amResp, err := s.Anagram(context.Background(), connect.NewRequest(&pb.AnagramRequest{
