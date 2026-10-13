@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/open-spaced-repetition/go-fsrs/v3"
+	"github.com/open-spaced-repetition/go-fsrs/v4"
 )
 
 // Some experimentation code to figure out this API.
@@ -21,9 +21,11 @@ func main() {
 	// card.Difficulty = 1
 	card.State = fsrs.New // this needs to be set if changing the stab/diff manually.
 	for range 10 {
-		schedulingCards := f.Repeat(card, card.Due)
-		rating := fsrs.Good
-		card = schedulingCards[rating].Card
+		info, err := f.Next(card, card.Due, fsrs.Good)
+		if err != nil {
+			panic(err)
+		}
+		card = info.Card
 		fmt.Printf("due: %s, stability: %.2f, difficulty: %.2f\n", card.Due.Format(time.RFC3339), card.Stability, card.Difficulty)
 	}
 }

@@ -3,7 +3,7 @@ package stores
 import (
 	"time"
 
-	"github.com/open-spaced-repetition/go-fsrs/v3"
+	"github.com/open-spaced-repetition/go-fsrs/v4"
 )
 
 type Card struct {

@@ -1,0 +1,174 @@
+package wordvault
+
+import (
+	"encoding/json"
+	"testing"
+	"time"
+
+	"connectrpc.com/connect"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/matryer/is"
+	"github.com/open-spaced-repetition/go-fsrs/v4"
+
+	pb "github.com/domino14/word_db_server/api/rpc/wordvault"
+	"github.com/domino14/word_db_server/internal/searchserver"
+	"github.com/domino14/word_db_server/internal/stores"
+	"github.com/domino14/word_db_server/internal/stores/models"
+)
+
+func shortTermServer(t *testing.T, version int16) (*Server, *FakeNower, func()) {
+	is := is.New(t)
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+
+	s := NewServer(DefaultConfig, dbPool, models.New(dbPool), &searchserver.Server{Config: DefaultConfig})
+	fakenower := &FakeNower{}
+	s.Nower = fakenower
+
+	// Short-term params as stored by go-fsrs v3, which had no learning steps.
+	_, err = dbPool.Exec(ctx, `INSERT INTO wordvault_params (user_id, params, fsrs_version)
+		VALUES (42, $1, $2)`, v3ShortTermParams, version)
+	is.NoErr(err)
+	return s, fakenower, dbPool.Close
+}
+
+const v3ShortTermParams = `{"RequestRetention": 0.9, "MaximumInterval": 1825,
+	"Weights": [0.40255, 1.18385, 3.173, 15.69105, 7.1949, 0.5345, 1.4604, 0.0046,
+	1.54575, 0.1192, 1.01925, 1.9395, 0.11, 0.29605, 2.2698, 0.2315, 2.9898,
+	0.51655, 0.6621], "Decay": -0.5, "Factor": 0.2345679012345678,
+	"EnableShortTerm": true, "EnableFuzz": true}`
+
+func getCard(t *testing.T, s *Server, alphagram string) fsrs.Card {
+	is := is.New(t)
+	info, err := s.GetCardInformation(ctxForTests(), connect.NewRequest(&pb.GetCardInfoRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{alphagram},
+	}))
+	is.NoErr(err)
+	is.Equal(len(info.Msg.Cards), 1)
+	card := fsrs.Card{}
+	is.NoErr(json.Unmarshal(info.Msg.Cards[0].CardJsonRepr, &card))
+	return card
+}
+
+func TestShortTermScheduler(t *testing.T) {
+	for _, version := range []int16{FsrsVersion5, FsrsVersion6} {
+		testShortTermScheduler(t, version)
+	}
+}
+
+func testShortTermScheduler(t *testing.T, version int16) {
+	is := is.New(t)
+	s, fakenower, cleanup := shortTermServer(t, version)
+	defer cleanup()
+	ctx := ctxForTests()
+
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
+	_, err := s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO"},
+	}))
+	is.NoErr(err)
+
+	score := func(sc pb.Score) time.Duration {
+		res, err := s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+			Score:     sc,
+			Lexicon:   "NWL23",
+			Alphagram: "ADEEGMMO",
+		}))
+		is.NoErr(err)
+		next := res.Msg.NextScheduled.AsTime()
+		d := next.Sub(fakenower.fakenow)
+		fakenower.fakenow = next.Add(time.Minute)
+		return d
+	}
+
+	// New card, missed: first learning step.
+	is.Equal(score(pb.Score_SCORE_AGAIN), time.Minute)
+	is.Equal(getCard(t, s, "ADEEGMMO").State, fsrs.Learning)
+	// Good moves to the next learning step.
+	is.Equal(score(pb.Score_SCORE_GOOD), 10*time.Minute)
+	is.Equal(getCard(t, s, "ADEEGMMO").State, fsrs.Learning)
+	// Good on the last step graduates the card.
+	is.True(score(pb.Score_SCORE_GOOD) >= 24*time.Hour)
+	card := getCard(t, s, "ADEEGMMO")
+	is.Equal(card.State, fsrs.Review)
+	is.Equal(card.Lapses, uint64(0))
+
+	// Missing a review card puts it in relearning.
+	is.Equal(score(pb.Score_SCORE_AGAIN), 10*time.Minute)
+	card = getCard(t, s, "ADEEGMMO")
+	is.Equal(card.State, fsrs.Relearning)
+	is.Equal(card.Lapses, uint64(1))
+	// Missing it again keeps it in relearning.
+	is.Equal(score(pb.Score_SCORE_AGAIN), 10*time.Minute)
+	is.Equal(getCard(t, s, "ADEEGMMO").State, fsrs.Relearning)
+	// Getting it right graduates it again.
+	is.True(score(pb.Score_SCORE_GOOD) >= 24*time.Hour)
+	is.Equal(getCard(t, s, "ADEEGMMO").State, fsrs.Review)
+}
+
+// Cards put into relearning by go-fsrs v3 have no RemainingSteps. Missing
+// one again must keep it in relearning rather than graduating it.
+func TestShortTermLegacyRelearningCard(t *testing.T) {
+	is := is.New(t)
+	s, fakenower, cleanup := shortTermServer(t, FsrsVersion5)
+	defer cleanup()
+	ctx := ctxForTests()
+
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
+	_, err := s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO"},
+	}))
+	is.NoErr(err)
+
+	// What v3 stored for a card just missed in review mode.
+	missedAt := fakenower.fakenow
+	legacyCard := stores.Card{Card: fsrs.Card{
+		Due:        missedAt.Add(5 * time.Minute),
+		Stability:  2.5,
+		Difficulty: 6.0,
+		Reps:       4,
+		Lapses:     1,
+		State:      fsrs.Relearning,
+		LastReview: missedAt,
+	}}
+	legacyLog := []byte(`{"Rating":1,"ScheduledDays":0,"ElapsedDays":12,"Review":"` +
+		missedAt.Format(time.RFC3339) + `","State":2}`)
+	for _, alpha := range []string{"ADEEGMMO", "ADEEHMMO"} {
+		is.NoErr(s.Queries.UpdateCard(ctx, models.UpdateCardParams{
+			FsrsCard:      legacyCard,
+			NextScheduled: toPGTimestamp(legacyCard.Due),
+			UserID:        42, // the user from ctxForTests
+			LexiconName:   "NWL23",
+			Alphagram:     alpha,
+			ReviewLogItem: legacyLog,
+		}))
+	}
+
+	fakenower.fakenow = missedAt.Add(6 * time.Minute)
+	res, err := s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+		Score:     pb.Score_SCORE_AGAIN,
+		Lexicon:   "NWL23",
+		Alphagram: "ADEEGMMO",
+	}))
+	is.NoErr(err)
+	is.Equal(res.Msg.NextScheduled.AsTime().Sub(fakenower.fakenow), 10*time.Minute)
+	is.Equal(getCard(t, s, "ADEEGMMO").State, fsrs.Relearning)
+
+	// Good graduates it, as v3 did.
+	res, err = s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+		Score:     pb.Score_SCORE_GOOD,
+		Lexicon:   "NWL23",
+		Alphagram: "ADEEHMMO",
+	}))
+	is.NoErr(err)
+	is.True(res.Msg.NextScheduled.AsTime().Sub(fakenower.fakenow) >= 24*time.Hour)
+	is.Equal(getCard(t, s, "ADEEHMMO").State, fsrs.Review)
+}

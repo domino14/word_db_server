@@ -10,7 +10,7 @@ import (
 
 	"github.com/domino14/word_db_server/internal/stores"
 	"github.com/jackc/pgx/v5/pgtype"
-	go_fsrs "github.com/open-spaced-repetition/go-fsrs/v3"
+	go_fsrs "github.com/open-spaced-repetition/go-fsrs/v4"
 )
 
 const addCards = `-- name: AddCards :one
@@ -337,6 +337,48 @@ func (q *Queries) EditDeck(ctx context.Context, arg EditDeckParams) (WordvaultDe
 		&i.Name,
 	)
 	return i, err
+}
+
+const getAllCards = `-- name: GetAllCards :many
+SELECT lexicon_name, alphagram, next_scheduled, fsrs_card, review_log, COALESCE(deck_id, 0) as deck_id
+FROM wordvault_cards
+WHERE user_id = $1
+`
+
+type GetAllCardsRow struct {
+	LexiconName   string
+	Alphagram     string
+	NextScheduled pgtype.Timestamptz
+	FsrsCard      stores.Card
+	ReviewLog     []stores.ReviewLog
+	DeckID        int64
+}
+
+func (q *Queries) GetAllCards(ctx context.Context, userID int64) ([]GetAllCardsRow, error) {
+	rows, err := q.db.Query(ctx, getAllCards, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAllCardsRow
+	for rows.Next() {
+		var i GetAllCardsRow
+		if err := rows.Scan(
+			&i.LexiconName,
+			&i.Alphagram,
+			&i.NextScheduled,
+			&i.FsrsCard,
+			&i.ReviewLog,
+			&i.DeckID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getCard = `-- name: GetCard :one
@@ -893,15 +935,20 @@ func (q *Queries) GetSingleNextScheduled(ctx context.Context, arg GetSingleNextS
 }
 
 const loadFsrsParams = `-- name: LoadFsrsParams :one
-SELECT params FROM wordvault_params
+SELECT params, fsrs_version FROM wordvault_params
 WHERE user_id = $1
 `
 
-func (q *Queries) LoadFsrsParams(ctx context.Context, userID int64) (go_fsrs.Parameters, error) {
+type LoadFsrsParamsRow struct {
+	Params      go_fsrs.Parameters
+	FsrsVersion int16
+}
+
+func (q *Queries) LoadFsrsParams(ctx context.Context, userID int64) (LoadFsrsParamsRow, error) {
 	row := q.db.QueryRow(ctx, loadFsrsParams, userID)
-	var params go_fsrs.Parameters
-	err := row.Scan(&params)
-	return params, err
+	var i LoadFsrsParamsRow
+	err := row.Scan(&i.Params, &i.FsrsVersion)
+	return i, err
 }
 
 const moveCards = `-- name: MoveCards :execrows
@@ -1029,6 +1076,21 @@ type SetFsrsParamsParams struct {
 
 func (q *Queries) SetFsrsParams(ctx context.Context, arg SetFsrsParamsParams) error {
 	_, err := q.db.Exec(ctx, setFsrsParams, arg.UserID, arg.Params)
+	return err
+}
+
+const setFsrsVersion = `-- name: SetFsrsVersion :exec
+UPDATE wordvault_params SET fsrs_version = $2
+WHERE user_id = $1
+`
+
+type SetFsrsVersionParams struct {
+	UserID      int64
+	FsrsVersion int16
+}
+
+func (q *Queries) SetFsrsVersion(ctx context.Context, arg SetFsrsVersionParams) error {
+	_, err := q.db.Exec(ctx, setFsrsVersion, arg.UserID, arg.FsrsVersion)
 	return err
 }
 

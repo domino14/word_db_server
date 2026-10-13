@@ -16,7 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/open-spaced-repetition/go-fsrs/v3"
+	"github.com/open-spaced-repetition/go-fsrs/v4"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -94,6 +94,11 @@ func (s *Server) GetCardInformation(ctx context.Context, req *connect.Request[pb
 	cards := make([]*pb.Card, len(rows))
 	for i := range rows {
 		fcard := rows[i].FsrsCard
+		retrievability, err := f.Retrievability(fcard.Card, s.Nower.Now())
+		if err != nil {
+			// Don't fail the whole request over one card with bad data.
+			log.Err(err).Str("alpha", rows[i].Alphagram).Msg("retrievability-error")
+		}
 		cardbts, err := json.Marshal(fcard)
 		if err != nil {
 			return nil, err
@@ -108,7 +113,7 @@ func (s *Server) GetCardInformation(ctx context.Context, req *connect.Request[pb
 			// its metadata, not to quiz on any of the cards.
 			Alphagram:      &searchpb.Alphagram{Alphagram: rows[i].Alphagram},
 			CardJsonRepr:   cardbts,
-			Retrievability: f.GetRetrievability(fcard.Card, s.Nower.Now()),
+			Retrievability: retrievability,
 			ReviewLog:      revlogbts,
 		}
 		cards[i].DeckId = uint64(rows[i].DeckID)
@@ -255,26 +260,101 @@ func (s *Server) GetSingleNextScheduled(ctx context.Context, req *connect.Reques
 	return connect.NewResponse(resp), nil
 }
 
-func (s *Server) fsrsParams(ctx context.Context, dbid int64, maybeQ *models.Queries) (fsrs.Parameters, error) {
-	// Load from user params
+// FSRS versions a user can be on. See db/migrations/000008_fsrs_version.
+const (
+	FsrsVersion5 = 5 // weights from go-fsrs v3; existing users until they upgrade
+	FsrsVersion6 = 6 // go-fsrs v4 default weights
+)
+
+// fsrs5Weights are the go-fsrs v3 default weights, which every user had
+// before the go-fsrs v4 upgrade.
+var fsrs5Weights = [19]float64{0.40255, 1.18385, 3.173, 15.69105, 7.1949,
+	0.5345, 1.4604, 0.0046, 1.54575, 0.1192, 1.01925, 1.9395, 0.11, 0.29605,
+	2.2698, 0.2315, 2.9898, 0.51655, 0.6621}
+
+func weightsForVersion(version int16) fsrs.Weights {
+	if version == FsrsVersion5 {
+		w, err := fsrs.ConvertV5Weights(fsrs5Weights)
+		if err != nil {
+			panic(err) // the weights above are constant and finite
+		}
+		return w
+	}
+	return fsrs.DefaultWeights()
+}
+
+// applyFsrsVersion sets the weights for the user's FSRS version. Users can't
+// customize weights, so stored weights are ignored: params stored by go-fsrs
+// v3 have 19 weights, which would otherwise unmarshal into an invalid
+// 21-weight array. Params stored by go-fsrs v3 also lack learning steps;
+// nil steps would mean "no steps" in go-fsrs v4, so use the defaults.
+func applyFsrsVersion(params *fsrs.Parameters, version int16) {
+	params.W = weightsForVersion(version)
+	if params.LearningSteps == nil {
+		params.LearningSteps = fsrs.DefaultLearningSteps()
+	}
+	if params.RelearningSteps == nil {
+		params.RelearningSteps = fsrs.DefaultRelearningSteps()
+	}
+}
+
+// fsrsParamsAndVersion loads the user's global FSRS parameters and version.
+func (s *Server) fsrsParamsAndVersion(ctx context.Context, dbid int64, maybeQ *models.Queries) (fsrs.Parameters, int16, error) {
 	q := s.Queries
 	if maybeQ != nil {
 		log.Debug().Int64("userID", dbid).Msg("querying-params-with-tx")
 		q = maybeQ
 	}
-	params, err := q.LoadFsrsParams(ctx, dbid)
+	var params fsrs.Parameters
+	var version int16
+	row, err := q.LoadFsrsParams(ctx, dbid)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			// No params exist for this user
+			// No params exist for this user, so this is a new user.
 			log.Debug().Int64("userID", dbid).Msg("no-params-found")
 			params = fsrs.DefaultParam()
 			params.EnableShortTerm = false
 			params.EnableFuzz = true
 			params.MaximumInterval = 365 * 5 // Default is 100 years, which is a bit optimistic
+			version = FsrsVersion6
 		} else {
-			return fsrs.Parameters{}, err
+			return fsrs.Parameters{}, 0, err
 		}
+	} else {
+		params, version = row.Params, row.FsrsVersion
 	}
+	applyFsrsVersion(&params, version)
+	return params, version, nil
+}
+
+func (s *Server) fsrsParams(ctx context.Context, dbid int64, maybeQ *models.Queries) (fsrs.Parameters, error) {
+	params, _, err := s.fsrsParamsAndVersion(ctx, dbid, maybeQ)
+	return params, err
+}
+
+// fixLegacyLearningCard handles cards that were put into (re)learning by
+// go-fsrs v3, which didn't track RemainingSteps. go-fsrs v4 never leaves a
+// learning card at 0 remaining steps (it graduates it instead), and treats 0 as
+// "graduate on any grade", so even Again would send the card out for days.
+// Treat these cards as being on their last step: Good graduates (as in v3),
+// Again restarts the steps and Hard repeats the step.
+func fixLegacyLearningCard(card *fsrs.Card) {
+	if (card.State == fsrs.Learning || card.State == fsrs.Relearning) && card.RemainingSteps == 0 {
+		card.RemainingSteps = 1
+	}
+}
+
+// deckParams returns the FSRS parameters for a deck, given the user's global
+// params and version. Decks without an override use the global params.
+func deckParams(override []byte, global fsrs.Parameters, version int16) (fsrs.Parameters, error) {
+	if len(override) == 0 {
+		return global, nil
+	}
+	var params fsrs.Parameters
+	if err := json.Unmarshal(override, &params); err != nil {
+		return fsrs.Parameters{}, err
+	}
+	applyFsrsVersion(&params, version)
 	return params, nil
 }
 
@@ -285,9 +365,13 @@ func (s *Server) fsrsParams(ctx context.Context, dbid int64, maybeQ *models.Quer
 // Accepts optional `maybeQ` instance of Queries for transactional consistency
 // if there is an ongoing transaction.
 func (s *Server) fsrsParamsForDeck(ctx context.Context, dbid int64, deckID int64, maybeQ *models.Queries) (fsrs.Parameters, error) {
+	global, version, err := s.fsrsParamsAndVersion(ctx, dbid, maybeQ)
+	if err != nil {
+		return fsrs.Parameters{}, err
+	}
 	if deckID == 0 {
 		// Default deck uses global params
-		return s.fsrsParams(ctx, dbid, maybeQ)
+		return global, nil
 	}
 
 	q := s.Queries
@@ -302,17 +386,7 @@ func (s *Server) fsrsParamsForDeck(ctx context.Context, dbid int64, deckID int64
 	if err != nil {
 		return fsrs.Parameters{}, err
 	}
-
-	if len(deck.FsrsParamsOverride) > 0 {
-		var params fsrs.Parameters
-		if err := json.Unmarshal(deck.FsrsParamsOverride, &params); err != nil {
-			return fsrs.Parameters{}, err
-		}
-		return params, nil
-	}
-
-	// Fall back to global if no override
-	return s.fsrsParams(ctx, dbid, maybeQ)
+	return deckParams(deck.FsrsParamsOverride, global, version)
 }
 
 func (s *Server) appMaintenance(ctx context.Context) (bool, error) {
@@ -398,14 +472,13 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 		return nil, invalidArgError("this card was just reviewed")
 	}
 
-	// It seems from reading the code that card.ElapsedDays gets updated by
-	// the below function, so it doesn't need to be recalculated upon
-	// db load. However, the db version of this variable is useless. It
-	// should be a local variable and not stored in the db.
-	schedulingCards := f.Repeat(card.Card, now)
-	rating := fsrs.Rating(req.Msg.Score)
-	card = stores.Card{Card: schedulingCards[rating].Card}
-	rlog := schedulingCards[rating].ReviewLog
+	fixLegacyLearningCard(&card.Card)
+	info, err := f.Next(card.Card, now, fsrs.Rating(req.Msg.Score))
+	if err != nil {
+		return nil, err
+	}
+	card = stores.Card{Card: info.Card}
+	rlog := info.ReviewLog
 	rlogbts, err := json.Marshal(rlog)
 	if err != nil {
 		return nil, err
@@ -495,17 +568,32 @@ func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.Edit
 	}
 	f := fsrs.NewFSRS(params)
 
-	card := fsrs.Card{}
-	err = json.Unmarshal(req.Msg.LastCardRepr, &card)
-	if err != nil {
-		return nil, invalidArgError("last card was not properly provided")
+	var card fsrs.Card
+	lastLog := cardrow.ReviewLog[len(cardrow.ReviewLog)-1]
+	if lastLog.ImportLog == nil && !lastLog.Due.IsZero() {
+		// Review logs written by go-fsrs v4 record the card's pre-review
+		// state, so we can roll back to it on the server.
+		card, err = f.Rollback(cardrow.FsrsCard.Card, lastLog.ReviewLog)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// Older (go-fsrs v3) logs don't have the pre-review state; fall back
+		// to the copy of the card the client kept from before the review.
+		err = json.Unmarshal(req.Msg.LastCardRepr, &card)
+		if err != nil {
+			return nil, invalidArgError("last card was not properly provided")
+		}
 	}
 
 	// And re-schedule the card.
-	schedulingCards := f.Repeat(card, now)
-	rating := fsrs.Rating(req.Msg.NewScore)
-	card = schedulingCards[rating].Card
-	newrlog := schedulingCards[rating].ReviewLog
+	fixLegacyLearningCard(&card)
+	info, err := f.Next(card, now, fsrs.Rating(req.Msg.NewScore))
+	if err != nil {
+		return nil, err
+	}
+	card = info.Card
+	newrlog := info.ReviewLog
 	rlogbts, err := json.Marshal(newrlog)
 	if err != nil {
 		return nil, err
@@ -1209,7 +1297,7 @@ func (s *Server) GetFsrsParameters(ctx context.Context, req *connect.Request[pb.
 		return nil, unauthenticated("user not authenticated")
 	}
 
-	dbparams, err := s.fsrsParams(ctx, int64(user.DBID), nil)
+	dbparams, version, err := s.fsrsParamsAndVersion(ctx, int64(user.DBID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1224,7 +1312,8 @@ func (s *Server) GetFsrsParameters(ctx context.Context, req *connect.Request[pb.
 	}
 
 	resp := &pb.GetFsrsParametersResponse{
-		Parameters: params,
+		Parameters:  params,
+		FsrsVersion: int32(version),
 	}
 
 	return connect.NewResponse(resp), nil

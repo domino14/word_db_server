@@ -69,7 +69,7 @@ spaced repetition algorithms
 
 ### Key Internal Components
 
-- **internal/wordvault:** FSRS spaced repetition logic using go-fsrs/v3 library
+- **internal/wordvault:** FSRS spaced repetition logic using go-fsrs/v4 library
 - **internal/searchserver:** SQLite-based word and alphagram search engine
 - **internal/anagramserver:** GADDAG/KWG-based anagram generation using word-golib
 - **internal/auth:** JWT authentication and context management

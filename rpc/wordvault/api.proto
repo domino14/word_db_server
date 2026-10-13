@@ -210,6 +210,47 @@ message GetFsrsParametersRequest {}
 
 message GetFsrsParametersResponse {
     FsrsParameters parameters = 1;
+    // The FSRS version the user's cards are scheduled with (5 or 6). Users on
+    // version 5 can upgrade with UpgradeFsrs.
+    int32 fsrs_version = 2;
+}
+
+message PreviewFsrsUpgradeRequest {}
+
+message UpgradeFsrsRequest {}
+
+// What upgrading to FSRS-6 does (or did) to a user's cards. "Due" counts are
+// relative to the time of the request.
+message FsrsUpgradeSummary {
+    int32 current_version = 1;
+    int32 target_version = 2;
+    uint32 total_cards = 3;
+    // Cards whose memory state was rebuilt by replaying their review history.
+    uint32 rescheduled_cards = 4;
+    // Cards imported from Cardbox keep their memory state; only their due
+    // date is recalculated.
+    uint32 imported_cards = 5;
+    // New (never reviewed) cards, which are left alone.
+    uint32 unchanged_cards = 6;
+    uint32 due_now_before = 7;
+    uint32 due_now_after = 8;
+    uint32 due_within_week_before = 9;
+    uint32 due_within_week_after = 10;
+    uint32 due_within_month_before = 11;
+    uint32 due_within_month_after = 12;
+    uint32 moved_earlier = 13;
+    uint32 moved_later = 14;
+    // Median of (due date - last review) in days, over reviewed cards.
+    double median_interval_days_before = 15;
+    double median_interval_days_after = 16;
+}
+
+message PreviewFsrsUpgradeResponse {
+    FsrsUpgradeSummary summary = 1;
+}
+
+message UpgradeFsrsResponse {
+    FsrsUpgradeSummary summary = 1;
 }
 
 message EditFsrsParametersRequest {
@@ -303,6 +344,14 @@ service WordVaultService {
     option idempotency_level = NO_SIDE_EFFECTS;
   };
   rpc EditFsrsParameters(EditFsrsParametersRequest) returns (EditFsrsParametersResponse);
+  // Shows what UpgradeFsrs would do, without changing anything.
+  rpc PreviewFsrsUpgrade(PreviewFsrsUpgradeRequest)
+      returns (PreviewFsrsUpgradeResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  };
+  // Moves the user from FSRS-5 to FSRS-6 weights and reschedules all their
+  // cards as if they had always been on FSRS-6.
+  rpc UpgradeFsrs(UpgradeFsrsRequest) returns (UpgradeFsrsResponse);
   rpc AddDeck(AddDeckRequest) returns (AddDeckResponse);
   rpc GetDecks(GetDecksRequest) returns (GetDecksResponse);
   rpc EditDeck(EditDeckRequest) returns (EditDeckResponse);

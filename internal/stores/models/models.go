@@ -7,7 +7,7 @@ package models
 import (
 	"github.com/domino14/word_db_server/internal/stores"
 	"github.com/jackc/pgx/v5/pgtype"
-	go_fsrs "github.com/open-spaced-repetition/go-fsrs/v3"
+	go_fsrs "github.com/open-spaced-repetition/go-fsrs/v4"
 )
 
 type AuthUser struct {
@@ -35,6 +35,7 @@ type WordvaultDeck struct {
 }
 
 type WordvaultParam struct {
-	UserID int64
-	Params go_fsrs.Parameters
+	UserID      int64
+	Params      go_fsrs.Parameters
+	FsrsVersion int16
 }

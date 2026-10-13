@@ -108,7 +108,16 @@ WHERE
     AND alphagram = $5;
 
 -- name: LoadFsrsParams :one
-SELECT params FROM wordvault_params
+SELECT params, fsrs_version FROM wordvault_params
+WHERE user_id = $1;
+
+-- name: SetFsrsVersion :exec
+UPDATE wordvault_params SET fsrs_version = $2
+WHERE user_id = $1;
+
+-- name: GetAllCards :many
+SELECT lexicon_name, alphagram, next_scheduled, fsrs_card, review_log, COALESCE(deck_id, 0) as deck_id
+FROM wordvault_cards
 WHERE user_id = $1;
 
 -- name: SetFsrsParams :exec
