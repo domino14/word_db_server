@@ -344,17 +344,28 @@ func fixLegacyLearningCard(card *fsrs.Card) {
 	}
 }
 
-// deckParams returns the FSRS parameters for a deck, given the user's global
-// params and version. Decks without an override use the global params.
-func deckParams(override []byte, global fsrs.Parameters, version int16) (fsrs.Parameters, error) {
+// deckOverride is what a deck can override in the user's FSRS parameters.
+// Older overrides were stored as a whole fsrs.Parameters (from
+// fsrs.DefaultParam(), so with fuzz off and a 100-year maximum interval); only
+// these fields are read from them.
+type deckOverride struct {
+	RequestRetention float64
+	EnableShortTerm  bool
+}
+
+// deckParams returns the FSRS parameters for a deck: the user's global params
+// (already set up for their version), with the deck's override applied.
+func deckParams(override []byte, global fsrs.Parameters) (fsrs.Parameters, error) {
 	if len(override) == 0 {
 		return global, nil
 	}
-	var params fsrs.Parameters
-	if err := json.Unmarshal(override, &params); err != nil {
+	var o deckOverride
+	if err := json.Unmarshal(override, &o); err != nil {
 		return fsrs.Parameters{}, err
 	}
-	applyFsrsVersion(&params, version)
+	params := global
+	params.RequestRetention = o.RequestRetention
+	params.EnableShortTerm = o.EnableShortTerm
 	return params, nil
 }
 
@@ -365,7 +376,7 @@ func deckParams(override []byte, global fsrs.Parameters, version int16) (fsrs.Pa
 // Accepts optional `maybeQ` instance of Queries for transactional consistency
 // if there is an ongoing transaction.
 func (s *Server) fsrsParamsForDeck(ctx context.Context, dbid int64, deckID int64, maybeQ *models.Queries) (fsrs.Parameters, error) {
-	global, version, err := s.fsrsParamsAndVersion(ctx, dbid, maybeQ)
+	global, err := s.fsrsParams(ctx, dbid, maybeQ)
 	if err != nil {
 		return fsrs.Parameters{}, err
 	}
@@ -386,7 +397,7 @@ func (s *Server) fsrsParamsForDeck(ctx context.Context, dbid int64, deckID int64
 	if err != nil {
 		return fsrs.Parameters{}, err
 	}
-	return deckParams(deck.FsrsParamsOverride, global, version)
+	return deckParams(deck.FsrsParamsOverride, global)
 }
 
 func (s *Server) appMaintenance(ctx context.Context) (bool, error) {
@@ -1192,6 +1203,21 @@ func (s *Server) DeleteFromDeck(ctx context.Context, req *connect.Request[pb.Del
 	return connect.NewResponse(&pb.DeleteResponse{NumDeleted: uint32(deletedRows)}), nil
 }
 
+// lastReviewDayBounds returns the start and end (exclusive) of the day that
+// contains now in the given timezone, in UTC and formatted to compare as text
+// against the LastReview timestamps stored in fsrs_card.
+func lastReviewDayBounds(now time.Time, timezone string) (string, string, error) {
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		return "", "", invalidArgError("invalid timezone: " + timezone)
+	}
+	y, m, d := now.In(loc).Date()
+	start := time.Date(y, m, d, 0, 0, 0, 0, loc)
+	end := start.AddDate(0, 0, 1)
+	const layout = "2006-01-02T15:04:05"
+	return start.UTC().Format(layout), end.UTC().Format(layout), nil
+}
+
 func (s *Server) GetDailyProgress(ctx context.Context, req *connect.Request[pb.GetDailyProgressRequest]) (
 	*connect.Response[pb.GetDailyProgressResponse], error) {
 
@@ -1200,10 +1226,14 @@ func (s *Server) GetDailyProgress(ctx context.Context, req *connect.Request[pb.G
 		return nil, unauthenticated("user not authenticated")
 	}
 
+	dayStart, dayEnd, err := lastReviewDayBounds(s.Nower.Now(), req.Msg.Timezone)
+	if err != nil {
+		return nil, err
+	}
 	progress, err := s.Queries.GetDailyProgress(ctx, models.GetDailyProgressParams{
 		UserID:   int64(user.DBID),
-		Timezone: req.Msg.Timezone,
-		Now:      toPGTimestamp(s.Nower.Now()),
+		DayStart: dayStart,
+		DayEnd:   dayEnd,
 	})
 	if err != nil {
 		return nil, err
@@ -1220,6 +1250,7 @@ func (s *Server) GetDailyProgress(ctx context.Context, req *connect.Request[pb.G
 			"ReviewedHard":   int32(progress.ReviewedRating2),
 			"ReviewedGood":   int32(progress.ReviewedRating3),
 			"ReviewedEasy":   int32(progress.ReviewedRating4),
+			"Repeats":        int32(progress.Repeats),
 		},
 	}), nil
 }
@@ -1232,10 +1263,14 @@ func (s *Server) GetDailyProgressByDeck(ctx context.Context, req *connect.Reques
 		return nil, unauthenticated("user not authenticated")
 	}
 
+	dayStart, dayEnd, err := lastReviewDayBounds(s.Nower.Now(), req.Msg.Timezone)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := s.Queries.GetDailyProgressByDeck(ctx, models.GetDailyProgressByDeckParams{
 		UserID:   int64(user.DBID),
-		Timezone: req.Msg.Timezone,
-		Now:      toPGTimestamp(s.Nower.Now()),
+		DayStart: dayStart,
+		DayEnd:   dayEnd,
 	})
 	if err != nil {
 		return nil, err
@@ -1260,6 +1295,7 @@ func (s *Server) GetDailyProgressByDeck(ctx context.Context, req *connect.Reques
 				"ReviewedHard":   int32(rows[i].ReviewedRating2),
 				"ReviewedGood":   int32(rows[i].ReviewedRating3),
 				"ReviewedEasy":   int32(rows[i].ReviewedRating4),
+				"Repeats":        int32(rows[i].Repeats),
 			},
 		}
 	}
@@ -1477,13 +1513,11 @@ func (s *Server) EditDeck(ctx context.Context, req *connect.Request[pb.EditDeckR
 			return nil, invalidArgError("invalid scheduler value")
 		}
 
-		// Convert proto to fsrs.Parameters
-		params := fsrs.DefaultParam()
-		params.RequestRetention = req.Msg.FsrsParametersOverride.RequestRetention
-		params.EnableShortTerm = req.Msg.FsrsParametersOverride.Scheduler == pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM
-
 		var err error
-		fsrsParamsOverride, err = json.Marshal(params)
+		fsrsParamsOverride, err = json.Marshal(deckOverride{
+			RequestRetention: req.Msg.FsrsParametersOverride.RequestRetention,
+			EnableShortTerm:  req.Msg.FsrsParametersOverride.Scheduler == pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -1563,11 +1597,13 @@ func (s *Server) DeleteDeck(ctx context.Context, req *connect.Request[pb.DeleteD
 	return connect.NewResponse(&pb.DeleteDeckResponse{}), nil
 }
 
-// The fsrs library fuzzes only by day. It tends to ask questions at the same
-// hour and minute that they were asked last. We want to add a little bit of a fuzz
-// to allow for more randomness.
+// The fsrs library fuzzes only by day, and not at all for intervals under 2.5
+// days. It tends to ask questions at the same hour and minute that they were
+// asked last, so cards studied together keep coming back together. Add a
+// little more randomness to cards scheduled days out. Learning and relearning
+// steps (minutes, in short-term mode) are left alone.
 func furtherFuzzDueDate(params fsrs.Parameters, now time.Time, card *fsrs.Card) {
-	if !params.EnableFuzz || params.EnableShortTerm {
+	if !params.EnableFuzz || card.State != fsrs.Review {
 		return
 	}
 	// Find a random second in a 21,600-second interval (6 hours) centered

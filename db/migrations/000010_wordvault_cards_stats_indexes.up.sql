@@ -1,0 +1,33 @@
+-- These index changes are on wordvault_cards (~4.7M rows), and a plain CREATE
+-- INDEX blocks writes to it for minutes. CONCURRENTLY can't run inside a
+-- migration, so this migration does nothing. RUN THESE BY HAND on prod, one
+-- at a time and in this order (none of them can be inside a transaction).
+-- Small dev/test databases don't need them.
+--
+-- 1. Daily progress (GetDailyProgress, GetDailyProgressByDeck): a user's
+--    cards reviewed today, by LastReview range.
+--
+--    CREATE INDEX CONCURRENTLY IF NOT EXISTS wordvault_cards_user_last_review_idx
+--        ON wordvault_cards (user_id, (fsrs_card->>'LastReview'));
+--
+-- 2. Schedule breakdowns and overdue/card counts: lets them be answered from
+--    the index alone (needs deck_id), instead of reading every one of a
+--    user's rows. Replaces idx_cards_user_lexicon_scheduled.
+--
+--    CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cards_user_lexicon_scheduled_deck
+--        ON wordvault_cards (user_id, lexicon_name, next_scheduled) INCLUDE (deck_id);
+--    DROP INDEX CONCURRENTLY IF EXISTS idx_cards_user_lexicon_scheduled;
+--
+-- 3. Never used (0 scans in pg_stat_user_indexes as of 2026-10-13), but every
+--    card write has to update them; 1.4 GB together.
+--
+--    DROP INDEX CONCURRENTLY IF EXISTS wordvault_cards_deckid_last_review_idx;
+--    DROP INDEX CONCURRENTLY IF EXISTS wordvault_cards_deckid_scheduled;
+--
+-- 4. Set the visibility map and stats right now, rather than waiting for
+--    autovacuum with the settings from migration 000009:
+--
+--    VACUUM (ANALYZE, VERBOSE) wordvault_cards;
+--
+-- If a CONCURRENTLY build fails, it leaves an INVALID index behind; drop it
+-- (DROP INDEX CONCURRENTLY ...) and run the CREATE again.

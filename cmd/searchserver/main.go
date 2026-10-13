@@ -10,6 +10,9 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	// Daily stats load the user's timezone in Go; don't depend on the image
+	// having tzdata.
+	_ "time/tzdata"
 
 	"connectrpc.com/connect"
 	wglconfig "github.com/domino14/word-golib/config"

@@ -1,0 +1,7 @@
+-- Nothing to undo; the up migration's index changes are run by hand. To undo
+-- them by hand:
+--
+--    CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cards_user_lexicon_scheduled
+--        ON wordvault_cards (user_id, lexicon_name, next_scheduled);
+--    DROP INDEX CONCURRENTLY IF EXISTS idx_cards_user_lexicon_scheduled_deck;
+--    DROP INDEX CONCURRENTLY IF EXISTS wordvault_cards_user_last_review_idx;
