@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	wglconfig "github.com/domino14/word-golib/config"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -85,7 +86,8 @@ func (s *Server) GetCardInformation(ctx context.Context, req *connect.Request[pb
 	rows, err := s.Queries.GetCards(ctx, models.GetCardsParams{
 		UserID:      int64(user.DBID),
 		LexiconName: req.Msg.Lexicon,
-		Alphagrams:  req.Msg.Alphagrams,
+		Alphagrams: lookupAlphagrams(&wglconfig.Config{DataPath: s.Config.DataPath},
+			req.Msg.Lexicon, req.Msg.Alphagrams),
 	})
 	if err != nil {
 		return nil, err
