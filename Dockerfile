@@ -24,4 +24,6 @@ COPY --from=build-env /opt/word_db_server/db /opt/db
 EXPOSE 8180
 
 WORKDIR /opt
-CMD ./searchserver
+# Exec form, so the server is PID 1 and gets SIGTERM directly; with the
+# shell form, sh is PID 1 and never passes it on.
+CMD ["./searchserver"]
