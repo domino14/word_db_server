@@ -1250,6 +1250,7 @@ func (s *Server) GetDailyProgress(ctx context.Context, req *connect.Request[pb.G
 			"ReviewedHard":   int32(progress.ReviewedRating2),
 			"ReviewedGood":   int32(progress.ReviewedRating3),
 			"ReviewedEasy":   int32(progress.ReviewedRating4),
+			"Repeats":        int32(progress.Repeats),
 		},
 	}), nil
 }
@@ -1294,6 +1295,7 @@ func (s *Server) GetDailyProgressByDeck(ctx context.Context, req *connect.Reques
 				"ReviewedHard":   int32(rows[i].ReviewedRating2),
 				"ReviewedGood":   int32(rows[i].ReviewedRating3),
 				"ReviewedEasy":   int32(rows[i].ReviewedRating4),
+				"Repeats":        int32(rows[i].Repeats),
 			},
 		}
 	}

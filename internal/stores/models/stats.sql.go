@@ -59,71 +59,56 @@ func (q *Queries) GetDailyLeaderboard(ctx context.Context, timezone string) ([]G
 }
 
 const getDailyProgress = `-- name: GetDailyProgress :one
+WITH today AS (
+    SELECT
+        first_today.ord,
+        first_today.rating,
+        first_today.num_reviews
+    FROM
+        wordvault_cards c
+    CROSS JOIN LATERAL (
+        SELECT
+            MIN(e.ord) AS ord,
+            (ARRAY_AGG((e.entry->>'Rating')::int ORDER BY e.ord))[1] AS rating,
+            COUNT(*) AS num_reviews
+        FROM
+            jsonb_array_elements(c.review_log) WITH ORDINALITY AS e(entry, ord)
+        WHERE
+            -- Review times are UTC RFC3339 ending in Z, like LastReview.
+            e.entry->>'Review' >= $1::text
+            AND e.entry->>'Review' < $2::text
+            -- Skip Cardbox import entries (rating 0).
+            AND (e.entry->>'Rating')::int BETWEEN 1 AND 4
+    ) first_today
+    WHERE
+        c.user_id = $3
+        -- LastReview is always UTC RFC3339 ending in Z, so comparing it as
+        -- text against the day's bounds (see lastReviewDayBounds) lets this
+        -- use an index on LastReview.
+        AND c.fsrs_card->>'LastReview' >= $1::text
+        AND c.fsrs_card->>'LastReview' < $2::text
+        AND first_today.ord IS NOT NULL
+)
 SELECT
-    -- Count of new cards studied today
-    COALESCE(SUM(CASE
-        WHEN jsonb_array_length(review_log) = 1
-        THEN 1
-        ELSE 0
-    END), 0)::int AS new_cards,
-
-    -- Count of reviewed cards studied today
-    COALESCE(SUM(CASE
-        WHEN jsonb_array_length(review_log) > 1
-        THEN 1
-        ELSE 0
-    END), 0)::int AS reviewed_cards,
-
-    -- Rating breakdown for new cards
-    COALESCE(COUNT(*) FILTER (
-        WHERE jsonb_array_length(review_log) = 1
-              AND (review_log->0->>'Rating')::int = 1
-    ), 0)::int AS new_rating_1,
-    COALESCE(COUNT(*) FILTER (
-        WHERE jsonb_array_length(review_log) = 1
-              AND (review_log->0->>'Rating')::int = 2
-    ), 0)::int AS new_rating_2,
-    COALESCE(COUNT(*) FILTER (
-        WHERE jsonb_array_length(review_log) = 1
-              AND (review_log->0->>'Rating')::int = 3
-    ), 0)::int AS new_rating_3,
-    COALESCE(COUNT(*) FILTER (
-        WHERE jsonb_array_length(review_log) = 1
-              AND (review_log->0->>'Rating')::int = 4
-    ), 0)::int AS new_rating_4,
-
-    -- Rating breakdown for reviewed cards
-    COALESCE(COUNT(*) FILTER (
-        WHERE jsonb_array_length(review_log) > 1
-              AND (review_log->-1->>'Rating')::int = 1
-    ), 0)::int AS reviewed_rating_1,
-    COALESCE(COUNT(*) FILTER (
-        WHERE jsonb_array_length(review_log) > 1
-              AND (review_log->-1->>'Rating')::int = 2
-    ), 0)::int AS reviewed_rating_2,
-    COALESCE(COUNT(*) FILTER (
-        WHERE jsonb_array_length(review_log) > 1
-              AND (review_log->-1->>'Rating')::int = 3
-    ), 0)::int AS reviewed_rating_3,
-    COALESCE(COUNT(*) FILTER (
-        WHERE jsonb_array_length(review_log) > 1
-              AND (review_log->-1->>'Rating')::int = 4
-    ), 0)::int AS reviewed_rating_4
+    COUNT(*) FILTER (WHERE ord = 1)::int AS new_cards,
+    COUNT(*) FILTER (WHERE ord > 1)::int AS reviewed_cards,
+    COUNT(*) FILTER (WHERE ord = 1 AND rating = 1)::int AS new_rating_1,
+    COUNT(*) FILTER (WHERE ord = 1 AND rating = 2)::int AS new_rating_2,
+    COUNT(*) FILTER (WHERE ord = 1 AND rating = 3)::int AS new_rating_3,
+    COUNT(*) FILTER (WHERE ord = 1 AND rating = 4)::int AS new_rating_4,
+    COUNT(*) FILTER (WHERE ord > 1 AND rating = 1)::int AS reviewed_rating_1,
+    COUNT(*) FILTER (WHERE ord > 1 AND rating = 2)::int AS reviewed_rating_2,
+    COUNT(*) FILTER (WHERE ord > 1 AND rating = 3)::int AS reviewed_rating_3,
+    COUNT(*) FILTER (WHERE ord > 1 AND rating = 4)::int AS reviewed_rating_4,
+    COALESCE(SUM(num_reviews - 1), 0)::int AS repeats
 FROM
-    wordvault_cards
-WHERE
-    user_id = $1
-    -- LastReview is always UTC RFC3339 ending in Z, so comparing it as text
-    -- against the day's bounds (see lastReviewDayBounds) lets this use an
-    -- index on LastReview.
-    AND fsrs_card->>'LastReview' >= $2::text
-    AND fsrs_card->>'LastReview' < $3::text
+    today
 `
 
 type GetDailyProgressParams struct {
-	UserID   int64
 	DayStart string
 	DayEnd   string
+	UserID   int64
 }
 
 type GetDailyProgressRow struct {
@@ -137,10 +122,16 @@ type GetDailyProgressRow struct {
 	ReviewedRating2 int32
 	ReviewedRating3 int32
 	ReviewedRating4 int32
+	Repeats         int32
 }
 
+// Each card reviewed today counts once, by its first review today, so that
+// in short-term mode, relearning a missed card doesn't turn it into a
+// success (or a new card into a reviewed one). A card is new if that first
+// review was its first ever. Further reviews of the same card today are
+// counted as repeats.
 func (q *Queries) GetDailyProgress(ctx context.Context, arg GetDailyProgressParams) (GetDailyProgressRow, error) {
-	row := q.db.QueryRow(ctx, getDailyProgress, arg.UserID, arg.DayStart, arg.DayEnd)
+	row := q.db.QueryRow(ctx, getDailyProgress, arg.DayStart, arg.DayEnd, arg.UserID)
 	var i GetDailyProgressRow
 	err := row.Scan(
 		&i.NewCards,
@@ -153,32 +144,58 @@ func (q *Queries) GetDailyProgress(ctx context.Context, arg GetDailyProgressPara
 		&i.ReviewedRating2,
 		&i.ReviewedRating3,
 		&i.ReviewedRating4,
+		&i.Repeats,
 	)
 	return i, err
 }
 
 const getDailyProgressByDeck = `-- name: GetDailyProgressByDeck :many
+WITH today AS (
+    SELECT
+        c.deck_id,
+        first_today.ord,
+        first_today.rating,
+        first_today.num_reviews
+    FROM
+        wordvault_cards c
+    CROSS JOIN LATERAL (
+        SELECT
+            MIN(e.ord) AS ord,
+            (ARRAY_AGG((e.entry->>'Rating')::int ORDER BY e.ord))[1] AS rating,
+            COUNT(*) AS num_reviews
+        FROM
+            jsonb_array_elements(c.review_log) WITH ORDINALITY AS e(entry, ord)
+        WHERE
+            -- Review times are UTC RFC3339 ending in Z, like LastReview.
+            e.entry->>'Review' >= $1::text
+            AND e.entry->>'Review' < $2::text
+            -- Skip Cardbox import entries (rating 0).
+            AND (e.entry->>'Rating')::int BETWEEN 1 AND 4
+    ) first_today
+    WHERE
+        c.user_id = $3
+        -- LastReview is always UTC RFC3339 ending in Z, so comparing it as
+        -- text against the day's bounds (see lastReviewDayBounds) lets this
+        -- use an index on LastReview.
+        AND c.fsrs_card->>'LastReview' >= $1::text
+        AND c.fsrs_card->>'LastReview' < $2::text
+        AND first_today.ord IS NOT NULL
+)
 SELECT
     deck_id,
-    COALESCE(SUM(CASE WHEN jsonb_array_length(review_log) = 1 THEN 1 ELSE 0 END), 0)::int AS new_cards,
-    COALESCE(SUM(CASE WHEN jsonb_array_length(review_log) > 1 THEN 1 ELSE 0 END), 0)::int AS reviewed_cards,
-    COALESCE(COUNT(*) FILTER (WHERE jsonb_array_length(review_log) = 1 AND (review_log->0->>'Rating')::int = 1), 0)::int AS new_rating_1,
-    COALESCE(COUNT(*) FILTER (WHERE jsonb_array_length(review_log) = 1 AND (review_log->0->>'Rating')::int = 2), 0)::int AS new_rating_2,
-    COALESCE(COUNT(*) FILTER (WHERE jsonb_array_length(review_log) = 1 AND (review_log->0->>'Rating')::int = 3), 0)::int AS new_rating_3,
-    COALESCE(COUNT(*) FILTER (WHERE jsonb_array_length(review_log) = 1 AND (review_log->0->>'Rating')::int = 4), 0)::int AS new_rating_4,
-    COALESCE(COUNT(*) FILTER (WHERE jsonb_array_length(review_log) > 1 AND (review_log->-1->>'Rating')::int = 1), 0)::int AS reviewed_rating_1,
-    COALESCE(COUNT(*) FILTER (WHERE jsonb_array_length(review_log) > 1 AND (review_log->-1->>'Rating')::int = 2), 0)::int AS reviewed_rating_2,
-    COALESCE(COUNT(*) FILTER (WHERE jsonb_array_length(review_log) > 1 AND (review_log->-1->>'Rating')::int = 3), 0)::int AS reviewed_rating_3,
-    COALESCE(COUNT(*) FILTER (WHERE jsonb_array_length(review_log) > 1 AND (review_log->-1->>'Rating')::int = 4), 0)::int AS reviewed_rating_4
+    COUNT(*) FILTER (WHERE ord = 1)::int AS new_cards,
+    COUNT(*) FILTER (WHERE ord > 1)::int AS reviewed_cards,
+    COUNT(*) FILTER (WHERE ord = 1 AND rating = 1)::int AS new_rating_1,
+    COUNT(*) FILTER (WHERE ord = 1 AND rating = 2)::int AS new_rating_2,
+    COUNT(*) FILTER (WHERE ord = 1 AND rating = 3)::int AS new_rating_3,
+    COUNT(*) FILTER (WHERE ord = 1 AND rating = 4)::int AS new_rating_4,
+    COUNT(*) FILTER (WHERE ord > 1 AND rating = 1)::int AS reviewed_rating_1,
+    COUNT(*) FILTER (WHERE ord > 1 AND rating = 2)::int AS reviewed_rating_2,
+    COUNT(*) FILTER (WHERE ord > 1 AND rating = 3)::int AS reviewed_rating_3,
+    COUNT(*) FILTER (WHERE ord > 1 AND rating = 4)::int AS reviewed_rating_4,
+    COALESCE(SUM(num_reviews - 1), 0)::int AS repeats
 FROM
-    wordvault_cards
-WHERE
-    user_id = $1
-    -- LastReview is always UTC RFC3339 ending in Z, so comparing it as text
-    -- against the day's bounds (see lastReviewDayBounds) lets this use an
-    -- index on LastReview.
-    AND fsrs_card->>'LastReview' >= $2::text
-    AND fsrs_card->>'LastReview' < $3::text
+    today
 GROUP BY
     deck_id
 ORDER BY
@@ -186,9 +203,9 @@ ORDER BY
 `
 
 type GetDailyProgressByDeckParams struct {
-	UserID   int64
 	DayStart string
 	DayEnd   string
+	UserID   int64
 }
 
 type GetDailyProgressByDeckRow struct {
@@ -203,10 +220,16 @@ type GetDailyProgressByDeckRow struct {
 	ReviewedRating2 int32
 	ReviewedRating3 int32
 	ReviewedRating4 int32
+	Repeats         int32
 }
 
+// Each card reviewed today counts once, by its first review today, so that
+// in short-term mode, relearning a missed card doesn't turn it into a
+// success (or a new card into a reviewed one). A card is new if that first
+// review was its first ever. Further reviews of the same card today are
+// counted as repeats.
 func (q *Queries) GetDailyProgressByDeck(ctx context.Context, arg GetDailyProgressByDeckParams) ([]GetDailyProgressByDeckRow, error) {
-	rows, err := q.db.Query(ctx, getDailyProgressByDeck, arg.UserID, arg.DayStart, arg.DayEnd)
+	rows, err := q.db.Query(ctx, getDailyProgressByDeck, arg.DayStart, arg.DayEnd, arg.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -226,6 +249,7 @@ func (q *Queries) GetDailyProgressByDeck(ctx context.Context, arg GetDailyProgre
 			&i.ReviewedRating2,
 			&i.ReviewedRating3,
 			&i.ReviewedRating4,
+			&i.Repeats,
 		); err != nil {
 			return nil, err
 		}

@@ -208,3 +208,55 @@ func TestFurtherFuzzDueDate(t *testing.T) {
 	p.EnableFuzz = false
 	is.Equal(spread(p, fsrs.Review), time.Duration(0))
 }
+
+// Daily stats count each card once, by its first review of the day, so that
+// relearning a missed card doesn't hide the miss (#60).
+func TestShortTermDailyProgress(t *testing.T) {
+	is := is.New(t)
+	s, fakenower, cleanup := shortTermServer(t, FsrsVersion6)
+	defer cleanup()
+	ctx := ctxForTests()
+
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-21T10:00:00Z")
+	_, err := s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO", "AEILNOR"},
+	}))
+	is.NoErr(err)
+	score := func(alpha string, sc pb.Score) {
+		_, err := s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+			Score: sc, Lexicon: "NWL23", Alphagram: alpha,
+		}))
+		is.NoErr(err)
+		fakenower.fakenow = fakenower.fakenow.Add(15 * time.Minute)
+	}
+	// Yesterday: two cards learned.
+	for _, alpha := range []string{"ADEEHMMO", "AEILNOR"} {
+		score(alpha, pb.Score_SCORE_EASY)
+	}
+
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-22T10:00:00Z")
+	// A new card, missed, then relearned.
+	score("ADEEGMMO", pb.Score_SCORE_AGAIN)
+	score("ADEEGMMO", pb.Score_SCORE_GOOD)
+	score("ADEEGMMO", pb.Score_SCORE_GOOD)
+	// A review card, missed, then relearned.
+	score("ADEEHMMO", pb.Score_SCORE_AGAIN)
+	score("ADEEHMMO", pb.Score_SCORE_GOOD)
+	// A review card, known.
+	score("AEILNOR", pb.Score_SCORE_GOOD)
+
+	want := map[string]int32{
+		"New": 1, "NewMissed": 1, "NewHard": 0, "NewGood": 0, "NewEasy": 0,
+		"Reviewed": 2, "ReviewedMissed": 1, "ReviewedHard": 0, "ReviewedGood": 1, "ReviewedEasy": 0,
+		"Repeats": 3,
+	}
+	res, err := s.GetDailyProgress(ctx, connect.NewRequest(&pb.GetDailyProgressRequest{Timezone: "UTC"}))
+	is.NoErr(err)
+	is.Equal(res.Msg.ProgressStats, want)
+
+	byDeck, err := s.GetDailyProgressByDeck(ctx, connect.NewRequest(&pb.GetDailyProgressByDeckRequest{Timezone: "UTC"}))
+	is.NoErr(err)
+	is.Equal(len(byDeck.Msg.Items), 1)
+	is.Equal(byDeck.Msg.Items[0].ProgressStats, want)
+}
