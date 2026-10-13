@@ -46,7 +46,7 @@ func intervalDays(p fsrs.Parameters, stability float64) float64 {
 // review history. Cards imported from Cardbox don't have a real history
 // before the import, so they keep their memory state and only get a new due
 // date.
-func upgradeCard(f *fsrs.FSRS, row models.GetAllCardsRow, now time.Time) (fsrs.Card, upgradeKind) {
+func upgradeCard(f *fsrs.FSRS, row models.GetCardsByIDsRow, now time.Time) (fsrs.Card, upgradeKind) {
 	card := row.FsrsCard.Card
 	if card.State == fsrs.New || card.LastReview.IsZero() {
 		return card, upgradeUnchanged
@@ -102,42 +102,47 @@ func median(xs []float64) float64 {
 	return xs[mid]
 }
 
-// planFsrsUpgrade computes the upgraded state of all of a user's cards
-// without writing anything.
-func (s *Server) planFsrsUpgrade(ctx context.Context, q *models.Queries, dbid int64, now time.Time) (
-	*pb.FsrsUpgradeSummary, map[string]*lexiconCardUpdates, error) {
+// Cards are upgraded a page at a time so that big accounts (the largest have
+// ~95k cards) don't need all their cards and review logs in memory at once.
+const fsrsUpgradePageSize = 2000
+
+// planFsrsUpgrade computes the upgraded state of all of a user's cards, a
+// page at a time, and passes each page's updates to apply. It doesn't write
+// anything itself; apply may be nil.
+func (s *Server) planFsrsUpgrade(ctx context.Context, q *models.Queries, dbid int64, now time.Time,
+	apply func(map[string]*lexiconCardUpdates) error) (*pb.FsrsUpgradeSummary, error) {
 
 	global, version, err := s.fsrsParamsAndVersion(ctx, dbid, q)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if version >= FsrsVersion6 {
-		return nil, nil, invalidArgError("your cards are already on the latest FSRS version")
+		return nil, invalidArgError("your cards are already on the latest FSRS version")
 	}
 	applyFsrsVersion(&global, FsrsVersion6)
 
 	decks, err := q.GetDecks(ctx, dbid)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	schedulers := map[int64]*fsrs.FSRS{0: fsrs.NewFSRS(global)}
 	for _, d := range decks {
 		p, err := deckParams(d.FsrsParamsOverride, global, FsrsVersion6)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		schedulers[d.ID] = fsrs.NewFSRS(p)
 	}
 
-	rows, err := q.GetAllCards(ctx, dbid)
+	ids, err := q.GetCardIDs(ctx, dbid)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	summary := &pb.FsrsUpgradeSummary{
 		CurrentVersion: int32(version),
 		TargetVersion:  FsrsVersion6,
-		TotalCards:     uint32(len(rows)),
+		TotalCards:     uint32(len(ids)),
 	}
 	week := now.Add(7 * 24 * time.Hour)
 	month := now.Add(30 * 24 * time.Hour)
@@ -153,58 +158,69 @@ func (s *Server) planFsrsUpgrade(ctx context.Context, q *models.Queries, dbid in
 		}
 	}
 	var intervalsBefore, intervalsAfter []float64
-	updates := map[string]*lexiconCardUpdates{}
 
-	for _, row := range rows {
-		f, ok := schedulers[row.DeckID]
-		if !ok {
-			f = schedulers[0]
-		}
-		oldCard := row.FsrsCard.Card
-		oldDue := row.NextScheduled.Time
-		newCard, kind := upgradeCard(f, row, now)
-		newDue := oldDue
-		if kind != upgradeUnchanged {
-			newDue = newCard.Due
-		}
-
-		countDue(oldDue, &summary.DueNowBefore, &summary.DueWithinWeekBefore, &summary.DueWithinMonthBefore)
-		countDue(newDue, &summary.DueNowAfter, &summary.DueWithinWeekAfter, &summary.DueWithinMonthAfter)
-
-		switch kind {
-		case upgradeUnchanged:
-			summary.UnchangedCards++
-			continue
-		case upgradeRescheduled:
-			summary.RescheduledCards++
-		case upgradeImported:
-			summary.ImportedCards++
-		}
-
-		if diff := newDue.Sub(oldDue); diff <= -24*time.Hour {
-			summary.MovedEarlier++
-		} else if diff >= 24*time.Hour {
-			summary.MovedLater++
-		}
-		intervalsBefore = append(intervalsBefore, oldDue.Sub(oldCard.LastReview).Hours()/24)
-		intervalsAfter = append(intervalsAfter, newDue.Sub(newCard.LastReview).Hours()/24)
-
-		cardbts, err := json.Marshal(stores.Card{Card: newCard})
+	for page := range slices.Chunk(ids, fsrsUpgradePageSize) {
+		rows, err := q.GetCardsByIDs(ctx, models.GetCardsByIDsParams{UserID: dbid, Ids: page})
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-		u, ok := updates[row.LexiconName]
-		if !ok {
-			u = &lexiconCardUpdates{}
-			updates[row.LexiconName] = u
+		updates := map[string]*lexiconCardUpdates{}
+		for _, row := range rows {
+			f, ok := schedulers[row.DeckID]
+			if !ok {
+				f = schedulers[0]
+			}
+			oldCard := row.FsrsCard.Card
+			oldDue := row.NextScheduled.Time
+			newCard, kind := upgradeCard(f, row, now)
+			newDue := oldDue
+			if kind != upgradeUnchanged {
+				newDue = newCard.Due
+			}
+
+			countDue(oldDue, &summary.DueNowBefore, &summary.DueWithinWeekBefore, &summary.DueWithinMonthBefore)
+			countDue(newDue, &summary.DueNowAfter, &summary.DueWithinWeekAfter, &summary.DueWithinMonthAfter)
+
+			switch kind {
+			case upgradeUnchanged:
+				summary.UnchangedCards++
+				continue
+			case upgradeRescheduled:
+				summary.RescheduledCards++
+			case upgradeImported:
+				summary.ImportedCards++
+			}
+
+			if diff := newDue.Sub(oldDue); diff <= -24*time.Hour {
+				summary.MovedEarlier++
+			} else if diff >= 24*time.Hour {
+				summary.MovedLater++
+			}
+			intervalsBefore = append(intervalsBefore, oldDue.Sub(oldCard.LastReview).Hours()/24)
+			intervalsAfter = append(intervalsAfter, newDue.Sub(newCard.LastReview).Hours()/24)
+
+			cardbts, err := json.Marshal(stores.Card{Card: newCard})
+			if err != nil {
+				return nil, err
+			}
+			u, ok := updates[row.LexiconName]
+			if !ok {
+				u = &lexiconCardUpdates{}
+				updates[row.LexiconName] = u
+			}
+			u.alphagrams = append(u.alphagrams, row.Alphagram)
+			u.nextScheduleds = append(u.nextScheduleds, toPGTimestamp(newDue))
+			u.fsrsCards = append(u.fsrsCards, cardbts)
 		}
-		u.alphagrams = append(u.alphagrams, row.Alphagram)
-		u.nextScheduleds = append(u.nextScheduleds, toPGTimestamp(newDue))
-		u.fsrsCards = append(u.fsrsCards, cardbts)
+		if apply != nil && len(updates) > 0 {
+			if err := apply(updates); err != nil {
+				return nil, err
+			}
+		}
 	}
 	summary.MedianIntervalDaysBefore = median(intervalsBefore)
 	summary.MedianIntervalDaysAfter = median(intervalsAfter)
-	return summary, updates, nil
+	return summary, nil
 }
 
 func (s *Server) PreviewFsrsUpgrade(ctx context.Context, req *connect.Request[pb.PreviewFsrsUpgradeRequest]) (
@@ -213,7 +229,7 @@ func (s *Server) PreviewFsrsUpgrade(ctx context.Context, req *connect.Request[pb
 	if user == nil {
 		return nil, unauthenticated("user not authenticated")
 	}
-	summary, _, err := s.planFsrsUpgrade(ctx, s.Queries, int64(user.DBID), s.Nower.Now())
+	summary, err := s.planFsrsUpgrade(ctx, s.Queries, int64(user.DBID), s.Nower.Now(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -241,21 +257,24 @@ func (s *Server) UpgradeFsrs(ctx context.Context, req *connect.Request[pb.Upgrad
 	defer tx.Rollback(ctx)
 	qtx := s.Queries.WithTx(tx)
 
-	summary, updates, err := s.planFsrsUpgrade(ctx, qtx, int64(user.DBID), s.Nower.Now())
+	summary, err := s.planFsrsUpgrade(ctx, qtx, int64(user.DBID), s.Nower.Now(),
+		func(updates map[string]*lexiconCardUpdates) error {
+			for lexicon, u := range updates {
+				err := qtx.BulkUpdateCards(ctx, models.BulkUpdateCardsParams{
+					Alphagrams:     u.alphagrams,
+					NextScheduleds: u.nextScheduleds,
+					FsrsCards:      u.fsrsCards,
+					UserID:         int64(user.DBID),
+					LexiconName:    lexicon,
+				})
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		})
 	if err != nil {
 		return nil, err
-	}
-	for lexicon, u := range updates {
-		err = qtx.BulkUpdateCards(ctx, models.BulkUpdateCardsParams{
-			Alphagrams:     u.alphagrams,
-			NextScheduleds: u.nextScheduleds,
-			FsrsCards:      u.fsrsCards,
-			UserID:         int64(user.DBID),
-			LexiconName:    lexicon,
-		})
-		if err != nil {
-			return nil, err
-		}
 	}
 	err = qtx.SetFsrsVersion(ctx, models.SetFsrsVersionParams{
 		UserID:      int64(user.DBID),
