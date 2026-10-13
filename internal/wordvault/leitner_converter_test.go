@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/matryer/is"
-	"github.com/open-spaced-repetition/go-fsrs/v3"
+	"github.com/open-spaced-repetition/go-fsrs/v4"
 )
 
 func TestConvertToFSRS(t *testing.T) {
@@ -28,9 +28,9 @@ func TestConvertToFSRS(t *testing.T) {
 	p.MaximumInterval = 365 * 5
 
 	f := fsrs.NewFSRS(p)
-	schedulingCards := f.Repeat(card.Card, now)
-	rating := fsrs.Again
-	newCard := schedulingCards[rating].Card
+	info, err := f.Next(card.Card, now, fsrs.Again)
+	is.NoErr(err)
+	newCard := info.Card
 	fmt.Println("nc", newCard.Stability, newCard.Due)
 
 	is.True(newCard.Stability != math.Inf(1))
@@ -44,9 +44,9 @@ func TestConvertToFSRS(t *testing.T) {
 		now)
 	// stability should be handwaved to a small number
 	is.Equal(card.Stability, 1.0)
-	schedulingCards = f.Repeat(card.Card, now)
-	rating = fsrs.Good
-	newCard = schedulingCards[rating].Card
+	info, err = f.Next(card.Card, now, fsrs.Good)
+	is.NoErr(err)
+	newCard = info.Card
 	is.True(!math.IsNaN(newCard.Stability))
 	fmt.Println("newCard", newCard.Stability, newCard.Due, newCard.Difficulty)
 

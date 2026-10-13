@@ -89,6 +89,12 @@ const (
 	// WordVaultServiceEditFsrsParametersProcedure is the fully-qualified name of the WordVaultService's
 	// EditFsrsParameters RPC.
 	WordVaultServiceEditFsrsParametersProcedure = "/wordvault.WordVaultService/EditFsrsParameters"
+	// WordVaultServicePreviewFsrsUpgradeProcedure is the fully-qualified name of the WordVaultService's
+	// PreviewFsrsUpgrade RPC.
+	WordVaultServicePreviewFsrsUpgradeProcedure = "/wordvault.WordVaultService/PreviewFsrsUpgrade"
+	// WordVaultServiceUpgradeFsrsProcedure is the fully-qualified name of the WordVaultService's
+	// UpgradeFsrs RPC.
+	WordVaultServiceUpgradeFsrsProcedure = "/wordvault.WordVaultService/UpgradeFsrs"
 	// WordVaultServiceAddDeckProcedure is the fully-qualified name of the WordVaultService's AddDeck
 	// RPC.
 	WordVaultServiceAddDeckProcedure = "/wordvault.WordVaultService/AddDeck"
@@ -125,6 +131,8 @@ var (
 	wordVaultServiceGetDailyLeaderboardMethodDescriptor      = wordVaultServiceServiceDescriptor.Methods().ByName("GetDailyLeaderboard")
 	wordVaultServiceGetFsrsParametersMethodDescriptor        = wordVaultServiceServiceDescriptor.Methods().ByName("GetFsrsParameters")
 	wordVaultServiceEditFsrsParametersMethodDescriptor       = wordVaultServiceServiceDescriptor.Methods().ByName("EditFsrsParameters")
+	wordVaultServicePreviewFsrsUpgradeMethodDescriptor       = wordVaultServiceServiceDescriptor.Methods().ByName("PreviewFsrsUpgrade")
+	wordVaultServiceUpgradeFsrsMethodDescriptor              = wordVaultServiceServiceDescriptor.Methods().ByName("UpgradeFsrs")
 	wordVaultServiceAddDeckMethodDescriptor                  = wordVaultServiceServiceDescriptor.Methods().ByName("AddDeck")
 	wordVaultServiceGetDecksMethodDescriptor                 = wordVaultServiceServiceDescriptor.Methods().ByName("GetDecks")
 	wordVaultServiceEditDeckMethodDescriptor                 = wordVaultServiceServiceDescriptor.Methods().ByName("EditDeck")
@@ -152,6 +160,11 @@ type WordVaultServiceClient interface {
 	GetDailyLeaderboard(context.Context, *connect.Request[wordvault.GetDailyLeaderboardRequest]) (*connect.Response[wordvault.GetDailyLeaderboardResponse], error)
 	GetFsrsParameters(context.Context, *connect.Request[wordvault.GetFsrsParametersRequest]) (*connect.Response[wordvault.GetFsrsParametersResponse], error)
 	EditFsrsParameters(context.Context, *connect.Request[wordvault.EditFsrsParametersRequest]) (*connect.Response[wordvault.EditFsrsParametersResponse], error)
+	// Shows what UpgradeFsrs would do, without changing anything.
+	PreviewFsrsUpgrade(context.Context, *connect.Request[wordvault.PreviewFsrsUpgradeRequest]) (*connect.Response[wordvault.PreviewFsrsUpgradeResponse], error)
+	// Moves the user from FSRS-5 to FSRS-6 weights and reschedules all their
+	// cards as if they had always been on FSRS-6.
+	UpgradeFsrs(context.Context, *connect.Request[wordvault.UpgradeFsrsRequest]) (*connect.Response[wordvault.UpgradeFsrsResponse], error)
 	AddDeck(context.Context, *connect.Request[wordvault.AddDeckRequest]) (*connect.Response[wordvault.AddDeckResponse], error)
 	GetDecks(context.Context, *connect.Request[wordvault.GetDecksRequest]) (*connect.Response[wordvault.GetDecksResponse], error)
 	EditDeck(context.Context, *connect.Request[wordvault.EditDeckRequest]) (*connect.Response[wordvault.EditDeckResponse], error)
@@ -291,6 +304,19 @@ func NewWordVaultServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(wordVaultServiceEditFsrsParametersMethodDescriptor),
 			connect.WithClientOptions(opts...),
 		),
+		previewFsrsUpgrade: connect.NewClient[wordvault.PreviewFsrsUpgradeRequest, wordvault.PreviewFsrsUpgradeResponse](
+			httpClient,
+			baseURL+WordVaultServicePreviewFsrsUpgradeProcedure,
+			connect.WithSchema(wordVaultServicePreviewFsrsUpgradeMethodDescriptor),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		upgradeFsrs: connect.NewClient[wordvault.UpgradeFsrsRequest, wordvault.UpgradeFsrsResponse](
+			httpClient,
+			baseURL+WordVaultServiceUpgradeFsrsProcedure,
+			connect.WithSchema(wordVaultServiceUpgradeFsrsMethodDescriptor),
+			connect.WithClientOptions(opts...),
+		),
 		addDeck: connect.NewClient[wordvault.AddDeckRequest, wordvault.AddDeckResponse](
 			httpClient,
 			baseURL+WordVaultServiceAddDeckProcedure,
@@ -339,6 +365,8 @@ type wordVaultServiceClient struct {
 	getDailyLeaderboard      *connect.Client[wordvault.GetDailyLeaderboardRequest, wordvault.GetDailyLeaderboardResponse]
 	getFsrsParameters        *connect.Client[wordvault.GetFsrsParametersRequest, wordvault.GetFsrsParametersResponse]
 	editFsrsParameters       *connect.Client[wordvault.EditFsrsParametersRequest, wordvault.EditFsrsParametersResponse]
+	previewFsrsUpgrade       *connect.Client[wordvault.PreviewFsrsUpgradeRequest, wordvault.PreviewFsrsUpgradeResponse]
+	upgradeFsrs              *connect.Client[wordvault.UpgradeFsrsRequest, wordvault.UpgradeFsrsResponse]
 	addDeck                  *connect.Client[wordvault.AddDeckRequest, wordvault.AddDeckResponse]
 	getDecks                 *connect.Client[wordvault.GetDecksRequest, wordvault.GetDecksResponse]
 	editDeck                 *connect.Client[wordvault.EditDeckRequest, wordvault.EditDeckResponse]
@@ -440,6 +468,16 @@ func (c *wordVaultServiceClient) EditFsrsParameters(ctx context.Context, req *co
 	return c.editFsrsParameters.CallUnary(ctx, req)
 }
 
+// PreviewFsrsUpgrade calls wordvault.WordVaultService.PreviewFsrsUpgrade.
+func (c *wordVaultServiceClient) PreviewFsrsUpgrade(ctx context.Context, req *connect.Request[wordvault.PreviewFsrsUpgradeRequest]) (*connect.Response[wordvault.PreviewFsrsUpgradeResponse], error) {
+	return c.previewFsrsUpgrade.CallUnary(ctx, req)
+}
+
+// UpgradeFsrs calls wordvault.WordVaultService.UpgradeFsrs.
+func (c *wordVaultServiceClient) UpgradeFsrs(ctx context.Context, req *connect.Request[wordvault.UpgradeFsrsRequest]) (*connect.Response[wordvault.UpgradeFsrsResponse], error) {
+	return c.upgradeFsrs.CallUnary(ctx, req)
+}
+
 // AddDeck calls wordvault.WordVaultService.AddDeck.
 func (c *wordVaultServiceClient) AddDeck(ctx context.Context, req *connect.Request[wordvault.AddDeckRequest]) (*connect.Response[wordvault.AddDeckResponse], error) {
 	return c.addDeck.CallUnary(ctx, req)
@@ -481,6 +519,11 @@ type WordVaultServiceHandler interface {
 	GetDailyLeaderboard(context.Context, *connect.Request[wordvault.GetDailyLeaderboardRequest]) (*connect.Response[wordvault.GetDailyLeaderboardResponse], error)
 	GetFsrsParameters(context.Context, *connect.Request[wordvault.GetFsrsParametersRequest]) (*connect.Response[wordvault.GetFsrsParametersResponse], error)
 	EditFsrsParameters(context.Context, *connect.Request[wordvault.EditFsrsParametersRequest]) (*connect.Response[wordvault.EditFsrsParametersResponse], error)
+	// Shows what UpgradeFsrs would do, without changing anything.
+	PreviewFsrsUpgrade(context.Context, *connect.Request[wordvault.PreviewFsrsUpgradeRequest]) (*connect.Response[wordvault.PreviewFsrsUpgradeResponse], error)
+	// Moves the user from FSRS-5 to FSRS-6 weights and reschedules all their
+	// cards as if they had always been on FSRS-6.
+	UpgradeFsrs(context.Context, *connect.Request[wordvault.UpgradeFsrsRequest]) (*connect.Response[wordvault.UpgradeFsrsResponse], error)
 	AddDeck(context.Context, *connect.Request[wordvault.AddDeckRequest]) (*connect.Response[wordvault.AddDeckResponse], error)
 	GetDecks(context.Context, *connect.Request[wordvault.GetDecksRequest]) (*connect.Response[wordvault.GetDecksResponse], error)
 	EditDeck(context.Context, *connect.Request[wordvault.EditDeckRequest]) (*connect.Response[wordvault.EditDeckResponse], error)
@@ -616,6 +659,19 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 		connect.WithSchema(wordVaultServiceEditFsrsParametersMethodDescriptor),
 		connect.WithHandlerOptions(opts...),
 	)
+	wordVaultServicePreviewFsrsUpgradeHandler := connect.NewUnaryHandler(
+		WordVaultServicePreviewFsrsUpgradeProcedure,
+		svc.PreviewFsrsUpgrade,
+		connect.WithSchema(wordVaultServicePreviewFsrsUpgradeMethodDescriptor),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	wordVaultServiceUpgradeFsrsHandler := connect.NewUnaryHandler(
+		WordVaultServiceUpgradeFsrsProcedure,
+		svc.UpgradeFsrs,
+		connect.WithSchema(wordVaultServiceUpgradeFsrsMethodDescriptor),
+		connect.WithHandlerOptions(opts...),
+	)
 	wordVaultServiceAddDeckHandler := connect.NewUnaryHandler(
 		WordVaultServiceAddDeckProcedure,
 		svc.AddDeck,
@@ -680,6 +736,10 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 			wordVaultServiceGetFsrsParametersHandler.ServeHTTP(w, r)
 		case WordVaultServiceEditFsrsParametersProcedure:
 			wordVaultServiceEditFsrsParametersHandler.ServeHTTP(w, r)
+		case WordVaultServicePreviewFsrsUpgradeProcedure:
+			wordVaultServicePreviewFsrsUpgradeHandler.ServeHTTP(w, r)
+		case WordVaultServiceUpgradeFsrsProcedure:
+			wordVaultServiceUpgradeFsrsHandler.ServeHTTP(w, r)
 		case WordVaultServiceAddDeckProcedure:
 			wordVaultServiceAddDeckHandler.ServeHTTP(w, r)
 		case WordVaultServiceGetDecksProcedure:
@@ -771,6 +831,14 @@ func (UnimplementedWordVaultServiceHandler) GetFsrsParameters(context.Context, *
 
 func (UnimplementedWordVaultServiceHandler) EditFsrsParameters(context.Context, *connect.Request[wordvault.EditFsrsParametersRequest]) (*connect.Response[wordvault.EditFsrsParametersResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.EditFsrsParameters is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) PreviewFsrsUpgrade(context.Context, *connect.Request[wordvault.PreviewFsrsUpgradeRequest]) (*connect.Response[wordvault.PreviewFsrsUpgradeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.PreviewFsrsUpgrade is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) UpgradeFsrs(context.Context, *connect.Request[wordvault.UpgradeFsrsRequest]) (*connect.Response[wordvault.UpgradeFsrsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.UpgradeFsrs is not implemented"))
 }
 
 func (UnimplementedWordVaultServiceHandler) AddDeck(context.Context, *connect.Request[wordvault.AddDeckRequest]) (*connect.Response[wordvault.AddDeckResponse], error) {

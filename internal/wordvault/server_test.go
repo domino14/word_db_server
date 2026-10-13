@@ -16,7 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/matryer/is"
-	"github.com/open-spaced-repetition/go-fsrs/v3"
+	"github.com/open-spaced-repetition/go-fsrs/v4"
 	"github.com/rs/zerolog/log"
 
 	searchpb "github.com/domino14/word_db_server/api/rpc/wordsearcher"
@@ -240,11 +240,11 @@ func TestScoreCard(t *testing.T) {
 		Alphagram: "ADEEGMMO",
 	}))
 	is.NoErr(err)
-	// Create a time three years after the fake now time above.
+	// Create a time one year after the fake now time above.
 	// The card is scheduled in the far future after marking it easy just three times.
-	threeyearsafter, err := time.Parse(time.RFC3339, "2027-09-22T23:00:00Z")
+	oneyearafter, err := time.Parse(time.RFC3339, "2025-09-22T23:00:00Z")
 	is.NoErr(err)
-	is.True(res.Msg.NextScheduled.AsTime().After(threeyearsafter))
+	is.True(res.Msg.NextScheduled.AsTime().After(oneyearafter))
 
 	// try to score card again shortly after
 
@@ -421,12 +421,6 @@ func TestEditCardScore(t *testing.T) {
 	}))
 	is.NoErr(err)
 	is.Equal(len(cards.Msg.Cards), 400)
-	cidx := -1
-	for i := range 400 {
-		if cards.Msg.Cards[i].Alphagram.Alphagram == "AEGLPSU" {
-			cidx = i
-		}
-	}
 
 	// Now we made a mistake. We accidentally marked it missed.
 	res, err = s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
@@ -447,13 +441,14 @@ func TestEditCardScore(t *testing.T) {
 	is.Equal(card.State, fsrs.Review)
 	is.Equal(card.Lapses, uint64(1))
 
-	// Oops, let's mark it easy again 5 seconds later.
+	// Oops, let's mark it easy again 5 seconds later. The server rolls the
+	// card back from its own review log, so the client's copy of the card
+	// isn't needed.
 	fakenower.fakenow = fakenower.fakenow.Add(5 * time.Second)
 	res, err = s.EditLastScore(ctx, connect.NewRequest(&pb.EditLastScoreRequest{
-		NewScore:     pb.Score_SCORE_EASY,
-		Lexicon:      "NWL23",
-		Alphagram:    "AEGLPSU",
-		LastCardRepr: cards.Msg.Cards[cidx].CardJsonRepr,
+		NewScore:  pb.Score_SCORE_EASY,
+		Lexicon:   "NWL23",
+		Alphagram: "AEGLPSU",
 	}))
 	is.NoErr(err)
 
@@ -470,11 +465,11 @@ func TestEditCardScore(t *testing.T) {
 	is.Equal(reviewLog[1].Rating, fsrs.Easy)
 	is.Equal(reviewLog[2].Rating, fsrs.Easy)
 
-	// Create a time three years after the fake now time above.
+	// Create a time one year after the fake now time above.
 	// The card is scheduled in the far future after marking it easy just three times.
-	threeyearsafter, err := time.Parse(time.RFC3339, "2027-09-22T23:00:00Z")
+	oneyearafter, err := time.Parse(time.RFC3339, "2025-09-22T23:00:00Z")
 	is.NoErr(err)
-	is.True(res.Msg.NextScheduled.AsTime().After(threeyearsafter))
+	is.True(res.Msg.NextScheduled.AsTime().After(oneyearafter))
 
 	info, err = s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
 		Lexicon:    "NWL23",

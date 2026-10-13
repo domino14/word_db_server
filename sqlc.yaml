@@ -14,7 +14,7 @@ sql:
         go_type: "github.com/google/uuid.UUID"
       - column: "wordvault_params.params"
         go_type:
-          import: "github.com/open-spaced-repetition/go-fsrs/v3"
+          import: "github.com/open-spaced-repetition/go-fsrs/v4"
           type: "Parameters"
       - column: "wordvault_cards.fsrs_card"
         go_type:
