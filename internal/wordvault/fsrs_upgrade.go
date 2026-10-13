@@ -127,7 +127,7 @@ func (s *Server) planFsrsUpgrade(ctx context.Context, q *models.Queries, dbid in
 	}
 	schedulers := map[int64]*fsrs.FSRS{0: fsrs.NewFSRS(global)}
 	for _, d := range decks {
-		p, err := deckParams(d.FsrsParamsOverride, global, FsrsVersion6)
+		p, err := deckParams(d.FsrsParamsOverride, global)
 		if err != nil {
 			return nil, err
 		}

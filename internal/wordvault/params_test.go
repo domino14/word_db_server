@@ -55,3 +55,43 @@ func TestIntervalDays(t *testing.T) {
 		}
 	}
 }
+
+func TestDeckParams(t *testing.T) {
+	is := is.New(t)
+	global := fsrs.DefaultParam()
+	global.EnableFuzz = true
+	global.MaximumInterval = 1825
+	global.RequestRetention = 0.9
+	applyFsrsVersion(&global, FsrsVersion6)
+
+	// No override: the global params.
+	p, err := deckParams(nil, global)
+	is.NoErr(err)
+	is.Equal(p, global)
+
+	// What EditDeck used to store: a whole fsrs.DefaultParam(), with fuzz
+	// off, a 100-year maximum interval and no learning steps. Only retention
+	// and the scheduler come from it now.
+	old := fsrs.DefaultParam()
+	old.RequestRetention = 0.85
+	old.EnableShortTerm = true
+	old.LearningSteps = nil
+	oldJSON, err := json.Marshal(old)
+	is.NoErr(err)
+	p, err = deckParams(oldJSON, global)
+	is.NoErr(err)
+	is.Equal(p.RequestRetention, 0.85)
+	is.True(p.EnableShortTerm)
+	is.True(p.EnableFuzz)
+	is.Equal(p.MaximumInterval, 1825.0)
+	is.Equal(p.W, global.W)
+	is.Equal(p.LearningSteps, global.LearningSteps)
+
+	// What EditDeck stores now.
+	p, err = deckParams([]byte(`{"RequestRetention":0.95,"EnableShortTerm":false}`), global)
+	is.NoErr(err)
+	is.Equal(p.RequestRetention, 0.95)
+	is.True(!p.EnableShortTerm)
+	is.True(p.EnableFuzz)
+	is.Equal(p.MaximumInterval, 1825.0)
+}

@@ -344,17 +344,28 @@ func fixLegacyLearningCard(card *fsrs.Card) {
 	}
 }
 
-// deckParams returns the FSRS parameters for a deck, given the user's global
-// params and version. Decks without an override use the global params.
-func deckParams(override []byte, global fsrs.Parameters, version int16) (fsrs.Parameters, error) {
+// deckOverride is what a deck can override in the user's FSRS parameters.
+// Older overrides were stored as a whole fsrs.Parameters (from
+// fsrs.DefaultParam(), so with fuzz off and a 100-year maximum interval); only
+// these fields are read from them.
+type deckOverride struct {
+	RequestRetention float64
+	EnableShortTerm  bool
+}
+
+// deckParams returns the FSRS parameters for a deck: the user's global params
+// (already set up for their version), with the deck's override applied.
+func deckParams(override []byte, global fsrs.Parameters) (fsrs.Parameters, error) {
 	if len(override) == 0 {
 		return global, nil
 	}
-	var params fsrs.Parameters
-	if err := json.Unmarshal(override, &params); err != nil {
+	var o deckOverride
+	if err := json.Unmarshal(override, &o); err != nil {
 		return fsrs.Parameters{}, err
 	}
-	applyFsrsVersion(&params, version)
+	params := global
+	params.RequestRetention = o.RequestRetention
+	params.EnableShortTerm = o.EnableShortTerm
 	return params, nil
 }
 
@@ -365,7 +376,7 @@ func deckParams(override []byte, global fsrs.Parameters, version int16) (fsrs.Pa
 // Accepts optional `maybeQ` instance of Queries for transactional consistency
 // if there is an ongoing transaction.
 func (s *Server) fsrsParamsForDeck(ctx context.Context, dbid int64, deckID int64, maybeQ *models.Queries) (fsrs.Parameters, error) {
-	global, version, err := s.fsrsParamsAndVersion(ctx, dbid, maybeQ)
+	global, err := s.fsrsParams(ctx, dbid, maybeQ)
 	if err != nil {
 		return fsrs.Parameters{}, err
 	}
@@ -386,7 +397,7 @@ func (s *Server) fsrsParamsForDeck(ctx context.Context, dbid int64, deckID int64
 	if err != nil {
 		return fsrs.Parameters{}, err
 	}
-	return deckParams(deck.FsrsParamsOverride, global, version)
+	return deckParams(deck.FsrsParamsOverride, global)
 }
 
 func (s *Server) appMaintenance(ctx context.Context) (bool, error) {
@@ -1500,13 +1511,11 @@ func (s *Server) EditDeck(ctx context.Context, req *connect.Request[pb.EditDeckR
 			return nil, invalidArgError("invalid scheduler value")
 		}
 
-		// Convert proto to fsrs.Parameters
-		params := fsrs.DefaultParam()
-		params.RequestRetention = req.Msg.FsrsParametersOverride.RequestRetention
-		params.EnableShortTerm = req.Msg.FsrsParametersOverride.Scheduler == pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM
-
 		var err error
-		fsrsParamsOverride, err = json.Marshal(params)
+		fsrsParamsOverride, err = json.Marshal(deckOverride{
+			RequestRetention: req.Msg.FsrsParametersOverride.RequestRetention,
+			EnableShortTerm:  req.Msg.FsrsParametersOverride.Scheduler == pb.FsrsScheduler_FSRS_SCHEDULER_SHORT_TERM,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -1586,11 +1595,13 @@ func (s *Server) DeleteDeck(ctx context.Context, req *connect.Request[pb.DeleteD
 	return connect.NewResponse(&pb.DeleteDeckResponse{}), nil
 }
 
-// The fsrs library fuzzes only by day. It tends to ask questions at the same
-// hour and minute that they were asked last. We want to add a little bit of a fuzz
-// to allow for more randomness.
+// The fsrs library fuzzes only by day, and not at all for intervals under 2.5
+// days. It tends to ask questions at the same hour and minute that they were
+// asked last, so cards studied together keep coming back together. Add a
+// little more randomness to cards scheduled days out. Learning and relearning
+// steps (minutes, in short-term mode) are left alone.
 func furtherFuzzDueDate(params fsrs.Parameters, now time.Time, card *fsrs.Card) {
-	if !params.EnableFuzz || params.EnableShortTerm {
+	if !params.EnableFuzz || card.State != fsrs.Review {
 		return
 	}
 	// Find a random second in a 21,600-second interval (6 hours) centered

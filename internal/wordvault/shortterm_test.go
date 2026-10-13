@@ -2,6 +2,7 @@ package wordvault
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 	"time"
 
@@ -42,6 +43,10 @@ const v3ShortTermParams = `{"RequestRetention": 0.9, "MaximumInterval": 1825,
 	1.54575, 0.1192, 1.01925, 1.9395, 0.11, 0.29605, 2.2698, 0.2315, 2.9898,
 	0.51655, 0.6621], "Decay": -0.5, "Factor": 0.2345679012345678,
 	"EnableShortTerm": true, "EnableFuzz": true}`
+
+// A card graduating to a 1-day interval, minus the most furtherFuzzDueDate
+// can move it earlier.
+const graduatedMin = 21 * time.Hour
 
 func getCard(t *testing.T, s *Server, alphagram string) fsrs.Card {
 	is := is.New(t)
@@ -95,7 +100,7 @@ func testShortTermScheduler(t *testing.T, version int16) {
 	is.Equal(score(pb.Score_SCORE_GOOD), 10*time.Minute)
 	is.Equal(getCard(t, s, "ADEEGMMO").State, fsrs.Learning)
 	// Good on the last step graduates the card.
-	is.True(score(pb.Score_SCORE_GOOD) >= 24*time.Hour)
+	is.True(score(pb.Score_SCORE_GOOD) >= graduatedMin)
 	card := getCard(t, s, "ADEEGMMO")
 	is.Equal(card.State, fsrs.Review)
 	is.Equal(card.Lapses, uint64(0))
@@ -109,7 +114,7 @@ func testShortTermScheduler(t *testing.T, version int16) {
 	is.Equal(score(pb.Score_SCORE_AGAIN), 10*time.Minute)
 	is.Equal(getCard(t, s, "ADEEGMMO").State, fsrs.Relearning)
 	// Getting it right graduates it again.
-	is.True(score(pb.Score_SCORE_GOOD) >= 24*time.Hour)
+	is.True(score(pb.Score_SCORE_GOOD) >= graduatedMin)
 	is.Equal(getCard(t, s, "ADEEGMMO").State, fsrs.Review)
 }
 
@@ -169,6 +174,37 @@ func TestShortTermLegacyRelearningCard(t *testing.T) {
 		Alphagram: "ADEEHMMO",
 	}))
 	is.NoErr(err)
-	is.True(res.Msg.NextScheduled.AsTime().Sub(fakenower.fakenow) >= 24*time.Hour)
+	is.True(res.Msg.NextScheduled.AsTime().Sub(fakenower.fakenow) >= graduatedMin)
 	is.Equal(getCard(t, s, "ADEEHMMO").State, fsrs.Review)
+}
+
+func TestFurtherFuzzDueDate(t *testing.T) {
+	is := is.New(t)
+	now, _ := time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
+	p := fsrs.DefaultParam()
+	p.EnableFuzz = true
+
+	// Spread of due times for a card in the given state, due a day from now.
+	spread := func(p fsrs.Parameters, state fsrs.State) time.Duration {
+		lo, hi := time.Duration(math.MaxInt64), time.Duration(0)
+		for range 200 {
+			card := fsrs.Card{State: state, Due: now.Add(24 * time.Hour)}
+			furtherFuzzDueDate(p, now, &card)
+			d := card.Due.Sub(now)
+			is.True(d >= 21*time.Hour && d <= 27*time.Hour)
+			lo, hi = min(lo, d), max(hi, d)
+		}
+		return hi - lo
+	}
+
+	// Review cards are jittered by up to 3 hours either way, in both modes.
+	is.True(spread(p, fsrs.Review) > 4*time.Hour)
+	p.EnableShortTerm = true
+	is.True(spread(p, fsrs.Review) > 4*time.Hour)
+	// Learning steps are exact.
+	is.Equal(spread(p, fsrs.Learning), time.Duration(0))
+	is.Equal(spread(p, fsrs.Relearning), time.Duration(0))
+	// And nothing happens with fuzz off.
+	p.EnableFuzz = false
+	is.Equal(spread(p, fsrs.Review), time.Duration(0))
 }
