@@ -53,8 +53,11 @@ FROM
     wordvault_cards
 WHERE
     user_id = @user_id
-    AND ((fsrs_card->>'LastReview')::timestamp AT TIME ZONE 'UTC' AT TIME ZONE sqlc.arg(timezone)::text)::date =
-        (sqlc.arg(now)::timestamptz AT TIME ZONE sqlc.arg(timezone)::text)::date;
+    -- LastReview is always UTC RFC3339 ending in Z, so comparing it as text
+    -- against the day's bounds (see lastReviewDayBounds) lets this use an
+    -- index on LastReview.
+    AND fsrs_card->>'LastReview' >= sqlc.arg(day_start)::text
+    AND fsrs_card->>'LastReview' < sqlc.arg(day_end)::text;
 
 -- name: GetDailyLeaderboard :many
 SELECT
@@ -94,8 +97,11 @@ FROM
     wordvault_cards
 WHERE
     user_id = @user_id
-    AND ((fsrs_card->>'LastReview')::timestamp AT TIME ZONE 'UTC' AT TIME ZONE sqlc.arg(timezone)::text)::date =
-        (sqlc.arg(now)::timestamptz AT TIME ZONE sqlc.arg(timezone)::text)::date
+    -- LastReview is always UTC RFC3339 ending in Z, so comparing it as text
+    -- against the day's bounds (see lastReviewDayBounds) lets this use an
+    -- index on LastReview.
+    AND fsrs_card->>'LastReview' >= sqlc.arg(day_start)::text
+    AND fsrs_card->>'LastReview' < sqlc.arg(day_end)::text
 GROUP BY
     deck_id
 ORDER BY

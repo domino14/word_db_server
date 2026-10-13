@@ -113,14 +113,17 @@ FROM
     wordvault_cards
 WHERE
     user_id = $1
-    AND ((fsrs_card->>'LastReview')::timestamp AT TIME ZONE 'UTC' AT TIME ZONE $2::text)::date =
-        ($3::timestamptz AT TIME ZONE $2::text)::date
+    -- LastReview is always UTC RFC3339 ending in Z, so comparing it as text
+    -- against the day's bounds (see lastReviewDayBounds) lets this use an
+    -- index on LastReview.
+    AND fsrs_card->>'LastReview' >= $2::text
+    AND fsrs_card->>'LastReview' < $3::text
 `
 
 type GetDailyProgressParams struct {
 	UserID   int64
-	Timezone string
-	Now      pgtype.Timestamptz
+	DayStart string
+	DayEnd   string
 }
 
 type GetDailyProgressRow struct {
@@ -137,7 +140,7 @@ type GetDailyProgressRow struct {
 }
 
 func (q *Queries) GetDailyProgress(ctx context.Context, arg GetDailyProgressParams) (GetDailyProgressRow, error) {
-	row := q.db.QueryRow(ctx, getDailyProgress, arg.UserID, arg.Timezone, arg.Now)
+	row := q.db.QueryRow(ctx, getDailyProgress, arg.UserID, arg.DayStart, arg.DayEnd)
 	var i GetDailyProgressRow
 	err := row.Scan(
 		&i.NewCards,
@@ -171,8 +174,11 @@ FROM
     wordvault_cards
 WHERE
     user_id = $1
-    AND ((fsrs_card->>'LastReview')::timestamp AT TIME ZONE 'UTC' AT TIME ZONE $2::text)::date =
-        ($3::timestamptz AT TIME ZONE $2::text)::date
+    -- LastReview is always UTC RFC3339 ending in Z, so comparing it as text
+    -- against the day's bounds (see lastReviewDayBounds) lets this use an
+    -- index on LastReview.
+    AND fsrs_card->>'LastReview' >= $2::text
+    AND fsrs_card->>'LastReview' < $3::text
 GROUP BY
     deck_id
 ORDER BY
@@ -181,8 +187,8 @@ ORDER BY
 
 type GetDailyProgressByDeckParams struct {
 	UserID   int64
-	Timezone string
-	Now      pgtype.Timestamptz
+	DayStart string
+	DayEnd   string
 }
 
 type GetDailyProgressByDeckRow struct {
@@ -200,7 +206,7 @@ type GetDailyProgressByDeckRow struct {
 }
 
 func (q *Queries) GetDailyProgressByDeck(ctx context.Context, arg GetDailyProgressByDeckParams) ([]GetDailyProgressByDeckRow, error) {
-	rows, err := q.db.Query(ctx, getDailyProgressByDeck, arg.UserID, arg.Timezone, arg.Now)
+	rows, err := q.db.Query(ctx, getDailyProgressByDeck, arg.UserID, arg.DayStart, arg.DayEnd)
 	if err != nil {
 		return nil, err
 	}

@@ -2293,3 +2293,54 @@ func TestDeleteDeck(t *testing.T) {
 	is.NoErr(err)
 	is.Equal(len(decks.Msg.Decks), 0)
 }
+
+func TestDailyProgressDayBoundary(t *testing.T) {
+	is := is.New(t)
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	s := NewServer(DefaultConfig, dbPool, models.New(dbPool), &searchserver.Server{Config: DefaultConfig})
+	fakenower := &FakeNower{}
+	s.Nower = fakenower
+
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO"},
+	}))
+	is.NoErr(err)
+	// 23:30 on Sep 22 in New York; already Sep 23 in UTC and Singapore.
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2024-09-23T03:30:00Z")
+	_, err = s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+		Score:     pb.Score_SCORE_GOOD,
+		Lexicon:   "NWL23",
+		Alphagram: "ADEEGMMO",
+	}))
+	is.NoErr(err)
+
+	newToday := func(now, tz string) int32 {
+		fakenower.fakenow, _ = time.Parse(time.RFC3339, now)
+		res, err := s.GetDailyProgress(ctx, connect.NewRequest(&pb.GetDailyProgressRequest{Timezone: tz}))
+		is.NoErr(err)
+		return res.Msg.ProgressStats["New"]
+	}
+	// Still Sep 22 in New York.
+	is.Equal(newToday("2024-09-23T03:59:59Z", "America/New_York"), int32(1))
+	// Just after midnight in New York, it's a new day.
+	is.Equal(newToday("2024-09-23T04:00:00Z", "America/New_York"), int32(0))
+	// Sep 23 in UTC all day long.
+	is.Equal(newToday("2024-09-23T00:00:00Z", "UTC"), int32(1))
+	is.Equal(newToday("2024-09-23T23:59:59Z", "UTC"), int32(1))
+	is.Equal(newToday("2024-09-24T00:00:00Z", "UTC"), int32(0))
+	// Singapore (UTC+8): Sep 23 runs from 2024-09-22T16:00Z to 2024-09-23T16:00Z.
+	is.Equal(newToday("2024-09-23T15:59:59Z", "Asia/Singapore"), int32(1))
+	is.Equal(newToday("2024-09-23T16:00:00Z", "Asia/Singapore"), int32(0))
+
+	_, err = s.GetDailyProgress(ctx, connect.NewRequest(&pb.GetDailyProgressRequest{Timezone: "Not/AZone"}))
+	is.True(err != nil)
+}

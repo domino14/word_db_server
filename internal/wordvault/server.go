@@ -1192,6 +1192,21 @@ func (s *Server) DeleteFromDeck(ctx context.Context, req *connect.Request[pb.Del
 	return connect.NewResponse(&pb.DeleteResponse{NumDeleted: uint32(deletedRows)}), nil
 }
 
+// lastReviewDayBounds returns the start and end (exclusive) of the day that
+// contains now in the given timezone, in UTC and formatted to compare as text
+// against the LastReview timestamps stored in fsrs_card.
+func lastReviewDayBounds(now time.Time, timezone string) (string, string, error) {
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		return "", "", invalidArgError("invalid timezone: " + timezone)
+	}
+	y, m, d := now.In(loc).Date()
+	start := time.Date(y, m, d, 0, 0, 0, 0, loc)
+	end := start.AddDate(0, 0, 1)
+	const layout = "2006-01-02T15:04:05"
+	return start.UTC().Format(layout), end.UTC().Format(layout), nil
+}
+
 func (s *Server) GetDailyProgress(ctx context.Context, req *connect.Request[pb.GetDailyProgressRequest]) (
 	*connect.Response[pb.GetDailyProgressResponse], error) {
 
@@ -1200,10 +1215,14 @@ func (s *Server) GetDailyProgress(ctx context.Context, req *connect.Request[pb.G
 		return nil, unauthenticated("user not authenticated")
 	}
 
+	dayStart, dayEnd, err := lastReviewDayBounds(s.Nower.Now(), req.Msg.Timezone)
+	if err != nil {
+		return nil, err
+	}
 	progress, err := s.Queries.GetDailyProgress(ctx, models.GetDailyProgressParams{
 		UserID:   int64(user.DBID),
-		Timezone: req.Msg.Timezone,
-		Now:      toPGTimestamp(s.Nower.Now()),
+		DayStart: dayStart,
+		DayEnd:   dayEnd,
 	})
 	if err != nil {
 		return nil, err
@@ -1232,10 +1251,14 @@ func (s *Server) GetDailyProgressByDeck(ctx context.Context, req *connect.Reques
 		return nil, unauthenticated("user not authenticated")
 	}
 
+	dayStart, dayEnd, err := lastReviewDayBounds(s.Nower.Now(), req.Msg.Timezone)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := s.Queries.GetDailyProgressByDeck(ctx, models.GetDailyProgressByDeckParams{
 		UserID:   int64(user.DBID),
-		Timezone: req.Msg.Timezone,
-		Now:      toPGTimestamp(s.Nower.Now()),
+		DayStart: dayStart,
+		DayEnd:   dayEnd,
 	})
 	if err != nil {
 		return nil, err
