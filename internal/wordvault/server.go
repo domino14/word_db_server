@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand/v2"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -111,6 +112,60 @@ func (s *Server) resolveAlphagrams(ctx context.Context, lexicon string, alphagra
 		found[i] = a.Alphagram
 	}
 	return found, nil
+}
+
+// lexiconAlphagrams checks that every alphagram exists in the lexicon and
+// returns them as the lexicon stores them, without duplicates. A card for an
+// alphagram the lexicon doesn't have (e.g. one with a blank) would come back
+// from review with no words, so these are rejected rather than added.
+func (s *Server) lexiconAlphagrams(ctx context.Context, lexicon string, alphagrams []string) ([]string, error) {
+	cfg := &wglconfig.Config{DataPath: s.Config.DataPath}
+	resp, err := s.WordSearchServer.Search(ctx, connect.NewRequest(searchserver.WordSearch(
+		[]*searchpb.SearchRequest_SearchParam{
+			searchserver.SearchDescLexicon(lexicon),
+			searchserver.SearchDescAlphagramList(lookupAlphagrams(cfg, lexicon, alphagrams)),
+		}, false)))
+	if err != nil {
+		return nil, err
+	}
+	inLexicon := map[string]bool{}
+	for _, a := range resp.Msg.Alphagrams {
+		inLexicon[a.Alphagram] = true
+	}
+
+	out := make([]string, 0, len(alphagrams))
+	added := map[string]bool{}
+	var invalid []string
+	for _, a := range alphagrams {
+		stored := a
+		if !inLexicon[stored] {
+			stored = lexiconAlphagram(cfg, lexicon, a)
+		}
+		if !inLexicon[stored] {
+			invalid = append(invalid, a)
+			continue
+		}
+		if !added[stored] {
+			added[stored] = true
+			out = append(out, stored)
+		}
+	}
+	if len(invalid) > 0 {
+		preview := invalid
+		if len(preview) > 5 {
+			preview = append(slices.Clone(preview[:5]), "...")
+		}
+		return nil, invalidArgError(fmt.Sprintf("%s has no %s: %s", lexicon,
+			pluralize(len(invalid), "such alphagram", "such alphagrams"), strings.Join(preview, ", ")))
+	}
+	return out, nil
+}
+
+func pluralize(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 func (s *Server) GetCardInformation(ctx context.Context, req *connect.Request[pb.GetCardInfoRequest]) (
@@ -703,6 +758,13 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 				len(alphagrams), s.Config.MaxCardsAdd))
 		}
 		return nil, invalidArgError(fmt.Sprintf("cannot add more than %d cards at a time", s.Config.MaxCardsAdd))
+	}
+	if len(req.Msg.SearchParams) == 0 {
+		// Alphagrams from a search are already as the lexicon stores them.
+		alphagrams, err = s.lexiconAlphagrams(ctx, req.Msg.Lexicon, alphagrams)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if !user.Member {
 		rows, err := s.Queries.GetNumCardsInVault(ctx, int64(user.DBID))
