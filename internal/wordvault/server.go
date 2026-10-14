@@ -34,6 +34,7 @@ import (
 var ErrNeedMembership = errors.New("adding these cards would put you over your limit; please upgrade your account to add more cards <3")
 var ErrMaybeRefreshApp = invalidArgError("Card with your input parameters was not found. Please refresh this page as the app may have updated.")
 var ErrMaintenance = connect.NewError(connect.CodeUnavailable, errors.New("WordVault App is currently undergoing maintenance. Please wait a few moments and try again."))
+var ErrNoSearchResults = connect.NewError(connect.CodeNotFound, errors.New("no cards match the search criteria"))
 
 const CardInOtherDeckPreviewLimit = 10
 const JustReviewedInterval = time.Second * 10
@@ -66,6 +67,50 @@ func unauthenticated(msg string) *connect.Error {
 
 func invalidArgError(msg string) *connect.Error {
 	return connect.NewError(connect.CodeInvalidArgument, errors.New(msg))
+}
+
+// resolveAlphagrams returns the alphagrams a card request applies to. These
+// are either given directly, or found by running searchParams in the given
+// lexicon. Exactly one of the two must be non-empty.
+func (s *Server) resolveAlphagrams(ctx context.Context, lexicon string, alphagrams []string,
+	searchParams []*searchpb.SearchRequest_SearchParam) ([]string, error) {
+
+	if len(searchParams) == 0 {
+		return alphagrams, nil
+	}
+	if len(alphagrams) > 0 {
+		return nil, invalidArgError("cannot specify both alphagrams and search_params")
+	}
+	if lexicon == "" {
+		return nil, invalidArgError("need a lexicon")
+	}
+	// Always search in the request's lexicon, regardless of any lexicon
+	// condition the client sent.
+	params := []*searchpb.SearchRequest_SearchParam{searchserver.SearchDescLexicon(lexicon)}
+	for _, p := range searchParams {
+		switch p.Condition {
+		case searchpb.SearchRequest_LEXICON:
+			continue
+		case searchpb.SearchRequest_DELETED_WORD:
+			return nil, invalidArgError("cannot search for deleted words here")
+		}
+		params = append(params, p)
+	}
+	if len(params) == 1 {
+		return nil, invalidArgError("need at least one search condition besides the lexicon")
+	}
+	resp, err := s.WordSearchServer.Search(ctx, connect.NewRequest(searchserver.WordSearch(params, false)))
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.Msg.Alphagrams) == 0 {
+		return nil, ErrNoSearchResults
+	}
+	found := make([]string, len(resp.Msg.Alphagrams))
+	for i, a := range resp.Msg.Alphagrams {
+		found[i] = a.Alphagram
+	}
+	return found, nil
 }
 
 func (s *Server) GetCardInformation(ctx context.Context, req *connect.Request[pb.GetCardInfoRequest]) (
@@ -645,10 +690,18 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 	if user == nil {
 		return nil, unauthenticated("user not authenticated")
 	}
-	if len(req.Msg.Alphagrams) == 0 {
+	alphagrams, err := s.resolveAlphagrams(ctx, req.Msg.Lexicon, req.Msg.Alphagrams, req.Msg.SearchParams)
+	if err != nil {
+		return nil, err
+	}
+	if len(alphagrams) == 0 {
 		return nil, invalidArgError("need to add at least one card")
 	}
-	if len(req.Msg.Alphagrams) > s.Config.MaxCardsAdd {
+	if len(alphagrams) > s.Config.MaxCardsAdd {
+		if len(req.Msg.SearchParams) > 0 {
+			return nil, invalidArgError(fmt.Sprintf("your search matched %d cards; cannot add more than %d cards at a time",
+				len(alphagrams), s.Config.MaxCardsAdd))
+		}
 		return nil, invalidArgError(fmt.Sprintf("cannot add more than %d cards at a time", s.Config.MaxCardsAdd))
 	}
 	if !user.Member {
@@ -660,7 +713,7 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 		for i := range rows {
 			total += int(rows[i].CardCount)
 		}
-		if total+len(req.Msg.Alphagrams) > s.Config.MaxNonmemberCards {
+		if total+len(alphagrams) > s.Config.MaxNonmemberCards {
 			return nil, connect.NewError(connect.CodeInvalidArgument, ErrNeedMembership)
 		}
 	}
@@ -676,7 +729,6 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 		return nil, err
 	}
 
-	alphagrams := req.Msg.Alphagrams
 	// Randomize the alphagrams to avoid any bias in how they came in.
 	if s.Config.SmallJitterOnAddCard {
 		rand.Shuffle(len(alphagrams), func(i, j int) {
@@ -771,12 +823,15 @@ func (s *Server) MoveCards(ctx context.Context, req *connect.Request[pb.MoveCard
 	if req.Msg.Lexicon == "" {
 		return nil, invalidArgError("need a lexicon")
 	}
-	if len(req.Msg.Alphagrams) == 0 {
+	alphagrams, err := s.resolveAlphagrams(ctx, req.Msg.Lexicon, req.Msg.Alphagrams, req.Msg.SearchParams)
+	if err != nil {
+		return nil, err
+	}
+	if len(alphagrams) == 0 {
 		return nil, invalidArgError("need at least one card to move")
 	}
 
 	var numMoved int64
-	var err error
 
 	if !req.Msg.FromAllDecks {
 		if req.Msg.SourceDeckId == req.Msg.TargetDeckId {
@@ -785,7 +840,7 @@ func (s *Server) MoveCards(ctx context.Context, req *connect.Request[pb.MoveCard
 		params := models.MoveCardsFromDeckParams{
 			UserID:       int64(user.DBID),
 			LexiconName:  req.Msg.Lexicon,
-			Alphagrams:   req.Msg.Alphagrams,
+			Alphagrams:   alphagrams,
 			TargetDeckID: int64(req.Msg.TargetDeckId),
 			SourceDeckID: int64(req.Msg.SourceDeckId),
 		}
@@ -797,7 +852,7 @@ func (s *Server) MoveCards(ctx context.Context, req *connect.Request[pb.MoveCard
 		params := models.MoveCardsParams{
 			UserID:       int64(user.DBID),
 			LexiconName:  req.Msg.Lexicon,
-			Alphagrams:   req.Msg.Alphagrams,
+			Alphagrams:   alphagrams,
 			TargetDeckID: int64(req.Msg.TargetDeckId),
 		}
 		numMoved, err = s.Queries.MoveCards(ctx, params)
@@ -1102,8 +1157,13 @@ func (s *Server) Postpone(ctx context.Context, req *connect.Request[pb.PostponeR
 	return connect.NewResponse(&pb.PostponeResponse{NumPostponed: cnt}), nil
 }
 
-func validateDeleteParams(onlyNewQuestions bool, onlyAlphagrams []string, allQuestions bool) error {
-	if allQuestions {
+func validateDeleteParams(onlyNewQuestions bool, onlyAlphagrams []string, allQuestions bool,
+	searchParams []*searchpb.SearchRequest_SearchParam) error {
+	if len(searchParams) > 0 {
+		if allQuestions || onlyNewQuestions || len(onlyAlphagrams) > 0 {
+			return invalidArgError("search_params cannot be combined with only_alphagrams, only_new_questions or all_questions")
+		}
+	} else if allQuestions {
 		if len(onlyAlphagrams) > 0 || onlyNewQuestions {
 			return invalidArgError("all_questions cannot be combined with only_alphagrams or only_new_questions")
 		}
@@ -1113,7 +1173,7 @@ func validateDeleteParams(onlyNewQuestions bool, onlyAlphagrams []string, allQue
 		}
 	} else {
 		if len(onlyAlphagrams) == 0 {
-			return invalidArgError("must specify one of: only_new_questions, only_alphagrams, or all_questions")
+			return invalidArgError("must specify one of: only_new_questions, only_alphagrams, search_params, or all_questions")
 		}
 	}
 	return nil
@@ -1130,10 +1190,13 @@ func (s *Server) Delete(ctx context.Context, req *connect.Request[pb.DeleteReque
 	if req.Msg.Lexicon == "" {
 		return nil, invalidArgError("need a lexicon")
 	}
-	if err := validateDeleteParams(req.Msg.OnlyNewQuestions, req.Msg.OnlyAlphagrams, req.Msg.AllQuestions); err != nil {
+	if err := validateDeleteParams(req.Msg.OnlyNewQuestions, req.Msg.OnlyAlphagrams, req.Msg.AllQuestions, req.Msg.SearchParams); err != nil {
 		return nil, err
 	}
-	var err error
+	onlyAlphagrams, err := s.resolveAlphagrams(ctx, req.Msg.Lexicon, req.Msg.OnlyAlphagrams, req.Msg.SearchParams)
+	if err != nil {
+		return nil, err
+	}
 	var deletedRows int64
 	if req.Msg.OnlyNewQuestions {
 		deletedRows, err = s.Queries.DeleteNewCards(ctx, models.DeleteNewCardsParams{
@@ -1145,11 +1208,11 @@ func (s *Server) Delete(ctx context.Context, req *connect.Request[pb.DeleteReque
 		deletedRows, err = s.Queries.DeleteCards(ctx, models.DeleteCardsParams{
 			UserID: int64(user.DBID), LexiconName: req.Msg.Lexicon,
 		})
-	} else if len(req.Msg.OnlyAlphagrams) > 0 {
+	} else if len(onlyAlphagrams) > 0 {
 		deletedRows, err = s.Queries.DeleteCardsWithAlphagrams(ctx, models.DeleteCardsWithAlphagramsParams{
 			UserID:      int64(user.DBID),
 			LexiconName: req.Msg.Lexicon,
-			Alphagrams:  req.Msg.OnlyAlphagrams,
+			Alphagrams:  onlyAlphagrams,
 		})
 	} else {
 		return nil, invalidArgError("invalid parameters for delete request")
@@ -1171,11 +1234,14 @@ func (s *Server) DeleteFromDeck(ctx context.Context, req *connect.Request[pb.Del
 	if req.Msg.Lexicon == "" {
 		return nil, invalidArgError("need a lexicon")
 	}
-	if err := validateDeleteParams(req.Msg.OnlyNewQuestions, req.Msg.OnlyAlphagrams, req.Msg.AllQuestions); err != nil {
+	if err := validateDeleteParams(req.Msg.OnlyNewQuestions, req.Msg.OnlyAlphagrams, req.Msg.AllQuestions, req.Msg.SearchParams); err != nil {
+		return nil, err
+	}
+	onlyAlphagrams, err := s.resolveAlphagrams(ctx, req.Msg.Lexicon, req.Msg.OnlyAlphagrams, req.Msg.SearchParams)
+	if err != nil {
 		return nil, err
 	}
 
-	var err error
 	var deletedRows int64
 	deckID := int64(req.Msg.DeckId)
 
@@ -1191,11 +1257,11 @@ func (s *Server) DeleteFromDeck(ctx context.Context, req *connect.Request[pb.Del
 			LexiconName: req.Msg.Lexicon,
 			DeckID:      deckID,
 		})
-	} else if len(req.Msg.OnlyAlphagrams) > 0 {
+	} else if len(onlyAlphagrams) > 0 {
 		deletedRows, err = s.Queries.DeleteCardsWithAlphagramsFromDeck(ctx, models.DeleteCardsWithAlphagramsFromDeckParams{
 			UserID:      int64(user.DBID),
 			LexiconName: req.Msg.Lexicon,
-			Alphagrams:  req.Msg.OnlyAlphagrams,
+			Alphagrams:  onlyAlphagrams,
 			DeckID:      deckID,
 		})
 	}

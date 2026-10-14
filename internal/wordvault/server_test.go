@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -2343,4 +2344,181 @@ func TestDailyProgressDayBoundary(t *testing.T) {
 
 	_, err = s.GetDailyProgress(ctx, connect.NewRequest(&pb.GetDailyProgressRequest{Timezone: "Not/AZone"}))
 	is.True(err != nil)
+}
+
+func TestCardsBySearch(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+
+	searchAlphas := func(min, max int) []string {
+		resp, err := s.WordSearchServer.Search(ctx, connect.NewRequest(
+			searchserver.WordSearch([]*searchpb.SearchRequest_SearchParam{
+				searchserver.SearchDescLexicon("NWL23"),
+				searchserver.SearchDescLength(7, 7),
+				searchserver.SearchDescProbRange(min, max),
+			}, false)))
+		is.NoErr(err)
+		alphas := make([]string, len(resp.Msg.Alphagrams))
+		for i := range resp.Msg.Alphagrams {
+			alphas[i] = resp.Msg.Alphagrams[i].Alphagram
+		}
+		return alphas
+	}
+	probSearch := func(min, max int) []*searchpb.SearchRequest_SearchParam {
+		return []*searchpb.SearchRequest_SearchParam{
+			searchserver.SearchDescLength(7, 7),
+			searchserver.SearchDescProbRange(min, max),
+		}
+	}
+
+	top20 := searchAlphas(1, 20)
+	is.True(len(top20) >= 20)
+
+	// A lexicon condition sent by the client is ignored; the request's
+	// lexicon is always used.
+	params := append([]*searchpb.SearchRequest_SearchParam{searchserver.SearchDescLexicon("CSW24")},
+		probSearch(1, 20)...)
+	addResp, err := s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:      "NWL23",
+		SearchParams: params,
+	}))
+	is.NoErr(err)
+	is.Equal(addResp.Msg.NumCardsAdded, uint32(len(top20)))
+
+	info, err := s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: top20,
+	}))
+	is.NoErr(err)
+	is.Equal(len(info.Msg.Cards), len(top20))
+
+	// Alphagrams and search params are mutually exclusive.
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:      "NWL23",
+		Alphagrams:   []string{"AEINRST"},
+		SearchParams: probSearch(1, 20),
+	}))
+	is.Equal(connect.CodeOf(err), connect.CodeInvalidArgument)
+
+	// A search with no results.
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:      "NWL23",
+		SearchParams: probSearch(99998, 99999),
+	}))
+	is.Equal(connect.CodeOf(err), connect.CodeNotFound)
+
+	// A search with too many results.
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:      "NWL23",
+		SearchParams: probSearch(1, 1500),
+	}))
+	is.Equal(connect.CodeOf(err), connect.CodeInvalidArgument)
+	is.True(strings.Contains(err.Error(), "your search matched"))
+
+	// Only a lexicon is not enough.
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:      "NWL23",
+		SearchParams: []*searchpb.SearchRequest_SearchParam{searchserver.SearchDescLexicon("NWL23")},
+	}))
+	is.Equal(connect.CodeOf(err), connect.CodeInvalidArgument)
+
+	// Deleted words can't be added as cards.
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:      "NWL23",
+		SearchParams: []*searchpb.SearchRequest_SearchParam{searchserver.SearchDescDeleted()},
+	}))
+	is.Equal(connect.CodeOf(err), connect.CodeInvalidArgument)
+
+	added, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{
+		Name:    "Deck A",
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	deckAID := uint64(added.Msg.Deck.Id)
+
+	// An uploaded list of words and alphagrams, added to a deck.
+	addResp, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon: "NWL23",
+		DeckId:  deckAID,
+		SearchParams: []*searchpb.SearchRequest_SearchParam{{
+			Condition: searchpb.SearchRequest_UPLOADED_WORD_OR_ALPHAGRAM_LIST,
+			Conditionparam: &searchpb.SearchRequest_SearchParam_Stringarray{
+				Stringarray: &searchpb.SearchRequest_StringArray{
+					Values: []string{"QI", "AZ", "ZZZZZ"},
+				},
+			},
+		}},
+	}))
+	is.NoErr(err)
+	is.Equal(addResp.Msg.NumCardsAdded, uint32(2))
+
+	// Move the top 10 from the default deck to Deck A.
+	top10 := searchAlphas(1, 10)
+	moveResp, err := s.MoveCards(ctx, connect.NewRequest(&pb.MoveCardsRequest{
+		Lexicon:      "NWL23",
+		SearchParams: probSearch(1, 10),
+		SourceDeckId: 0,
+		TargetDeckId: deckAID,
+	}))
+	is.NoErr(err)
+	is.Equal(moveResp.Msg.NumCardsMoved, uint32(len(top10)))
+
+	info, err = s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: top10,
+	}))
+	is.NoErr(err)
+	for _, c := range info.Msg.Cards {
+		is.Equal(c.DeckId, deckAID)
+	}
+
+	// Delete the top 5 from Deck A only.
+	top5 := searchAlphas(1, 5)
+	delResp, err := s.DeleteFromDeck(ctx, connect.NewRequest(&pb.DeleteFromDeckRequest{
+		Lexicon:      "NWL23",
+		DeckId:       deckAID,
+		SearchParams: probSearch(1, 5),
+	}))
+	is.NoErr(err)
+	is.Equal(delResp.Msg.NumDeleted, uint32(len(top5)))
+
+	// Search params can't be combined with the other delete modes.
+	_, err = s.Delete(ctx, connect.NewRequest(&pb.DeleteRequest{
+		Lexicon:      "NWL23",
+		AllQuestions: true,
+		SearchParams: probSearch(1, 20),
+	}))
+	is.Equal(connect.CodeOf(err), connect.CodeInvalidArgument)
+
+	// Delete the rest of the top 20 from all decks.
+	delResp, err = s.Delete(ctx, connect.NewRequest(&pb.DeleteRequest{
+		Lexicon:      "NWL23",
+		SearchParams: probSearch(1, 20),
+	}))
+	is.NoErr(err)
+	is.Equal(delResp.Msg.NumDeleted, uint32(len(top20)-len(top5)))
+
+	// Only the uploaded cards are left.
+	counts, err := s.GetCardCountByDeck(ctx, connect.NewRequest(&pb.GetCardCountByDeckRequest{
+		Lexicon: "NWL23",
+	}))
+	is.NoErr(err)
+	total := uint32(0)
+	for _, item := range counts.Msg.Items {
+		total += item.Count
+	}
+	is.Equal(total, uint32(2))
 }
