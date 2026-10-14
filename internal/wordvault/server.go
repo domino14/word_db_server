@@ -522,34 +522,13 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 		return nil, err
 	}
 
-	f := fsrs.NewFSRS(params)
-
-	card := cardrow.FsrsCard
 	revlog := cardrow.ReviewLog
-	if len(revlog) > 0 && s.Nower.Now().Sub(revlog[len(revlog)-1].Review) < JustReviewedInterval {
+	if justReviewed(revlog, now) {
 		return nil, invalidArgError("this card was just reviewed")
 	}
 
-	fixLegacyLearningCard(&card.Card)
-	info, err := f.Next(card.Card, now, fsrs.Rating(req.Msg.Score))
-	if err != nil {
-		return nil, err
-	}
-	card = stores.Card{Card: info.Card}
-	rlog := info.ReviewLog
-	rlogbts, err := json.Marshal(rlog)
-	if err != nil {
-		return nil, err
-	}
-	furtherFuzzDueDate(params, now, &card.Card)
-	err = qtx.UpdateCard(ctx, models.UpdateCardParams{
-		FsrsCard:      card,
-		NextScheduled: toPGTimestamp(card.Due),
-		UserID:        int64(user.DBID),
-		LexiconName:   req.Msg.Lexicon,
-		Alphagram:     req.Msg.Alphagram,
-		ReviewLogItem: rlogbts,
-	})
+	card, rlog, err := scoreAndUpdateCard(ctx, qtx, params, int64(user.DBID), req.Msg.Lexicon,
+		req.Msg.Alphagram, cardrow.FsrsCard, fsrs.Rating(req.Msg.Score), now)
 	if err != nil {
 		return nil, err
 	}
@@ -573,6 +552,126 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 		CardJsonRepr:  cardJson,
 	}), nil
 
+}
+
+func justReviewed(revlog []stores.ReviewLog, now time.Time) bool {
+	return len(revlog) > 0 && now.Sub(revlog[len(revlog)-1].Review) < JustReviewedInterval
+}
+
+// scoreAndUpdateCard applies a rating to a card and saves the new card state
+// and review log entry, in the caller's transaction.
+func scoreAndUpdateCard(ctx context.Context, qtx *models.Queries, params fsrs.Parameters,
+	userID int64, lexicon, alphagram string, card stores.Card, rating fsrs.Rating,
+	now time.Time) (stores.Card, fsrs.ReviewLog, error) {
+
+	fixLegacyLearningCard(&card.Card)
+	info, err := fsrs.NewFSRS(params).Next(card.Card, now, rating)
+	if err != nil {
+		return stores.Card{}, fsrs.ReviewLog{}, err
+	}
+	card = stores.Card{Card: info.Card}
+	rlogbts, err := json.Marshal(info.ReviewLog)
+	if err != nil {
+		return stores.Card{}, fsrs.ReviewLog{}, err
+	}
+	furtherFuzzDueDate(params, now, &card.Card)
+	err = qtx.UpdateCard(ctx, models.UpdateCardParams{
+		FsrsCard:      card,
+		NextScheduled: toPGTimestamp(card.Due),
+		UserID:        userID,
+		LexiconName:   lexicon,
+		Alphagram:     alphagram,
+		ReviewLogItem: rlogbts,
+	})
+	if err != nil {
+		return stores.Card{}, fsrs.ReviewLog{}, err
+	}
+	return card, info.ReviewLog, nil
+}
+
+// ScoreCards gives the same score to several cards in one transaction.
+// Cards that don't exist or were just reviewed are skipped and reported back.
+func (s *Server) ScoreCards(ctx context.Context, req *connect.Request[pb.ScoreCardsRequest]) (
+	*connect.Response[pb.ScoreCardsResponse], error) {
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+	now := s.Nower.Now()
+	if req.Msg.Score < 1 || req.Msg.Score > 4 {
+		return nil, invalidArgError("invalid score")
+	}
+	if req.Msg.Lexicon == "" || len(req.Msg.Alphagrams) == 0 {
+		return nil, invalidArgError("need a lexicon and at least one alphagram")
+	}
+	if len(req.Msg.Alphagrams) > s.Config.MaxCardsAdd {
+		return nil, invalidArgError(fmt.Sprintf("cannot score more than %d cards at a time", s.Config.MaxCardsAdd))
+	}
+
+	maintenance, err := s.appMaintenance(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if maintenance {
+		return nil, ErrMaintenance
+	}
+
+	tx, err := s.DBPool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	qtx := s.Queries.WithTx(tx)
+
+	cfg := &wglconfig.Config{DataPath: s.Config.DataPath}
+	rows, err := qtx.GetCards(ctx, models.GetCardsParams{
+		UserID:      int64(user.DBID),
+		LexiconName: req.Msg.Lexicon,
+		Alphagrams:  lookupAlphagrams(cfg, req.Msg.Lexicon, req.Msg.Alphagrams),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Cards in different decks can have different scheduling parameters.
+	deckParams := map[int64]fsrs.Parameters{}
+	scored := map[string]bool{}
+	for i := range rows {
+		if justReviewed(rows[i].ReviewLog, now) {
+			continue
+		}
+		params, ok := deckParams[rows[i].DeckID]
+		if !ok {
+			params, err = s.fsrsParamsForDeck(ctx, int64(user.DBID), rows[i].DeckID, qtx)
+			if err != nil {
+				return nil, err
+			}
+			deckParams[rows[i].DeckID] = params
+		}
+		_, _, err = scoreAndUpdateCard(ctx, qtx, params, int64(user.DBID), req.Msg.Lexicon,
+			rows[i].Alphagram, rows[i].FsrsCard, fsrs.Rating(req.Msg.Score), now)
+		if err != nil {
+			return nil, err
+		}
+		scored[rows[i].Alphagram] = true
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+
+	notScored := []string{}
+	for _, a := range req.Msg.Alphagrams {
+		if !scored[a] && !scored[lexiconAlphagram(cfg, req.Msg.Lexicon, a)] {
+			notScored = append(notScored, a)
+		}
+	}
+	log.Ctx(ctx).Info().Str("lex", req.Msg.Lexicon).Int("score", int(req.Msg.Score)).
+		Int("num-scored", len(scored)).Int("num-not-scored", len(notScored)).Msg("cards-scored")
+
+	return connect.NewResponse(&pb.ScoreCardsResponse{
+		NumScored: uint32(len(scored)),
+		NotScored: notScored,
+	}), nil
 }
 
 func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.EditLastScoreRequest]) (
