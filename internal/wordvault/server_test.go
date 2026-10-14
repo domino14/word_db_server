@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -757,7 +758,7 @@ func TestOverdueCountByDeck(t *testing.T) {
 	}))
 	s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
 		Lexicon:    "NWL23",
-		Alphagrams: []string{"AEINSTU", "AELNSTW"},
+		Alphagrams: []string{"AEINSTU", "ADEINRT"},
 		DeckId:     uint64(addedDeck.Msg.Deck.Id),
 	}))
 
@@ -817,7 +818,7 @@ func TestNextScheduledCountByDeckBreakdown(t *testing.T) {
 	is.NoErr(err)
 	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
 		Lexicon:    "NWL23",
-		Alphagrams: []string{"AEINSTU", "AELNSTW"},
+		Alphagrams: []string{"AEINSTU", "ADEINRT"},
 		DeckId:     uint64(addedDeck.Msg.Deck.Id),
 	}))
 	is.NoErr(err)
@@ -1945,6 +1946,78 @@ func TestDecks(t *testing.T) {
 	is.Equal(deckMap[secondDeckID].Lexicon, "CSW21")
 }
 
+func TestAddCardsValidatesAlphagrams(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+
+	numCards := func(alphagrams ...string) int {
+		resp, err := s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
+			Lexicon:    "NWL23",
+			Alphagrams: alphagrams,
+		}))
+		is.NoErr(err)
+		return len(resp.Msg.Cards)
+	}
+
+	// A blank challenge question isn't a real alphagram.
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"AEINRS?"},
+	}))
+	is.Equal(err.Error(), "invalid_argument: NWL23 has no such alphagram: AEINRS?")
+
+	// If any alphagram is invalid, none are added.
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "AAAAAAA", "ADEEHMMO", "BBBBBBB"},
+	}))
+	is.Equal(err.Error(), "invalid_argument: NWL23 has no such alphagrams: AAAAAAA, BBBBBBB")
+	is.Equal(numCards("ADEEGMMO", "ADEEHMMO"), 0)
+
+	// Long lists of invalid alphagrams are cut short in the error.
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"AAAAAAA", "BBBBBBB", "CCCCCCC", "DDDDDDD", "EEEEEEE", "FFFFFFF"},
+	}))
+	is.Equal(err.Error(),
+		"invalid_argument: NWL23 has no such alphagrams: AAAAAAA, BBBBBBB, CCCCCCC, DDDDDDD, EEEEEEE, ...")
+
+	// Alphagrams in another letter order, or lowercase, are stored the way
+	// the lexicon stores them, and duplicates are only added once.
+	added, err := s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"TSRNIEA", "aeinrst", "AEINRST", "ADEEGMMO"},
+	}))
+	is.NoErr(err)
+	is.Equal(added.Msg.NumCardsAdded, uint32(2))
+
+	rows, err := q.GetCards(ctx, models.GetCardsParams{
+		UserID:      42,
+		LexiconName: "NWL23",
+		Alphagrams:  []string{"AEINRST", "TSRNIEA", "aeinrst", "ADEEGMMO"},
+	})
+	is.NoErr(err)
+	stored := []string{}
+	for _, r := range rows {
+		stored = append(stored, r.Alphagram)
+	}
+	slices.Sort(stored)
+	is.Equal(stored, []string{"ADEEGMMO", "AEINRST"})
+}
+
 func TestAddingCardsToDeck(t *testing.T) {
 	is := is.New(t)
 
@@ -2124,7 +2197,7 @@ func TestCardCountByDeck(t *testing.T) {
 	is.NoErr(err)
 	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
 		Lexicon:    "NWL23",
-		Alphagrams: []string{"AEINSTU", "AELNSTW"},
+		Alphagrams: []string{"AEINSTU", "ADEINRT"},
 		DeckId:     uint64(addedDeck.Msg.Deck.Id),
 	}))
 	is.NoErr(err)
@@ -2169,14 +2242,14 @@ func TestMoveCardsWithDecks(t *testing.T) {
 
 	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
 		Lexicon:    "NWL23",
-		Alphagrams: []string{"AAAAAAA"},
+		Alphagrams: []string{"AEGINRT"},
 		DeckId:     0,
 	}))
 	is.NoErr(err)
 
 	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
 		Lexicon:    "NWL23",
-		Alphagrams: []string{"BBBBBBB"},
+		Alphagrams: []string{"ACEINRT"},
 		DeckId:     deckAID,
 	}))
 	is.NoErr(err)
@@ -2184,7 +2257,7 @@ func TestMoveCardsWithDecks(t *testing.T) {
 	// AAAAAA is in default Deck, so moving from Deck A should do nothing
 	resp, err := s.MoveCards(ctx, connect.NewRequest(&pb.MoveCardsRequest{
 		Lexicon:      "NWL23",
-		Alphagrams:   []string{"AAAAAAA"},
+		Alphagrams:   []string{"AEGINRT"},
 		TargetDeckId: 0,
 		SourceDeckId: deckAID,
 		FromAllDecks: false,
@@ -2194,7 +2267,7 @@ func TestMoveCardsWithDecks(t *testing.T) {
 
 	resp, err = s.MoveCards(ctx, connect.NewRequest(&pb.MoveCardsRequest{
 		Lexicon:      "NWL23",
-		Alphagrams:   []string{"AAAAAAA"},
+		Alphagrams:   []string{"AEGINRT"},
 		TargetDeckId: deckAID,
 		SourceDeckId: 0,
 		FromAllDecks: false,
@@ -2204,14 +2277,14 @@ func TestMoveCardsWithDecks(t *testing.T) {
 
 	info, err := s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
 		Lexicon:    "NWL23",
-		Alphagrams: []string{"AAAAAAA"},
+		Alphagrams: []string{"AEGINRT"},
 	}))
 	is.NoErr(err)
 	is.Equal(info.Msg.Cards[0].DeckId, deckAID)
 
 	resp, err = s.MoveCards(ctx, connect.NewRequest(&pb.MoveCardsRequest{
 		Lexicon:      "NWL23",
-		Alphagrams:   []string{"BBBBBBB"},
+		Alphagrams:   []string{"ACEINRT"},
 		TargetDeckId: 0,
 		FromAllDecks: true,
 	}))
@@ -2220,7 +2293,7 @@ func TestMoveCardsWithDecks(t *testing.T) {
 
 	info, err = s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
 		Lexicon:    "NWL23",
-		Alphagrams: []string{"BBBBBBB"},
+		Alphagrams: []string{"ACEINRT"},
 	}))
 	is.NoErr(err)
 	is.Equal(info.Msg.Cards[0].DeckId, uint64(0))
@@ -2228,7 +2301,7 @@ func TestMoveCardsWithDecks(t *testing.T) {
 	// Error: Source == Target
 	_, err = s.MoveCards(ctx, connect.NewRequest(&pb.MoveCardsRequest{
 		Lexicon:      "NWL23",
-		Alphagrams:   []string{"AAAAAAA"},
+		Alphagrams:   []string{"AEGINRT"},
 		TargetDeckId: deckAID,
 		SourceDeckId: deckAID,
 		FromAllDecks: false,
@@ -2237,7 +2310,7 @@ func TestMoveCardsWithDecks(t *testing.T) {
 	// Error: Source deck and FromAllDecks are mutually exclusive
 	_, err = s.MoveCards(ctx, connect.NewRequest(&pb.MoveCardsRequest{
 		Lexicon:      "NWL23",
-		Alphagrams:   []string{"BBBBBBB"},
+		Alphagrams:   []string{"ACEINRT"},
 		TargetDeckId: deckAID,
 		SourceDeckId: 99999, // Specific source deck provided
 		FromAllDecks: true,  // Should be error because source deck is specified
