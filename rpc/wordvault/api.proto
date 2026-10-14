@@ -64,6 +64,21 @@ message ScoreCardResponse {
   bytes card_json_repr = 2;
 }
 
+// ScoreCardsRequest gives the same score to several cards at once, e.g. to
+// mark every card missed in a Wordwalls round as AGAIN.
+message ScoreCardsRequest {
+  Score score = 1;
+  string lexicon = 2;
+  repeated string alphagrams = 3;
+}
+
+message ScoreCardsResponse {
+  uint32 num_scored = 1;
+  // Requested alphagrams that were not scored, either because there is no
+  // such card or because the card was just reviewed.
+  repeated string not_scored = 2;
+}
+
 message AddCardsRequest {
   string lexicon = 1;
   // Exactly one of alphagrams or search_params must be given. If
@@ -332,6 +347,7 @@ service WordVaultService {
   rpc NextScheduledCountByDeck(NextScheduledCountByDeckRequest)
       returns (NextScheduledCountByDeckResponse);
   rpc ScoreCard(ScoreCardRequest) returns (ScoreCardResponse);
+  rpc ScoreCards(ScoreCardsRequest) returns (ScoreCardsResponse);
   rpc EditLastScore(EditLastScoreRequest) returns (ScoreCardResponse);
   rpc AddCards(AddCardsRequest) returns (AddCardsResponse);
   rpc MoveCards(MoveCardsRequest) returns (MoveCardsResponse);

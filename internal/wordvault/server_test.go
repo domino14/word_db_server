@@ -25,6 +25,7 @@ import (
 	"github.com/domino14/word_db_server/config"
 	"github.com/domino14/word_db_server/internal/auth"
 	"github.com/domino14/word_db_server/internal/searchserver"
+	"github.com/domino14/word_db_server/internal/stores"
 	"github.com/domino14/word_db_server/internal/stores/models"
 )
 
@@ -267,6 +268,80 @@ func TestScoreCard(t *testing.T) {
 	}))
 	is.NoErr(err)
 
+}
+
+func TestScoreCards(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+	fakenower := &FakeNower{}
+	s.Nower = fakenower
+
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO", "AEFFGINR"},
+	}))
+	is.NoErr(err)
+
+	_, err = s.ScoreCards(ctx, connect.NewRequest(&pb.ScoreCardsRequest{
+		Score:      17,
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO"},
+	}))
+	is.Equal(err.Error(), "invalid_argument: invalid score")
+
+	fakenower.fakenow, err = time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
+	is.NoErr(err)
+
+	// AEINRST is not in the vault.
+	res, err := s.ScoreCards(ctx, connect.NewRequest(&pb.ScoreCardsRequest{
+		Score:      pb.Score_SCORE_AGAIN,
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO", "AEINRST"},
+	}))
+	is.NoErr(err)
+	is.Equal(res.Msg.NumScored, uint32(2))
+	is.Equal(res.Msg.NotScored, []string{"AEINRST"})
+
+	info, err := s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO", "AEFFGINR"},
+	}))
+	is.NoErr(err)
+	is.Equal(len(info.Msg.Cards), 3)
+	for _, c := range info.Msg.Cards {
+		var revlog []stores.ReviewLog
+		is.NoErr(json.Unmarshal(c.ReviewLog, &revlog))
+		if c.Alphagram.Alphagram == "AEFFGINR" {
+			is.Equal(len(revlog), 0)
+		} else {
+			is.Equal(len(revlog), 1)
+			is.Equal(revlog[0].Rating, fsrs.Again)
+		}
+	}
+
+	// Cards that were just reviewed are skipped.
+	fakenower.fakenow = fakenower.fakenow.Add(time.Second * 5)
+	res, err = s.ScoreCards(ctx, connect.NewRequest(&pb.ScoreCardsRequest{
+		Score:      pb.Score_SCORE_AGAIN,
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "AEFFGINR"},
+	}))
+	is.NoErr(err)
+	is.Equal(res.Msg.NumScored, uint32(1))
+	is.Equal(res.Msg.NotScored, []string{"ADEEGMMO"})
 }
 
 func TestGetCards(t *testing.T) {

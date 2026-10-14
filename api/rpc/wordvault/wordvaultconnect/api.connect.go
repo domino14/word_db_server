@@ -57,6 +57,9 @@ const (
 	// WordVaultServiceScoreCardProcedure is the fully-qualified name of the WordVaultService's
 	// ScoreCard RPC.
 	WordVaultServiceScoreCardProcedure = "/wordvault.WordVaultService/ScoreCard"
+	// WordVaultServiceScoreCardsProcedure is the fully-qualified name of the WordVaultService's
+	// ScoreCards RPC.
+	WordVaultServiceScoreCardsProcedure = "/wordvault.WordVaultService/ScoreCards"
 	// WordVaultServiceEditLastScoreProcedure is the fully-qualified name of the WordVaultService's
 	// EditLastScore RPC.
 	WordVaultServiceEditLastScoreProcedure = "/wordvault.WordVaultService/EditLastScore"
@@ -120,6 +123,7 @@ var (
 	wordVaultServiceNextScheduledCountMethodDescriptor       = wordVaultServiceServiceDescriptor.Methods().ByName("NextScheduledCount")
 	wordVaultServiceNextScheduledCountByDeckMethodDescriptor = wordVaultServiceServiceDescriptor.Methods().ByName("NextScheduledCountByDeck")
 	wordVaultServiceScoreCardMethodDescriptor                = wordVaultServiceServiceDescriptor.Methods().ByName("ScoreCard")
+	wordVaultServiceScoreCardsMethodDescriptor               = wordVaultServiceServiceDescriptor.Methods().ByName("ScoreCards")
 	wordVaultServiceEditLastScoreMethodDescriptor            = wordVaultServiceServiceDescriptor.Methods().ByName("EditLastScore")
 	wordVaultServiceAddCardsMethodDescriptor                 = wordVaultServiceServiceDescriptor.Methods().ByName("AddCards")
 	wordVaultServiceMoveCardsMethodDescriptor                = wordVaultServiceServiceDescriptor.Methods().ByName("MoveCards")
@@ -149,6 +153,7 @@ type WordVaultServiceClient interface {
 	NextScheduledCount(context.Context, *connect.Request[wordvault.NextScheduledCountRequest]) (*connect.Response[wordvault.NextScheduledBreakdown], error)
 	NextScheduledCountByDeck(context.Context, *connect.Request[wordvault.NextScheduledCountByDeckRequest]) (*connect.Response[wordvault.NextScheduledCountByDeckResponse], error)
 	ScoreCard(context.Context, *connect.Request[wordvault.ScoreCardRequest]) (*connect.Response[wordvault.ScoreCardResponse], error)
+	ScoreCards(context.Context, *connect.Request[wordvault.ScoreCardsRequest]) (*connect.Response[wordvault.ScoreCardsResponse], error)
 	EditLastScore(context.Context, *connect.Request[wordvault.EditLastScoreRequest]) (*connect.Response[wordvault.ScoreCardResponse], error)
 	AddCards(context.Context, *connect.Request[wordvault.AddCardsRequest]) (*connect.Response[wordvault.AddCardsResponse], error)
 	MoveCards(context.Context, *connect.Request[wordvault.MoveCardsRequest]) (*connect.Response[wordvault.MoveCardsResponse], error)
@@ -232,6 +237,12 @@ func NewWordVaultServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			httpClient,
 			baseURL+WordVaultServiceScoreCardProcedure,
 			connect.WithSchema(wordVaultServiceScoreCardMethodDescriptor),
+			connect.WithClientOptions(opts...),
+		),
+		scoreCards: connect.NewClient[wordvault.ScoreCardsRequest, wordvault.ScoreCardsResponse](
+			httpClient,
+			baseURL+WordVaultServiceScoreCardsProcedure,
+			connect.WithSchema(wordVaultServiceScoreCardsMethodDescriptor),
 			connect.WithClientOptions(opts...),
 		),
 		editLastScore: connect.NewClient[wordvault.EditLastScoreRequest, wordvault.ScoreCardResponse](
@@ -354,6 +365,7 @@ type wordVaultServiceClient struct {
 	nextScheduledCount       *connect.Client[wordvault.NextScheduledCountRequest, wordvault.NextScheduledBreakdown]
 	nextScheduledCountByDeck *connect.Client[wordvault.NextScheduledCountByDeckRequest, wordvault.NextScheduledCountByDeckResponse]
 	scoreCard                *connect.Client[wordvault.ScoreCardRequest, wordvault.ScoreCardResponse]
+	scoreCards               *connect.Client[wordvault.ScoreCardsRequest, wordvault.ScoreCardsResponse]
 	editLastScore            *connect.Client[wordvault.EditLastScoreRequest, wordvault.ScoreCardResponse]
 	addCards                 *connect.Client[wordvault.AddCardsRequest, wordvault.AddCardsResponse]
 	moveCards                *connect.Client[wordvault.MoveCardsRequest, wordvault.MoveCardsResponse]
@@ -411,6 +423,11 @@ func (c *wordVaultServiceClient) NextScheduledCountByDeck(ctx context.Context, r
 // ScoreCard calls wordvault.WordVaultService.ScoreCard.
 func (c *wordVaultServiceClient) ScoreCard(ctx context.Context, req *connect.Request[wordvault.ScoreCardRequest]) (*connect.Response[wordvault.ScoreCardResponse], error) {
 	return c.scoreCard.CallUnary(ctx, req)
+}
+
+// ScoreCards calls wordvault.WordVaultService.ScoreCards.
+func (c *wordVaultServiceClient) ScoreCards(ctx context.Context, req *connect.Request[wordvault.ScoreCardsRequest]) (*connect.Response[wordvault.ScoreCardsResponse], error) {
+	return c.scoreCards.CallUnary(ctx, req)
 }
 
 // EditLastScore calls wordvault.WordVaultService.EditLastScore.
@@ -508,6 +525,7 @@ type WordVaultServiceHandler interface {
 	NextScheduledCount(context.Context, *connect.Request[wordvault.NextScheduledCountRequest]) (*connect.Response[wordvault.NextScheduledBreakdown], error)
 	NextScheduledCountByDeck(context.Context, *connect.Request[wordvault.NextScheduledCountByDeckRequest]) (*connect.Response[wordvault.NextScheduledCountByDeckResponse], error)
 	ScoreCard(context.Context, *connect.Request[wordvault.ScoreCardRequest]) (*connect.Response[wordvault.ScoreCardResponse], error)
+	ScoreCards(context.Context, *connect.Request[wordvault.ScoreCardsRequest]) (*connect.Response[wordvault.ScoreCardsResponse], error)
 	EditLastScore(context.Context, *connect.Request[wordvault.EditLastScoreRequest]) (*connect.Response[wordvault.ScoreCardResponse], error)
 	AddCards(context.Context, *connect.Request[wordvault.AddCardsRequest]) (*connect.Response[wordvault.AddCardsResponse], error)
 	MoveCards(context.Context, *connect.Request[wordvault.MoveCardsRequest]) (*connect.Response[wordvault.MoveCardsResponse], error)
@@ -587,6 +605,12 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 		WordVaultServiceScoreCardProcedure,
 		svc.ScoreCard,
 		connect.WithSchema(wordVaultServiceScoreCardMethodDescriptor),
+		connect.WithHandlerOptions(opts...),
+	)
+	wordVaultServiceScoreCardsHandler := connect.NewUnaryHandler(
+		WordVaultServiceScoreCardsProcedure,
+		svc.ScoreCards,
+		connect.WithSchema(wordVaultServiceScoreCardsMethodDescriptor),
 		connect.WithHandlerOptions(opts...),
 	)
 	wordVaultServiceEditLastScoreHandler := connect.NewUnaryHandler(
@@ -714,6 +738,8 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 			wordVaultServiceNextScheduledCountByDeckHandler.ServeHTTP(w, r)
 		case WordVaultServiceScoreCardProcedure:
 			wordVaultServiceScoreCardHandler.ServeHTTP(w, r)
+		case WordVaultServiceScoreCardsProcedure:
+			wordVaultServiceScoreCardsHandler.ServeHTTP(w, r)
 		case WordVaultServiceEditLastScoreProcedure:
 			wordVaultServiceEditLastScoreHandler.ServeHTTP(w, r)
 		case WordVaultServiceAddCardsProcedure:
@@ -787,6 +813,10 @@ func (UnimplementedWordVaultServiceHandler) NextScheduledCountByDeck(context.Con
 
 func (UnimplementedWordVaultServiceHandler) ScoreCard(context.Context, *connect.Request[wordvault.ScoreCardRequest]) (*connect.Response[wordvault.ScoreCardResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.ScoreCard is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) ScoreCards(context.Context, *connect.Request[wordvault.ScoreCardsRequest]) (*connect.Response[wordvault.ScoreCardsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.ScoreCards is not implemented"))
 }
 
 func (UnimplementedWordVaultServiceHandler) EditLastScore(context.Context, *connect.Request[wordvault.EditLastScoreRequest]) (*connect.Response[wordvault.ScoreCardResponse], error) {
