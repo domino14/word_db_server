@@ -209,8 +209,6 @@ func TestCleanStudyPlan(t *testing.T) {
 		{"no name", windowPlan("NWL23", " ", 500, 0, planStage("", sevens))},
 		{"no stages", windowPlan("NWL23", "x", 500, 0)},
 		{"only a lexicon", windowPlan("NWL23", "x", 500, 0, planStage("", searchserver.SearchDescLexicon("NWL23")))},
-		{"probability limit", windowPlan("NWL23", "x", 500, 0, planStage("", sevens, searchserver.SearchDescProbLimit(1, 100)))},
-		{"probability list", windowPlan("NWL23", "x", 500, 0, planStage("", searchserver.SearchDescProbabilityList([]int32{1, 2})))},
 		{"deleted words", windowPlan("NWL23", "x", 500, 0, planStage("", searchserver.SearchDescDeleted()))},
 		{"no window size", windowPlan("NWL23", "x", 0, 0, planStage("", sevens))},
 		{"no batch unit", &pb.StudyPlan{Lexicon: "NWL23", Name: "x", BatchSize: 5,
@@ -653,4 +651,64 @@ func TestStudyPlanWordConditions(t *testing.T) {
 		SELECT alphagram FROM words WHERE definition LIKE '%plant%')`,
 		progress.Msg.NextBatch.WindowLo, progress.Msg.NextBatch.WindowHi)
 	is.Equal(batchAlphagrams(progress.Msg.NextBatch), firstWindow)
+}
+
+// A probability limit picks the stage's alphagrams: here the 1000 most
+// probable 7s with at least 4 vowels, which run well past probability 1000.
+// Batches then go through them 100 at a time.
+func TestStudyPlanProbabilityLimit(t *testing.T) {
+	is := is.New(t)
+	s, _ := studyPlanTestServer(t)
+	ctx := memberCtx(42, "cesar")
+
+	saved, err := s.AddStudyPlan(ctx, connect.NewRequest(&pb.AddStudyPlanRequest{Plan: &pb.StudyPlan{
+		Lexicon: "NWL23", Name: "vowel-heavy 7s",
+		Stages: []*pb.StudyPlanStage{planStage("", searchserver.SearchDescLength(7, 7),
+			searchserver.SearchDescNumVowels(4, 7), searchserver.SearchDescProbLimit(1, 1000))},
+		BatchUnit: pb.StudyPlanBatchUnit_STUDY_PLAN_BATCH_CARDS, BatchSize: 100,
+	}}))
+	is.NoErr(err)
+	id := saved.Msg.Plan.Id
+
+	want := lexiconQuery(t, "NWL23", "length = 7 AND num_vowels >= 4")[:1000]
+	// A range of 1-1000 would find far fewer.
+	is.True(len(lexiconQuery(t, "NWL23", "length = 7 AND num_vowels >= 4 AND probability <= 1000")) < 500)
+
+	for i := range 10 {
+		added, err := s.AddStudyPlanBatch(ctx, connect.NewRequest(&pb.AddStudyPlanBatchRequest{PlanId: id}))
+		is.NoErr(err)
+		is.Equal(added.Msg.NumCardsAdded, uint32(100))
+		is.Equal(batchAlphagrams(added.Msg.Batch), want[i*100:(i+1)*100])
+	}
+	progress, err := s.GetStudyPlanProgress(ctx, connect.NewRequest(&pb.GetStudyPlanProgressRequest{
+		Which: &pb.GetStudyPlanProgressRequest_PlanId{PlanId: id}}))
+	is.NoErr(err)
+	is.Equal(progress.Msg.Total, uint32(1000))
+	is.Equal(progress.Msg.Added, uint32(1000))
+	is.True(progress.Msg.NextBatch == nil)
+	is.True(*progress.Msg.Stages[0].DoneThrough > 1000)
+}
+
+func TestStudyPlanProbabilityList(t *testing.T) {
+	is := is.New(t)
+	s, _ := studyPlanTestServer(t)
+	ctx := memberCtx(42, "cesar")
+
+	// Windows of 10 skip the probabilities that aren't on the list.
+	plan := windowPlan("NWL23", "", 10, 0, planStage("", searchserver.SearchDescLength(7, 7),
+		searchserver.SearchDescProbabilityList([]int32{3, 5, 25, 27})))
+	progress, err := s.GetStudyPlanProgress(ctx, connect.NewRequest(&pb.GetStudyPlanProgressRequest{
+		Which: &pb.GetStudyPlanProgressRequest_Plan{Plan: plan}}))
+	is.NoErr(err)
+	is.Equal(progress.Msg.Total, uint32(4))
+	is.Equal(progress.Msg.NextBatch.WindowLo, int32(1))
+	is.Equal(batchAlphagrams(progress.Msg.NextBatch),
+		lexiconQuery(t, "NWL23", "length = 7 AND probability IN (3, 5)"))
+
+	// The query generator can't combine a limit with a list, so such a
+	// stage is refused when it's saved.
+	_, err = s.AddStudyPlan(ctx, connect.NewRequest(&pb.AddStudyPlanRequest{Plan: windowPlan("NWL23", "x", 10, 0,
+		planStage("", searchserver.SearchDescAlphagramList([]string{"AEINRST", "ADEINRS"}),
+			searchserver.SearchDescProbLimit(1, 1)))}))
+	is.Equal(connect.CodeOf(err), connect.CodeInvalidArgument)
 }

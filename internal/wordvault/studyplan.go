@@ -83,9 +83,6 @@ func (s *Server) cleanStudyPlan(plan *pb.StudyPlan, needName bool) (*pb.StudyPla
 			switch p.Condition {
 			case searchpb.SearchRequest_LEXICON:
 				continue
-			case searchpb.SearchRequest_PROBABILITY_LIST, searchpb.SearchRequest_PROBABILITY_LIMIT:
-				return nil, invalidArgError(fmt.Sprintf(
-					"stage %d: use a probability range rather than a probability list or limit; batches pick the next cards", i+1))
 			case searchpb.SearchRequest_DELETED_WORD:
 				return nil, invalidArgError(fmt.Sprintf("stage %d: cannot search for deleted words here", i+1))
 			}
