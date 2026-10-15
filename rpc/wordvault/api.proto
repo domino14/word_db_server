@@ -325,6 +325,146 @@ message DeleteDeckRequest {
 
 message DeleteDeckResponse {}
 
+// The value a study plan stage is ordered and batched by. Each alphagram's
+// value is its rank within its length, so 7s and 8s interleave.
+enum StudyPlanSortField {
+  STUDY_PLAN_SORT_PROBABILITY = 0;
+}
+
+enum StudyPlanBatchUnit {
+  STUDY_PLAN_BATCH_NONE = 0;
+  // Every missing card of one stage within one window of the sort field,
+  // e.g. probability 3,501–4,000. Windows are aligned to multiples of
+  // batch_size.
+  STUDY_PLAN_BATCH_WINDOW = 1;
+  // The next batch_size missing cards in plan order, across stages.
+  STUDY_PLAN_BATCH_CARDS = 2;
+}
+
+message StudyPlanStage {
+  // Optional.
+  string name = 1;
+  // As in AddCardsRequest.search_params. Probability lists and limits aren't
+  // allowed; a probability range is, as a cap on the stage.
+  repeated wordsearcher.SearchRequest.SearchParam search_params = 2;
+  StudyPlanSortField sort_field = 3;
+  bool descending = 4;
+}
+
+// A study plan is an ordered list of stages that cards are added from, a
+// batch at a time, into one deck. An alphagram belongs to the first stage
+// whose search matches it. Progress isn't stored: a card in the user's vault
+// counts as done, whichever deck it's in.
+message StudyPlan {
+  int64 id = 1;
+  string lexicon = 2;
+  string name = 3;
+  // 0 is the default deck. A deck has at most one plan.
+  uint64 deck_id = 4;
+  repeated StudyPlanStage stages = 5;
+  StudyPlanBatchUnit batch_unit = 6;
+  uint32 batch_size = 7;
+}
+
+message AddStudyPlanRequest { StudyPlan plan = 1; }
+
+message AddStudyPlanResponse { StudyPlan plan = 1; }
+
+message GetStudyPlansRequest {}
+
+message GetStudyPlansResponse { repeated StudyPlan plans = 1; }
+
+// Replaces the plan with the given id. Its lexicon can't change.
+message EditStudyPlanRequest { StudyPlan plan = 1; }
+
+message EditStudyPlanResponse { StudyPlan plan = 1; }
+
+// Deletes the plan only; its deck and cards stay.
+message DeleteStudyPlanRequest { int64 id = 1; }
+
+message DeleteStudyPlanResponse {}
+
+message GetStudyPlanProgressRequest {
+  oneof which {
+    int64 plan_id = 1;
+    // An unsaved plan, e.g. while it's being edited. Name and id are
+    // ignored.
+    StudyPlan plan = 2;
+  }
+  // Width of the progress blocks, in sort field values. Defaults to the
+  // window size for window plans, and to 500 otherwise.
+  uint32 block_size = 3;
+  // Also count the cards in the plan's deck. This is slower: it has to read
+  // every card in the lexicon rather than an index.
+  bool include_deck_counts = 4;
+}
+
+message StudyPlanBlock {
+  // The range of sort field values this block covers.
+  int32 lo = 1;
+  int32 hi = 2;
+  uint32 total = 3;
+  uint32 added = 4;
+}
+
+message StudyPlanStageProgress {
+  uint32 total = 1;
+  uint32 added = 2;
+  // Whether every card from the start of the stage (in its order) up to and
+  // including this sort field value is in the vault. Unset if the first card
+  // isn't.
+  optional int32 done_through = 3;
+  // Blocks with at least one alphagram, in ascending sort field order
+  // regardless of the stage's order.
+  repeated StudyPlanBlock blocks = 4;
+}
+
+message StudyPlanBatchItem {
+  string alphagram = 1;
+  uint32 stage = 2;
+  int32 length = 3;
+  int32 sort_value = 4;
+}
+
+message StudyPlanBatch {
+  // Index of the stage the batch starts in.
+  uint32 stage = 1;
+  // Window plans only: the window this batch comes from.
+  int32 window_lo = 2;
+  int32 window_hi = 3;
+  // In plan order. At most the server's per-request card limit; for a
+  // window plan the rest of the window comes in the next batch.
+  repeated StudyPlanBatchItem items = 4;
+  // Window plans only: every missing card in the window, which can be more
+  // than len(items).
+  uint32 num_missing_in_window = 5;
+}
+
+message StudyPlanDeckCounts {
+  uint32 cards_in_deck = 1;
+  // Cards in the deck that belong to some stage of the plan.
+  uint32 cards_in_deck_in_plan = 2;
+}
+
+message GetStudyPlanProgressResponse {
+  repeated StudyPlanStageProgress stages = 1;
+  uint32 total = 2;
+  uint32 added = 3;
+  // Unset when the plan is complete.
+  StudyPlanBatch next_batch = 4;
+  uint32 block_size = 5;
+  // Only if include_deck_counts was set.
+  StudyPlanDeckCounts deck_counts = 6;
+}
+
+message AddStudyPlanBatchRequest { int64 plan_id = 1; }
+
+message AddStudyPlanBatchResponse {
+  uint32 num_cards_added = 1;
+  // What was added. Unset when the plan was already complete.
+  StudyPlanBatch batch = 2;
+}
+
 service WordVaultService {
   rpc GetCardCount(GetCardCountRequest) returns (CardCountResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -383,4 +523,16 @@ service WordVaultService {
   rpc GetDecks(GetDecksRequest) returns (GetDecksResponse);
   rpc EditDeck(EditDeckRequest) returns (EditDeckResponse);
   rpc DeleteDeck(DeleteDeckRequest) returns (DeleteDeckResponse);
+  rpc AddStudyPlan(AddStudyPlanRequest) returns (AddStudyPlanResponse);
+  rpc GetStudyPlans(GetStudyPlansRequest) returns (GetStudyPlansResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  };
+  rpc EditStudyPlan(EditStudyPlanRequest) returns (EditStudyPlanResponse);
+  rpc DeleteStudyPlan(DeleteStudyPlanRequest) returns (DeleteStudyPlanResponse);
+  rpc GetStudyPlanProgress(GetStudyPlanProgressRequest)
+      returns (GetStudyPlanProgressResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  };
+  // Adds the plan's next batch of missing cards to its deck.
+  rpc AddStudyPlanBatch(AddStudyPlanBatchRequest) returns (AddStudyPlanBatchResponse);
 }

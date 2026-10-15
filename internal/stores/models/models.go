@@ -39,3 +39,16 @@ type WordvaultParam struct {
 	Params      go_fsrs.Parameters
 	FsrsVersion int16
 }
+
+type WordvaultStudyPlan struct {
+	ID          int64
+	UserID      int64
+	LexiconName string
+	Name        string
+	DeckID      pgtype.Int8
+	BatchUnit   int16
+	BatchSize   int32
+	Stages      []byte
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
