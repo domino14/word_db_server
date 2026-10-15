@@ -559,10 +559,10 @@ func TestStudyPlanCRUD(t *testing.T) {
 	is.Equal(connect.CodeOf(err), connect.CodeInvalidArgument)
 	// But each lexicon has its own default deck.
 	_, err = s.AddStudyPlan(ctx, connect.NewRequest(&pb.AddStudyPlanRequest{
-		Plan: windowPlan("CSW21", "CSW 7s", 500, 0, sevens)}))
+		Plan: windowPlan("CSW24", "CSW 7s", 500, 0, sevens)}))
 	is.NoErr(err)
 
-	cswDeck, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{Name: "CSW", Lexicon: "CSW21"}))
+	cswDeck, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{Name: "CSW", Lexicon: "CSW24"}))
 	is.NoErr(err)
 	_, err = s.AddStudyPlan(ctx, connect.NewRequest(&pb.AddStudyPlanRequest{
 		Plan: windowPlan("NWL23", "x", 500, uint64(cswDeck.Msg.Deck.Id), sevens)}))
@@ -602,7 +602,7 @@ func TestStudyPlanCRUD(t *testing.T) {
 		Plan: windowPlan("NWL23", "More 7s", 500, 0, sevens)}))
 	is.NoErr(err)
 
-	edit.Lexicon = "CSW21"
+	edit.Lexicon = "CSW24"
 	_, err = s.EditStudyPlan(ctx, connect.NewRequest(&pb.EditStudyPlanRequest{Plan: edit}))
 	is.Equal(connect.CodeOf(err), connect.CodeInvalidArgument)
 
