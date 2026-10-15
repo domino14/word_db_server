@@ -18,6 +18,7 @@ import (
 	searchpb "github.com/domino14/word_db_server/api/rpc/wordsearcher"
 	pb "github.com/domino14/word_db_server/api/rpc/wordvault"
 	"github.com/domino14/word_db_server/internal/auth"
+	"github.com/domino14/word_db_server/internal/querygen"
 	"github.com/domino14/word_db_server/internal/searchserver"
 	"github.com/domino14/word_db_server/internal/stores/models"
 )
@@ -91,6 +92,11 @@ func (s *Server) cleanStudyPlan(plan *pb.StudyPlan, needName bool) (*pb.StudyPla
 		if len(stage.SearchParams) == 0 {
 			return nil, invalidArgError(fmt.Sprintf("stage %d: need at least one search condition besides the lexicon", i+1))
 		}
+		// A list or limit has to be the last condition for the search to run.
+		// All conditions must match, so moving it doesn't change the stage.
+		slices.SortStableFunc(stage.SearchParams, func(a, b *searchpb.SearchRequest_SearchParam) int {
+			return cmp.Compare(boolInt(querygen.IsMutexCondition(a.Condition)), boolInt(querygen.IsMutexCondition(b.Condition)))
+		})
 		out.Stages = append(out.Stages, stage)
 	}
 	switch out.BatchUnit {
@@ -622,4 +628,11 @@ func (s *Server) AddStudyPlanBatch(ctx context.Context, req *connect.Request[pb.
 		NumCardsAdded: added.NumCardsAdded,
 		Batch:         batch,
 	}), nil
+}
+
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

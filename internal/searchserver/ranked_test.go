@@ -71,6 +71,19 @@ func TestRankedAlphagramsErrors(t *testing.T) {
 	_, err = s.RankedAlphagrams(context.Background(), "NOSUCHLEX", []*pb.SearchRequest_SearchParam{SearchDescLength(7, 7)})
 	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 
+	// An uploaded list has to come last, like the other lists; before, the
+	// length after it was left out of the query.
+	uploaded := &pb.SearchRequest_SearchParam{
+		Condition: pb.SearchRequest_UPLOADED_WORD_OR_ALPHAGRAM_LIST,
+		Conditionparam: &pb.SearchRequest_SearchParam_Stringarray{Stringarray: &pb.SearchRequest_StringArray{
+			Values: []string{"RETAINS", "STRAINED"}}},
+	}
+	_, err = s.RankedAlphagrams(context.Background(), "NWL18", []*pb.SearchRequest_SearchParam{uploaded, SearchDescLength(7, 7)})
+	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+	ranked, err := s.RankedAlphagrams(context.Background(), "NWL18", []*pb.SearchRequest_SearchParam{SearchDescLength(7, 7), uploaded})
+	assert.Nil(t, err)
+	assert.Equal(t, []RankedAlphagram{{"AEINRST", 7, 10}}, ranked)
+
 	small := &Server{Config: &config.Config{DataPath: DefaultConfig.DataPath, MaxQueryResults: 100}}
 	_, err = small.RankedAlphagrams(context.Background(), "NWL18", []*pb.SearchRequest_SearchParam{SearchDescLength(7, 7)})
 	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))

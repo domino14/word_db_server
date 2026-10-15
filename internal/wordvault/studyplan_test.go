@@ -231,6 +231,18 @@ func TestCleanStudyPlan(t *testing.T) {
 	_, err = s.cleanStudyPlan(windowPlan("NWL23", "x", 500, 0, stages...), true)
 	is.True(err != nil)
 
+	// A list or limit moves to the end, where the search needs it; the rest
+	// keep their order.
+	plan, err = s.cleanStudyPlan(windowPlan("NWL23", "x", 500, 0, planStage("",
+		searchserver.SearchDescProbabilityList([]int32{1, 2}), sevens, searchserver.SearchDescNumVowels(4, 7))), true)
+	is.NoErr(err)
+	conds := []searchpb.SearchRequest_Condition{}
+	for _, p := range plan.Stages[0].SearchParams {
+		conds = append(conds, p.Condition)
+	}
+	is.Equal(conds, []searchpb.SearchRequest_Condition{searchpb.SearchRequest_LENGTH,
+		searchpb.SearchRequest_NUMBER_OF_VOWELS, searchpb.SearchRequest_PROBABILITY_LIST})
+
 	// An unsaved plan, previewed while editing, doesn't need a name.
 	_, err = s.cleanStudyPlan(windowPlan("NWL23", "", 500, 0, planStage("", sevens)), false)
 	is.NoErr(err)

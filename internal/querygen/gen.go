@@ -489,15 +489,18 @@ func (qg *QueryGen) generateDefinitionContainsClause(searchTerm string) (Clause,
 	return &WhereDefinitionContainsClause{searchTerm: searchTerm}, nil
 }
 
-func isMutexCondition(condition wordsearcher.SearchRequest_Condition) bool {
+func IsMutexCondition(condition wordsearcher.SearchRequest_Condition) bool {
 	// a "mutex condition" is a condition that requires the query generator
 	// to generate a "where ... in (?, .., ?)" query. We can't have more than
 	// one of these per query otherwise it gets really complicated.
 	// Note that probability_limit is not a mutex condition, but we return
 	// true anyway because we can't combine this condition with any mutex conditions.
+	// It must also be the last condition, since maybeChunk leaves out any
+	// condition that follows a list.
 	switch condition {
 	case wordsearcher.SearchRequest_PROBABILITY_LIST,
 		wordsearcher.SearchRequest_ALPHAGRAM_LIST,
+		wordsearcher.SearchRequest_UPLOADED_WORD_OR_ALPHAGRAM_LIST,
 		wordsearcher.SearchRequest_PROBABILITY_LIMIT,
 		wordsearcher.SearchRequest_MATCHING_ANAGRAM:
 
@@ -514,7 +517,7 @@ func (qg *QueryGen) Validate() error {
 	deletedWordCondition := false
 	lengthCondition := false
 	for idx, param := range qg.searchParams {
-		if isMutexCondition(param.Condition) {
+		if IsMutexCondition(param.Condition) {
 			if idx != len(qg.searchParams)-1 {
 				conditionOrderProblem = true
 			}
