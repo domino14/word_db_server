@@ -360,8 +360,9 @@ enum StudyPlanBatchUnit {
 message StudyPlanStage {
   // Optional.
   string name = 1;
-  // As in AddCardsRequest.search_params. Probability lists and limits aren't
-  // allowed; a probability range is, as a cap on the stage.
+  // As in AddCardsRequest.search_params. A probability range caps the stage;
+  // a probability limit or list picks its alphagrams. Lists and limits must
+  // come last, and the server moves them there.
   repeated wordsearcher.SearchRequest.SearchParam search_params = 2;
   StudyPlanSortField sort_field = 3;
   bool descending = 4;
