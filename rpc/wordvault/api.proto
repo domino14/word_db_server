@@ -429,15 +429,23 @@ message StudyPlanBatchItem {
 message StudyPlanBatch {
   // Index of the stage the batch starts in.
   uint32 stage = 1;
-  // Window plans only: the window this batch comes from.
+  // Window plans only: the window this batch comes from. Unset when gaps is
+  // set.
   int32 window_lo = 2;
   int32 window_hi = 3;
   // In plan order. At most the server's per-request card limit; for a
-  // window plan the rest of the window comes in the next batch.
+  // window plan the rest of the window (or of the gaps) comes in the next
+  // batch.
   repeated StudyPlanBatchItem items = 4;
-  // Window plans only: every missing card in the window, which can be more
-  // than len(items).
+  // Window plans only: every missing card in the window, or every gap when
+  // gaps is set, which can be more than len(items).
   uint32 num_missing_in_window = 5;
+  // Window plans only: the batch fills in gaps rather than a window. A gap
+  // is a missing card that comes before the last window of its stage that's
+  // complete, such as a word a new lexicon added to a finished range. The
+  // batch has every gap, across windows and stages, up to the first window
+  // not yet reached.
+  bool gaps = 6;
 }
 
 message StudyPlanDeckCounts {

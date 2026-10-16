@@ -286,6 +286,24 @@ func nextBatch(plan *pb.StudyPlan, items []planItem, owned map[string]bool, maxC
 	b := &pb.StudyPlanBatch{Stage: uint32(items[first].stage)}
 	switch plan.BatchUnit {
 	case pb.StudyPlanBatchUnit_STUDY_PLAN_BATCH_WINDOW:
+		if gap := gaps(items, owned, plan.BatchSize); gap[first] {
+			// Fill in every gap up to the first window not yet reached, rather
+			// than one window at a time.
+			b.Gaps = true
+			for i, it := range items[first:] {
+				if owned[it.alphagram] {
+					continue
+				}
+				if !gap[first+i] {
+					break
+				}
+				b.NumMissingInWindow++
+				if len(b.Items) < maxCards {
+					b.Items = append(b.Items, batchItem(it))
+				}
+			}
+			return b
+		}
 		b.WindowLo, b.WindowHi = windowOf(items[first].value, plan.BatchSize)
 		for _, it := range items[first:] {
 			if it.stage != items[first].stage {
@@ -311,6 +329,42 @@ func nextBatch(plan *pb.StudyPlan, items []planItem, owned map[string]bool, maxC
 		}
 	}
 	return b
+}
+
+// gaps marks the missing alphagrams that come before the last complete
+// window of their stage: holes in ground already covered, such as words a
+// new lexicon added. Missing alphagrams after it haven't been reached yet. Cards added far ahead of the rest don't
+// complete a window, so they don't turn what comes before them into gaps.
+func gaps(items []planItem, owned map[string]bool, size uint32) []bool {
+	gap := make([]bool, len(items))
+	for start := 0; start < len(items); {
+		end := start
+		for end < len(items) && items[end].stage == items[start].stage {
+			end++
+		}
+		// Items are in window order within a stage. reached is where the
+		// stage's last complete window ends.
+		reached := start
+		for i := start; i < end; {
+			lo, _ := windowOf(items[i].value, size)
+			j, complete := i, true
+			for ; j < end; j++ {
+				if wlo, _ := windowOf(items[j].value, size); wlo != lo {
+					break
+				}
+				complete = complete && owned[items[j].alphagram]
+			}
+			if complete {
+				reached = j
+			}
+			i = j
+		}
+		for i := start; i < reached; i++ {
+			gap[i] = !owned[items[i].alphagram]
+		}
+		start = end
+	}
+	return gap
 }
 
 func stageProgress(numStages int, items []planItem, owned map[string]bool,

@@ -98,12 +98,67 @@ func TestNextBatchWindow(t *testing.T) {
 	// Skipped cards are picked up first, wherever they are.
 	b = nextBatch(plan, testPlanItems, ownedSet("A7", "B7", "C7", "C8", "D7"), 1000)
 	is.Equal(batchAlphagrams(b), []string{"A8"})
+	is.True(b.Gaps)
 
 	all := ownedSet()
 	for _, it := range testPlanItems {
 		all[it.alphagram] = true
 	}
 	is.True(nextBatch(plan, testPlanItems, all, 1000) == nil)
+}
+
+// Gaps are missing cards before the last complete window of their stage,
+// like words a new lexicon added to ranges already finished. One batch picks
+// them all up, across windows and stages.
+func TestNextBatchGaps(t *testing.T) {
+	is := is.New(t)
+	plan := &pb.StudyPlan{BatchUnit: pb.StudyPlanBatchUnit_STUDY_PLAN_BATCH_WINDOW, BatchSize: 2}
+	allBut := func(missing ...string) map[string]bool {
+		m := ownedSet()
+		for _, it := range testPlanItems {
+			m[it.alphagram] = !slices.Contains(missing, it.alphagram)
+		}
+		return m
+	}
+
+	// B7 and D7 are in windows 1-2 and 3-4; window 5-6 is complete.
+	b := nextBatch(plan, testPlanItems, allBut("B7", "D7", "Z4", "Z3", "Z1"), 1000)
+	is.True(b.Gaps)
+	is.Equal(batchAlphagrams(b), []string{"B7", "D7"})
+	is.Equal([2]int32{b.WindowLo, b.WindowHi}, [2]int32{0, 0})
+	is.Equal(b.NumMissingInWindow, uint32(2))
+	// The second stage hasn't been reached, so it comes next, a window at a
+	// time.
+	b = nextBatch(plan, testPlanItems, allBut("Z4", "Z3", "Z1"), 1000)
+	is.True(!b.Gaps)
+	is.Equal(batchAlphagrams(b), []string{"Z4", "Z3"})
+
+	// Gaps in two stages: Z3's window comes before Z1's, which is complete,
+	// since the stage is descending.
+	b = nextBatch(plan, testPlanItems, allBut("B7", "Z3"), 1000)
+	is.Equal(batchAlphagrams(b), []string{"B7", "Z3"})
+
+	// The gaps stop at the first window not yet reached.
+	b = nextBatch(plan, testPlanItems, allBut("B7", "E7", "Z3"), 1000)
+	is.True(b.Gaps)
+	is.Equal(batchAlphagrams(b), []string{"B7"})
+
+	// More gaps than the card limit come over several batches.
+	b = nextBatch(plan, testPlanItems, allBut("B7", "Z3"), 1)
+	is.Equal(batchAlphagrams(b), []string{"B7"})
+	is.Equal(b.NumMissingInWindow, uint32(2))
+
+	// A card added ahead of the rest doesn't complete its window, so the
+	// cards before it aren't gaps.
+	b = nextBatch(plan, testPlanItems, ownedSet("A7", "A8", "B7", "C8"), 1000)
+	is.True(!b.Gaps)
+	is.Equal([2]int32{b.WindowLo, b.WindowHi}, [2]int32{3, 4})
+	is.Equal(batchAlphagrams(b), []string{"C7", "D7"})
+
+	// Card plans already take whatever is missing first.
+	cards := &pb.StudyPlan{BatchUnit: pb.StudyPlanBatchUnit_STUDY_PLAN_BATCH_CARDS, BatchSize: 5}
+	b = nextBatch(cards, testPlanItems, allBut("B7", "D7"), 1000)
+	is.True(!b.Gaps)
 }
 
 func TestNextBatchCards(t *testing.T) {
