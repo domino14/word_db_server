@@ -443,7 +443,8 @@ func (q *Queries) GetCards(ctx context.Context, arg GetCardsParams) ([]GetCardsR
 }
 
 const getCardsByIDs = `-- name: GetCardsByIDs :many
-SELECT lexicon_name, alphagram, next_scheduled, fsrs_card, review_log, COALESCE(deck_id, 0) as deck_id
+SELECT id, lexicon_name, alphagram, next_scheduled, fsrs_card, review_log, COALESCE(deck_id, 0) as deck_id,
+    COALESCE(fsrs_card->>'LastReview', '')::TEXT AS last_review
 FROM wordvault_cards
 WHERE user_id = $1 AND id = ANY($2::BIGINT[])
 `
@@ -454,12 +455,14 @@ type GetCardsByIDsParams struct {
 }
 
 type GetCardsByIDsRow struct {
+	ID            int64
 	LexiconName   string
 	Alphagram     string
 	NextScheduled pgtype.Timestamptz
 	FsrsCard      stores.Card
 	ReviewLog     []stores.ReviewLog
 	DeckID        int64
+	LastReview    string
 }
 
 func (q *Queries) GetCardsByIDs(ctx context.Context, arg GetCardsByIDsParams) ([]GetCardsByIDsRow, error) {
@@ -472,12 +475,14 @@ func (q *Queries) GetCardsByIDs(ctx context.Context, arg GetCardsByIDsParams) ([
 	for rows.Next() {
 		var i GetCardsByIDsRow
 		if err := rows.Scan(
+			&i.ID,
 			&i.LexiconName,
 			&i.Alphagram,
 			&i.NextScheduled,
 			&i.FsrsCard,
 			&i.ReviewLog,
 			&i.DeckID,
+			&i.LastReview,
 		); err != nil {
 			return nil, err
 		}
@@ -1074,6 +1079,50 @@ func (q *Queries) PostponementQuery(ctx context.Context, arg PostponementQueryPa
 		return nil, err
 	}
 	return items, nil
+}
+
+const setCardMemoryStates = `-- name: SetCardMemoryStates :execrows
+WITH updated_values AS (
+  SELECT
+    UNNEST($2::BIGINT[]) AS id,
+    UNNEST($3::FLOAT8[]) AS stability,
+    UNNEST($4::FLOAT8[]) AS difficulty,
+    UNNEST($5::TEXT[]) AS last_review
+)
+UPDATE wordvault_cards w
+SET fsrs_card = jsonb_set(jsonb_set(w.fsrs_card,
+    '{Stability}', to_jsonb(u.stability)),
+    '{Difficulty}', to_jsonb(u.difficulty))
+FROM updated_values u
+WHERE w.id = u.id
+    AND w.user_id = $1
+    AND w.fsrs_card->>'LastReview' = u.last_review
+`
+
+type SetCardMemoryStatesParams struct {
+	UserID       int64
+	Ids          []int64
+	Stabilities  []float64
+	Difficulties []float64
+	LastReviews  []string
+}
+
+// Sets the stability and difficulty of cards and leaves the rest of each card
+// (due date, state, etc.) alone. last_reviews are the cards' LastReview as
+// read before computing the new values; a card reviewed since then is
+// skipped, so that its new review isn't overwritten.
+func (q *Queries) SetCardMemoryStates(ctx context.Context, arg SetCardMemoryStatesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setCardMemoryStates,
+		arg.UserID,
+		arg.Ids,
+		arg.Stabilities,
+		arg.Difficulties,
+		arg.LastReviews,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setDeckFsrsParams = `-- name: SetDeckFsrsParams :exec

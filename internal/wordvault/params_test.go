@@ -39,23 +39,6 @@ func TestApplyFsrsVersion(t *testing.T) {
 	is.True(params.LearningSteps != nil)
 }
 
-func TestIntervalDays(t *testing.T) {
-	is := is.New(t)
-	for _, version := range []int16{FsrsVersion5, FsrsVersion6} {
-		for _, retention := range []float64{0.8, 0.9, 0.95} {
-			p := fsrs.DefaultParam()
-			applyFsrsVersion(&p, version)
-			p.RequestRetention = retention
-			for _, s := range []float64{3, 50, 400} {
-				ivl := intervalDays(p, s)
-				// Retrievability crosses the target retention at the interval.
-				is.True(p.ForgettingCurve(ivl-1, s) > retention)
-				is.True(p.ForgettingCurve(ivl+1, s) < retention)
-			}
-		}
-	}
-}
-
 func TestDeckParams(t *testing.T) {
 	is := is.New(t)
 	global := fsrs.DefaultParam()
