@@ -118,6 +118,29 @@ ORDER BY a.probability, w.alphagram
 %s
 `
 
+// RankedAlphagramQuery selects just enough to place each alphagram in a
+// study plan, without its words.
+const RankedAlphagramQuery = `
+SELECT alphagram, length, probability FROM alphagrams
+WHERE %s
+ORDER BY probability, length
+%s
+`
+
+// WordFilteredRankedAlphagramQuery is RankedAlphagramQuery for searches with
+// word-level conditions.
+const WordFilteredRankedAlphagramQuery = `
+SELECT a.alphagram, a.length, a.probability FROM alphagrams a
+WHERE a.alphagram IN (
+	SELECT DISTINCT w2.alphagram
+	FROM words w2
+	INNER JOIN alphagrams a2 ON w2.alphagram = a2.alphagram
+	WHERE %s
+)
+ORDER BY a.probability, a.length
+%s
+`
+
 type QueryType uint8
 
 const (
@@ -130,6 +153,8 @@ const (
 	WordFilteredUnexpanded
 	WordFilteredExpandedWithAlphagrams
 	WordFilteredUnexpandedWithAlphagrams
+	RankedAlphagrams
+	WordFilteredRankedAlphagrams
 )
 
 // Query is a struct that encapsulates a set of bind parameters and a template.
@@ -173,6 +198,10 @@ func NewQuery(bp []interface{}, qt QueryType) *Query {
 		expandedForm = true
 	case WordFilteredUnexpandedWithAlphagrams:
 		template = WordFilteredUnexpandedQueryWithAlphagrams
+	case RankedAlphagrams:
+		template = RankedAlphagramQuery
+	case WordFilteredRankedAlphagrams:
+		template = WordFilteredRankedAlphagramQuery
 	}
 
 	return &Query{
@@ -252,7 +281,8 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 
 	// Determine the correct table alias for alphagrams based on query type
 	alphagramsTable := "alphagrams"
-	if qg.queryType == WordFilteredExpandedWithAlphagrams || qg.queryType == WordFilteredUnexpandedWithAlphagrams {
+	if qg.queryType == WordFilteredExpandedWithAlphagrams || qg.queryType == WordFilteredUnexpandedWithAlphagrams ||
+		qg.queryType == WordFilteredRankedAlphagrams {
 		alphagramsTable = "a2"
 	}
 
@@ -459,15 +489,18 @@ func (qg *QueryGen) generateDefinitionContainsClause(searchTerm string) (Clause,
 	return &WhereDefinitionContainsClause{searchTerm: searchTerm}, nil
 }
 
-func isMutexCondition(condition wordsearcher.SearchRequest_Condition) bool {
+func IsMutexCondition(condition wordsearcher.SearchRequest_Condition) bool {
 	// a "mutex condition" is a condition that requires the query generator
 	// to generate a "where ... in (?, .., ?)" query. We can't have more than
 	// one of these per query otherwise it gets really complicated.
 	// Note that probability_limit is not a mutex condition, but we return
 	// true anyway because we can't combine this condition with any mutex conditions.
+	// It must also be the last condition, since maybeChunk leaves out any
+	// condition that follows a list.
 	switch condition {
 	case wordsearcher.SearchRequest_PROBABILITY_LIST,
 		wordsearcher.SearchRequest_ALPHAGRAM_LIST,
+		wordsearcher.SearchRequest_UPLOADED_WORD_OR_ALPHAGRAM_LIST,
 		wordsearcher.SearchRequest_PROBABILITY_LIMIT,
 		wordsearcher.SearchRequest_MATCHING_ANAGRAM:
 
@@ -484,7 +517,7 @@ func (qg *QueryGen) Validate() error {
 	deletedWordCondition := false
 	lengthCondition := false
 	for idx, param := range qg.searchParams {
-		if isMutexCondition(param.Condition) {
+		if IsMutexCondition(param.Condition) {
 			if idx != len(qg.searchParams)-1 {
 				conditionOrderProblem = true
 			}

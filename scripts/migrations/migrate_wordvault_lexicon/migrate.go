@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -86,6 +87,10 @@ func migrate(cfg *config.Config, pool *pgxpool.Pool, fromLex, toLex string) erro
 	}
 	log.Info().Int("rows-affected", int(t.RowsAffected())).Msg("changed-lexica")
 
+	if err := moveDecksAndPlans(ctx, tx, fromLex, toLex); err != nil {
+		return err
+	}
+
 	// Now change the cards themselves
 
 	changeCardsQuery := `
@@ -140,6 +145,42 @@ WHERE wordvault_cards.id = subquery.id;
 		log.Info().Int("rows-affected", int(t.RowsAffected())).Msg("rescheduled-deleted-shared-cards")
 	}
 	return tx.Commit(ctx)
+}
+
+// moveDecksAndPlans moves decks and study plans to the new lexicon along with
+// their cards. A deck whose name the user already has in the new lexicon gets
+// the old lexicon added to its name.
+func moveDecksAndPlans(ctx context.Context, tx pgx.Tx, fromLex, toLex string) error {
+	t, err := tx.Exec(ctx, `
+		UPDATE wordvault_decks d
+		SET name = d.name || ' (' || $2 || ')'
+		WHERE d.lexicon_name = $2
+		AND EXISTS (
+			SELECT 1 FROM wordvault_decks d2
+			WHERE d2.user_id = d.user_id
+			AND d2.lexicon_name = $1
+			AND LOWER(d2.name) = LOWER(d.name)
+		);`, toLex, fromLex)
+	if err != nil {
+		return err
+	}
+	log.Info().Int("rows-affected", int(t.RowsAffected())).Msg("renamed-conflicting-decks")
+
+	t, err = tx.Exec(ctx, `
+		UPDATE wordvault_decks SET lexicon_name = $1 WHERE lexicon_name = $2;`, toLex, fromLex)
+	if err != nil {
+		return err
+	}
+	log.Info().Int("rows-affected", int(t.RowsAffected())).Msg("moved-decks")
+
+	t, err = tx.Exec(ctx, `
+		UPDATE wordvault_study_plans SET lexicon_name = $1, updated_at = now()
+		WHERE lexicon_name = $2;`, toLex, fromLex)
+	if err != nil {
+		return err
+	}
+	log.Info().Int("rows-affected", int(t.RowsAffected())).Msg("moved-study-plans")
+	return nil
 }
 
 func main() {

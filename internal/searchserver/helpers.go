@@ -51,6 +51,13 @@ func SearchDescPointValue(min int, max int) *pb.SearchRequest_SearchParam {
 	}
 }
 
+func SearchDescNumVowels(min int, max int) *pb.SearchRequest_SearchParam {
+	return &pb.SearchRequest_SearchParam{
+		Condition:      pb.SearchRequest_NUMBER_OF_VOWELS,
+		Conditionparam: minMaxParam(min, max),
+	}
+}
+
 func SearchDescNumAnagrams(min int, max int) *pb.SearchRequest_SearchParam {
 	return &pb.SearchRequest_SearchParam{
 		Condition:      pb.SearchRequest_NUMBER_OF_ANAGRAMS,

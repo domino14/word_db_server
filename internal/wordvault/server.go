@@ -865,6 +865,19 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 			return nil, err
 		}
 	}
+	resp, err := s.addCards(ctx, user, req.Msg.Lexicon, alphagrams, req.Msg.DeckId)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(resp), nil
+}
+
+// addCards adds new cards for alphagrams, which must already be as the
+// lexicon stores them, to a deck. Alphagrams already in the vault are left
+// where they are.
+func (s *Server) addCards(ctx context.Context, user *auth.AuthedUser, lexicon string,
+	alphagrams []string, deckID uint64) (*pb.AddCardsResponse, error) {
+
 	if !user.Member {
 		rows, err := s.Queries.GetNumCardsInVault(ctx, int64(user.DBID))
 		if err != nil {
@@ -878,7 +891,6 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 			return nil, connect.NewError(connect.CodeInvalidArgument, ErrNeedMembership)
 		}
 	}
-	// if len(req.Msg.Alphagrams)
 
 	// Just add the same card to all rows for ease for now.
 	card := fsrs.NewCard()
@@ -918,9 +930,9 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 
 	countParams := models.CountCardsInOtherDecksParams{
 		UserID:      int64(user.DBID),
-		LexiconName: req.Msg.Lexicon,
+		LexiconName: lexicon,
 		Alphagrams:  alphagrams,
-		DeckID:      int64(req.Msg.DeckId),
+		DeckID:      int64(deckID),
 	}
 	numInOtherDeck, err := qtx.CountCardsInOtherDecks(ctx, countParams)
 	if err != nil {
@@ -931,9 +943,9 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 	if numInOtherDeck > 0 {
 		cardPreviewParams := models.GetCardsInOtherDecksParams{
 			UserID:      int64(user.DBID),
-			LexiconName: req.Msg.Lexicon,
+			LexiconName: lexicon,
 			Alphagrams:  alphagrams,
-			DeckID:      int64(req.Msg.DeckId),
+			DeckID:      int64(deckID),
 			Limit:       CardInOtherDeckPreviewLimit,
 		}
 		rows, err := qtx.GetCardsInOtherDecks(ctx, cardPreviewParams)
@@ -943,7 +955,7 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 		previewRows = make([]*pb.CardPreview, len(rows))
 		for i := range rows {
 			previewRows[i] = &pb.CardPreview{
-				Lexicon:   req.Msg.Lexicon,
+				Lexicon:   lexicon,
 				Alphagram: rows[i].Alphagram,
 				DeckId:    uint64(rows[i].DeckID),
 			}
@@ -952,12 +964,12 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 
 	addParams := models.AddCardsParams{
 		UserID:      int64(user.DBID),
-		LexiconName: req.Msg.Lexicon,
+		LexiconName: lexicon,
 		// sqlc compiler can't detect this is a special type. It's ok.
 		FsrsCards:      cards,
 		Alphagrams:     alphagrams,
 		NextScheduleds: nextScheduleds,
-		DeckID:         int64(req.Msg.DeckId),
+		DeckID:         int64(deckID),
 	}
 	numInserted, err := qtx.AddCards(ctx, addParams)
 	if err != nil {
@@ -968,11 +980,11 @@ func (s *Server) AddCards(ctx context.Context, req *connect.Request[pb.AddCardsR
 		return nil, err
 	}
 
-	return connect.NewResponse(&pb.AddCardsResponse{
+	return &pb.AddCardsResponse{
 		NumCardsAdded:            uint32(numInserted),
 		NumCardsInOtherDecks:     uint32(numInOtherDeck),
 		CardsInOtherDecksPreview: previewRows,
-	}), nil
+	}, nil
 }
 
 func (s *Server) MoveCards(ctx context.Context, req *connect.Request[pb.MoveCardsRequest]) (
@@ -1820,6 +1832,11 @@ func (s *Server) DeleteDeck(ctx context.Context, req *connect.Request[pb.DeleteD
 		UserID: int64(user.DBID),
 	})
 	if err != nil {
+		var pgErr *pgconn.PgError
+		// foreign_key_violation: a study plan still adds to this deck.
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			return nil, invalidArgError("cannot delete a deck with a study plan; delete the plan first")
+		}
 		return nil, err
 	}
 

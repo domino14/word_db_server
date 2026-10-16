@@ -110,6 +110,24 @@ const (
 	// WordVaultServiceDeleteDeckProcedure is the fully-qualified name of the WordVaultService's
 	// DeleteDeck RPC.
 	WordVaultServiceDeleteDeckProcedure = "/wordvault.WordVaultService/DeleteDeck"
+	// WordVaultServiceAddStudyPlanProcedure is the fully-qualified name of the WordVaultService's
+	// AddStudyPlan RPC.
+	WordVaultServiceAddStudyPlanProcedure = "/wordvault.WordVaultService/AddStudyPlan"
+	// WordVaultServiceGetStudyPlansProcedure is the fully-qualified name of the WordVaultService's
+	// GetStudyPlans RPC.
+	WordVaultServiceGetStudyPlansProcedure = "/wordvault.WordVaultService/GetStudyPlans"
+	// WordVaultServiceEditStudyPlanProcedure is the fully-qualified name of the WordVaultService's
+	// EditStudyPlan RPC.
+	WordVaultServiceEditStudyPlanProcedure = "/wordvault.WordVaultService/EditStudyPlan"
+	// WordVaultServiceDeleteStudyPlanProcedure is the fully-qualified name of the WordVaultService's
+	// DeleteStudyPlan RPC.
+	WordVaultServiceDeleteStudyPlanProcedure = "/wordvault.WordVaultService/DeleteStudyPlan"
+	// WordVaultServiceGetStudyPlanProgressProcedure is the fully-qualified name of the
+	// WordVaultService's GetStudyPlanProgress RPC.
+	WordVaultServiceGetStudyPlanProgressProcedure = "/wordvault.WordVaultService/GetStudyPlanProgress"
+	// WordVaultServiceAddStudyPlanBatchProcedure is the fully-qualified name of the WordVaultService's
+	// AddStudyPlanBatch RPC.
+	WordVaultServiceAddStudyPlanBatchProcedure = "/wordvault.WordVaultService/AddStudyPlanBatch"
 )
 
 // These variables are the protoreflect.Descriptor objects for the RPCs defined in this package.
@@ -141,6 +159,12 @@ var (
 	wordVaultServiceGetDecksMethodDescriptor                 = wordVaultServiceServiceDescriptor.Methods().ByName("GetDecks")
 	wordVaultServiceEditDeckMethodDescriptor                 = wordVaultServiceServiceDescriptor.Methods().ByName("EditDeck")
 	wordVaultServiceDeleteDeckMethodDescriptor               = wordVaultServiceServiceDescriptor.Methods().ByName("DeleteDeck")
+	wordVaultServiceAddStudyPlanMethodDescriptor             = wordVaultServiceServiceDescriptor.Methods().ByName("AddStudyPlan")
+	wordVaultServiceGetStudyPlansMethodDescriptor            = wordVaultServiceServiceDescriptor.Methods().ByName("GetStudyPlans")
+	wordVaultServiceEditStudyPlanMethodDescriptor            = wordVaultServiceServiceDescriptor.Methods().ByName("EditStudyPlan")
+	wordVaultServiceDeleteStudyPlanMethodDescriptor          = wordVaultServiceServiceDescriptor.Methods().ByName("DeleteStudyPlan")
+	wordVaultServiceGetStudyPlanProgressMethodDescriptor     = wordVaultServiceServiceDescriptor.Methods().ByName("GetStudyPlanProgress")
+	wordVaultServiceAddStudyPlanBatchMethodDescriptor        = wordVaultServiceServiceDescriptor.Methods().ByName("AddStudyPlanBatch")
 )
 
 // WordVaultServiceClient is a client for the wordvault.WordVaultService service.
@@ -174,6 +198,13 @@ type WordVaultServiceClient interface {
 	GetDecks(context.Context, *connect.Request[wordvault.GetDecksRequest]) (*connect.Response[wordvault.GetDecksResponse], error)
 	EditDeck(context.Context, *connect.Request[wordvault.EditDeckRequest]) (*connect.Response[wordvault.EditDeckResponse], error)
 	DeleteDeck(context.Context, *connect.Request[wordvault.DeleteDeckRequest]) (*connect.Response[wordvault.DeleteDeckResponse], error)
+	AddStudyPlan(context.Context, *connect.Request[wordvault.AddStudyPlanRequest]) (*connect.Response[wordvault.AddStudyPlanResponse], error)
+	GetStudyPlans(context.Context, *connect.Request[wordvault.GetStudyPlansRequest]) (*connect.Response[wordvault.GetStudyPlansResponse], error)
+	EditStudyPlan(context.Context, *connect.Request[wordvault.EditStudyPlanRequest]) (*connect.Response[wordvault.EditStudyPlanResponse], error)
+	DeleteStudyPlan(context.Context, *connect.Request[wordvault.DeleteStudyPlanRequest]) (*connect.Response[wordvault.DeleteStudyPlanResponse], error)
+	GetStudyPlanProgress(context.Context, *connect.Request[wordvault.GetStudyPlanProgressRequest]) (*connect.Response[wordvault.GetStudyPlanProgressResponse], error)
+	// Adds the plan's next batch of missing cards to its deck.
+	AddStudyPlanBatch(context.Context, *connect.Request[wordvault.AddStudyPlanBatchRequest]) (*connect.Response[wordvault.AddStudyPlanBatchResponse], error)
 }
 
 // NewWordVaultServiceClient constructs a client for the wordvault.WordVaultService service. By
@@ -352,6 +383,44 @@ func NewWordVaultServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(wordVaultServiceDeleteDeckMethodDescriptor),
 			connect.WithClientOptions(opts...),
 		),
+		addStudyPlan: connect.NewClient[wordvault.AddStudyPlanRequest, wordvault.AddStudyPlanResponse](
+			httpClient,
+			baseURL+WordVaultServiceAddStudyPlanProcedure,
+			connect.WithSchema(wordVaultServiceAddStudyPlanMethodDescriptor),
+			connect.WithClientOptions(opts...),
+		),
+		getStudyPlans: connect.NewClient[wordvault.GetStudyPlansRequest, wordvault.GetStudyPlansResponse](
+			httpClient,
+			baseURL+WordVaultServiceGetStudyPlansProcedure,
+			connect.WithSchema(wordVaultServiceGetStudyPlansMethodDescriptor),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		editStudyPlan: connect.NewClient[wordvault.EditStudyPlanRequest, wordvault.EditStudyPlanResponse](
+			httpClient,
+			baseURL+WordVaultServiceEditStudyPlanProcedure,
+			connect.WithSchema(wordVaultServiceEditStudyPlanMethodDescriptor),
+			connect.WithClientOptions(opts...),
+		),
+		deleteStudyPlan: connect.NewClient[wordvault.DeleteStudyPlanRequest, wordvault.DeleteStudyPlanResponse](
+			httpClient,
+			baseURL+WordVaultServiceDeleteStudyPlanProcedure,
+			connect.WithSchema(wordVaultServiceDeleteStudyPlanMethodDescriptor),
+			connect.WithClientOptions(opts...),
+		),
+		getStudyPlanProgress: connect.NewClient[wordvault.GetStudyPlanProgressRequest, wordvault.GetStudyPlanProgressResponse](
+			httpClient,
+			baseURL+WordVaultServiceGetStudyPlanProgressProcedure,
+			connect.WithSchema(wordVaultServiceGetStudyPlanProgressMethodDescriptor),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		addStudyPlanBatch: connect.NewClient[wordvault.AddStudyPlanBatchRequest, wordvault.AddStudyPlanBatchResponse](
+			httpClient,
+			baseURL+WordVaultServiceAddStudyPlanBatchProcedure,
+			connect.WithSchema(wordVaultServiceAddStudyPlanBatchMethodDescriptor),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -383,6 +452,12 @@ type wordVaultServiceClient struct {
 	getDecks                 *connect.Client[wordvault.GetDecksRequest, wordvault.GetDecksResponse]
 	editDeck                 *connect.Client[wordvault.EditDeckRequest, wordvault.EditDeckResponse]
 	deleteDeck               *connect.Client[wordvault.DeleteDeckRequest, wordvault.DeleteDeckResponse]
+	addStudyPlan             *connect.Client[wordvault.AddStudyPlanRequest, wordvault.AddStudyPlanResponse]
+	getStudyPlans            *connect.Client[wordvault.GetStudyPlansRequest, wordvault.GetStudyPlansResponse]
+	editStudyPlan            *connect.Client[wordvault.EditStudyPlanRequest, wordvault.EditStudyPlanResponse]
+	deleteStudyPlan          *connect.Client[wordvault.DeleteStudyPlanRequest, wordvault.DeleteStudyPlanResponse]
+	getStudyPlanProgress     *connect.Client[wordvault.GetStudyPlanProgressRequest, wordvault.GetStudyPlanProgressResponse]
+	addStudyPlanBatch        *connect.Client[wordvault.AddStudyPlanBatchRequest, wordvault.AddStudyPlanBatchResponse]
 }
 
 // GetCardCount calls wordvault.WordVaultService.GetCardCount.
@@ -515,6 +590,36 @@ func (c *wordVaultServiceClient) DeleteDeck(ctx context.Context, req *connect.Re
 	return c.deleteDeck.CallUnary(ctx, req)
 }
 
+// AddStudyPlan calls wordvault.WordVaultService.AddStudyPlan.
+func (c *wordVaultServiceClient) AddStudyPlan(ctx context.Context, req *connect.Request[wordvault.AddStudyPlanRequest]) (*connect.Response[wordvault.AddStudyPlanResponse], error) {
+	return c.addStudyPlan.CallUnary(ctx, req)
+}
+
+// GetStudyPlans calls wordvault.WordVaultService.GetStudyPlans.
+func (c *wordVaultServiceClient) GetStudyPlans(ctx context.Context, req *connect.Request[wordvault.GetStudyPlansRequest]) (*connect.Response[wordvault.GetStudyPlansResponse], error) {
+	return c.getStudyPlans.CallUnary(ctx, req)
+}
+
+// EditStudyPlan calls wordvault.WordVaultService.EditStudyPlan.
+func (c *wordVaultServiceClient) EditStudyPlan(ctx context.Context, req *connect.Request[wordvault.EditStudyPlanRequest]) (*connect.Response[wordvault.EditStudyPlanResponse], error) {
+	return c.editStudyPlan.CallUnary(ctx, req)
+}
+
+// DeleteStudyPlan calls wordvault.WordVaultService.DeleteStudyPlan.
+func (c *wordVaultServiceClient) DeleteStudyPlan(ctx context.Context, req *connect.Request[wordvault.DeleteStudyPlanRequest]) (*connect.Response[wordvault.DeleteStudyPlanResponse], error) {
+	return c.deleteStudyPlan.CallUnary(ctx, req)
+}
+
+// GetStudyPlanProgress calls wordvault.WordVaultService.GetStudyPlanProgress.
+func (c *wordVaultServiceClient) GetStudyPlanProgress(ctx context.Context, req *connect.Request[wordvault.GetStudyPlanProgressRequest]) (*connect.Response[wordvault.GetStudyPlanProgressResponse], error) {
+	return c.getStudyPlanProgress.CallUnary(ctx, req)
+}
+
+// AddStudyPlanBatch calls wordvault.WordVaultService.AddStudyPlanBatch.
+func (c *wordVaultServiceClient) AddStudyPlanBatch(ctx context.Context, req *connect.Request[wordvault.AddStudyPlanBatchRequest]) (*connect.Response[wordvault.AddStudyPlanBatchResponse], error) {
+	return c.addStudyPlanBatch.CallUnary(ctx, req)
+}
+
 // WordVaultServiceHandler is an implementation of the wordvault.WordVaultService service.
 type WordVaultServiceHandler interface {
 	GetCardCount(context.Context, *connect.Request[wordvault.GetCardCountRequest]) (*connect.Response[wordvault.CardCountResponse], error)
@@ -546,6 +651,13 @@ type WordVaultServiceHandler interface {
 	GetDecks(context.Context, *connect.Request[wordvault.GetDecksRequest]) (*connect.Response[wordvault.GetDecksResponse], error)
 	EditDeck(context.Context, *connect.Request[wordvault.EditDeckRequest]) (*connect.Response[wordvault.EditDeckResponse], error)
 	DeleteDeck(context.Context, *connect.Request[wordvault.DeleteDeckRequest]) (*connect.Response[wordvault.DeleteDeckResponse], error)
+	AddStudyPlan(context.Context, *connect.Request[wordvault.AddStudyPlanRequest]) (*connect.Response[wordvault.AddStudyPlanResponse], error)
+	GetStudyPlans(context.Context, *connect.Request[wordvault.GetStudyPlansRequest]) (*connect.Response[wordvault.GetStudyPlansResponse], error)
+	EditStudyPlan(context.Context, *connect.Request[wordvault.EditStudyPlanRequest]) (*connect.Response[wordvault.EditStudyPlanResponse], error)
+	DeleteStudyPlan(context.Context, *connect.Request[wordvault.DeleteStudyPlanRequest]) (*connect.Response[wordvault.DeleteStudyPlanResponse], error)
+	GetStudyPlanProgress(context.Context, *connect.Request[wordvault.GetStudyPlanProgressRequest]) (*connect.Response[wordvault.GetStudyPlanProgressResponse], error)
+	// Adds the plan's next batch of missing cards to its deck.
+	AddStudyPlanBatch(context.Context, *connect.Request[wordvault.AddStudyPlanBatchRequest]) (*connect.Response[wordvault.AddStudyPlanBatchResponse], error)
 }
 
 // NewWordVaultServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -720,6 +832,44 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 		connect.WithSchema(wordVaultServiceDeleteDeckMethodDescriptor),
 		connect.WithHandlerOptions(opts...),
 	)
+	wordVaultServiceAddStudyPlanHandler := connect.NewUnaryHandler(
+		WordVaultServiceAddStudyPlanProcedure,
+		svc.AddStudyPlan,
+		connect.WithSchema(wordVaultServiceAddStudyPlanMethodDescriptor),
+		connect.WithHandlerOptions(opts...),
+	)
+	wordVaultServiceGetStudyPlansHandler := connect.NewUnaryHandler(
+		WordVaultServiceGetStudyPlansProcedure,
+		svc.GetStudyPlans,
+		connect.WithSchema(wordVaultServiceGetStudyPlansMethodDescriptor),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	wordVaultServiceEditStudyPlanHandler := connect.NewUnaryHandler(
+		WordVaultServiceEditStudyPlanProcedure,
+		svc.EditStudyPlan,
+		connect.WithSchema(wordVaultServiceEditStudyPlanMethodDescriptor),
+		connect.WithHandlerOptions(opts...),
+	)
+	wordVaultServiceDeleteStudyPlanHandler := connect.NewUnaryHandler(
+		WordVaultServiceDeleteStudyPlanProcedure,
+		svc.DeleteStudyPlan,
+		connect.WithSchema(wordVaultServiceDeleteStudyPlanMethodDescriptor),
+		connect.WithHandlerOptions(opts...),
+	)
+	wordVaultServiceGetStudyPlanProgressHandler := connect.NewUnaryHandler(
+		WordVaultServiceGetStudyPlanProgressProcedure,
+		svc.GetStudyPlanProgress,
+		connect.WithSchema(wordVaultServiceGetStudyPlanProgressMethodDescriptor),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	wordVaultServiceAddStudyPlanBatchHandler := connect.NewUnaryHandler(
+		WordVaultServiceAddStudyPlanBatchProcedure,
+		svc.AddStudyPlanBatch,
+		connect.WithSchema(wordVaultServiceAddStudyPlanBatchMethodDescriptor),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/wordvault.WordVaultService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case WordVaultServiceGetCardCountProcedure:
@@ -774,6 +924,18 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 			wordVaultServiceEditDeckHandler.ServeHTTP(w, r)
 		case WordVaultServiceDeleteDeckProcedure:
 			wordVaultServiceDeleteDeckHandler.ServeHTTP(w, r)
+		case WordVaultServiceAddStudyPlanProcedure:
+			wordVaultServiceAddStudyPlanHandler.ServeHTTP(w, r)
+		case WordVaultServiceGetStudyPlansProcedure:
+			wordVaultServiceGetStudyPlansHandler.ServeHTTP(w, r)
+		case WordVaultServiceEditStudyPlanProcedure:
+			wordVaultServiceEditStudyPlanHandler.ServeHTTP(w, r)
+		case WordVaultServiceDeleteStudyPlanProcedure:
+			wordVaultServiceDeleteStudyPlanHandler.ServeHTTP(w, r)
+		case WordVaultServiceGetStudyPlanProgressProcedure:
+			wordVaultServiceGetStudyPlanProgressHandler.ServeHTTP(w, r)
+		case WordVaultServiceAddStudyPlanBatchProcedure:
+			wordVaultServiceAddStudyPlanBatchHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -885,4 +1047,28 @@ func (UnimplementedWordVaultServiceHandler) EditDeck(context.Context, *connect.R
 
 func (UnimplementedWordVaultServiceHandler) DeleteDeck(context.Context, *connect.Request[wordvault.DeleteDeckRequest]) (*connect.Response[wordvault.DeleteDeckResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.DeleteDeck is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) AddStudyPlan(context.Context, *connect.Request[wordvault.AddStudyPlanRequest]) (*connect.Response[wordvault.AddStudyPlanResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.AddStudyPlan is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) GetStudyPlans(context.Context, *connect.Request[wordvault.GetStudyPlansRequest]) (*connect.Response[wordvault.GetStudyPlansResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.GetStudyPlans is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) EditStudyPlan(context.Context, *connect.Request[wordvault.EditStudyPlanRequest]) (*connect.Response[wordvault.EditStudyPlanResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.EditStudyPlan is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) DeleteStudyPlan(context.Context, *connect.Request[wordvault.DeleteStudyPlanRequest]) (*connect.Response[wordvault.DeleteStudyPlanResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.DeleteStudyPlan is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) GetStudyPlanProgress(context.Context, *connect.Request[wordvault.GetStudyPlanProgressRequest]) (*connect.Response[wordvault.GetStudyPlanProgressResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.GetStudyPlanProgress is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) AddStudyPlanBatch(context.Context, *connect.Request[wordvault.AddStudyPlanBatchRequest]) (*connect.Response[wordvault.AddStudyPlanBatchResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.AddStudyPlanBatch is not implemented"))
 }
