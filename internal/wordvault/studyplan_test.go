@@ -608,11 +608,10 @@ func TestStudyPlanCRUD(t *testing.T) {
 		Plan: windowPlan("NWL23", "7s", 500, 0, sevens)}))
 	is.NoErr(err)
 
-	// One plan per deck, the default deck included.
+	// A deck can have several plans, the default deck included.
 	_, err = s.AddStudyPlan(ctx, connect.NewRequest(&pb.AddStudyPlanRequest{
 		Plan: windowPlan("NWL23", "More 7s", 500, 0, sevens)}))
-	is.Equal(connect.CodeOf(err), connect.CodeInvalidArgument)
-	// But each lexicon has its own default deck.
+	is.NoErr(err)
 	_, err = s.AddStudyPlan(ctx, connect.NewRequest(&pb.AddStudyPlanRequest{
 		Plan: windowPlan("CSW24", "CSW 7s", 500, 0, sevens)}))
 	is.NoErr(err)
@@ -651,11 +650,6 @@ func TestStudyPlanCRUD(t *testing.T) {
 	is.Equal(edited.Msg.Plan.BatchSize, uint32(50))
 	is.Equal(edited.Msg.Plan.DeckId, uint64(nwlDeck.Msg.Deck.Id))
 	is.Equal(edited.Msg.Plan.Stages[0].Name, "Top")
-
-	// That frees up the default deck.
-	_, err = s.AddStudyPlan(ctx, connect.NewRequest(&pb.AddStudyPlanRequest{
-		Plan: windowPlan("NWL23", "More 7s", 500, 0, sevens)}))
-	is.NoErr(err)
 
 	edit.Lexicon = "CSW24"
 	_, err = s.EditStudyPlan(ctx, connect.NewRequest(&pb.EditStudyPlanRequest{Plan: edit}))

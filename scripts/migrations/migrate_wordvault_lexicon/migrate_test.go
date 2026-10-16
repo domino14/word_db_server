@@ -149,8 +149,8 @@ func TestMigrateMovesDecksAndPlans(t *testing.T) {
 	_, err := pool.Exec(ctx, `INSERT INTO wordvault_cards (user_id, lexicon_name, alphagram, next_scheduled, deck_id)
 		VALUES (1, 'NWL18', 'AEINRST', now(), $1)`, hard18)
 	is.NoErr(err)
-	// User 2 already has a default-deck plan in NWL23.
-	left := plan(2, "NWL18", "Old 7s", nil)
+	// User 2 already has a default-deck plan in NWL23 too.
+	old := plan(2, "NWL18", "Old 7s", nil)
 	kept := plan(2, "NWL23", "New 7s", nil)
 
 	is.NoErr(migrate(cfg, pool, "NWL18", "NWL23"))
@@ -176,7 +176,7 @@ func TestMigrateMovesDecksAndPlans(t *testing.T) {
 	}
 	is.Equal(planLex(onDeck), "NWL23")
 	is.Equal(planLex(onDefault), "NWL23")
-	is.Equal(planLex(left), "NWL18")
+	is.Equal(planLex(old), "NWL23")
 	is.Equal(planLex(kept), "NWL23")
 
 	var cardLex string

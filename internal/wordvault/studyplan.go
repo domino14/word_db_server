@@ -11,7 +11,6 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
@@ -186,14 +185,6 @@ func (s *Server) getStudyPlan(ctx context.Context, userID int64, id int64) (*pb.
 		return nil, err
 	}
 	return planFromRow(row)
-}
-
-func studyPlanWriteError(err error) error {
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-		return invalidArgError("this deck already has a study plan")
-	}
-	return err
 }
 
 // planItem is one alphagram of a plan, in the stage it belongs to.
@@ -476,7 +467,7 @@ func (s *Server) AddStudyPlan(ctx context.Context, req *connect.Request[pb.AddSt
 		Stages:      stages,
 	})
 	if err != nil {
-		return nil, studyPlanWriteError(err)
+		return nil, err
 	}
 	saved, err := planFromRow(studyPlanRow(row))
 	if err != nil {
@@ -551,7 +542,7 @@ func (s *Server) EditStudyPlan(ctx context.Context, req *connect.Request[pb.Edit
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrStudyPlanNotFound
 	} else if err != nil {
-		return nil, studyPlanWriteError(err)
+		return nil, err
 	}
 	saved, err := planFromRow(studyPlanRow(row))
 	if err != nil {

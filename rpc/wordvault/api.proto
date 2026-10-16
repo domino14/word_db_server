@@ -359,7 +359,8 @@ message StudyPlan {
   int64 id = 1;
   string lexicon = 2;
   string name = 3;
-  // 0 is the default deck. A deck has at most one plan.
+  // The deck batches are added to; 0 is the default deck. Several plans can
+  // add to the same deck.
   uint64 deck_id = 4;
   repeated StudyPlanStage stages = 5;
   StudyPlanBatchUnit batch_unit = 6;

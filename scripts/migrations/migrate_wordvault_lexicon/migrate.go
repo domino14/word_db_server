@@ -149,9 +149,7 @@ WHERE wordvault_cards.id = subquery.id;
 
 // moveDecksAndPlans moves decks and study plans to the new lexicon along with
 // their cards. A deck whose name the user already has in the new lexicon gets
-// the old lexicon added to its name. A user can only have one study plan on
-// the default deck per lexicon, so if they already made one in the new
-// lexicon, their old one stays behind in the old lexicon.
+// the old lexicon added to its name.
 func moveDecksAndPlans(ctx context.Context, tx pgx.Tx, fromLex, toLex string) error {
 	t, err := tx.Exec(ctx, `
 		UPDATE wordvault_decks d
@@ -176,30 +174,12 @@ func moveDecksAndPlans(ctx context.Context, tx pgx.Tx, fromLex, toLex string) er
 	log.Info().Int("rows-affected", int(t.RowsAffected())).Msg("moved-decks")
 
 	t, err = tx.Exec(ctx, `
-		UPDATE wordvault_study_plans p
-		SET lexicon_name = $1, updated_at = now()
-		WHERE p.lexicon_name = $2
-		AND NOT (p.deck_id IS NULL AND EXISTS (
-			SELECT 1 FROM wordvault_study_plans p2
-			WHERE p2.user_id = p.user_id
-			AND p2.lexicon_name = $1
-			AND p2.deck_id IS NULL
-		));`, toLex, fromLex)
+		UPDATE wordvault_study_plans SET lexicon_name = $1, updated_at = now()
+		WHERE lexicon_name = $2;`, toLex, fromLex)
 	if err != nil {
 		return err
 	}
 	log.Info().Int("rows-affected", int(t.RowsAffected())).Msg("moved-study-plans")
-
-	var leftBehind int
-	err = tx.QueryRow(ctx, `
-		SELECT count(*) FROM wordvault_study_plans WHERE lexicon_name = $1`, fromLex).Scan(&leftBehind)
-	if err != nil {
-		return err
-	}
-	if leftBehind > 0 {
-		log.Warn().Int("plans", leftBehind).Str("lexicon", fromLex).
-			Msg("study-plans-left-behind; their users already have a default-deck plan in the new lexicon")
-	}
 	return nil
 }
 

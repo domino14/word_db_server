@@ -3537,7 +3537,8 @@ type StudyPlan struct {
 	Id      int64  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	Lexicon string `protobuf:"bytes,2,opt,name=lexicon,proto3" json:"lexicon,omitempty"`
 	Name    string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	// 0 is the default deck. A deck has at most one plan.
+	// The deck batches are added to; 0 is the default deck. Several plans can
+	// add to the same deck.
 	DeckId    uint64             `protobuf:"varint,4,opt,name=deck_id,json=deckId,proto3" json:"deck_id,omitempty"`
 	Stages    []*StudyPlanStage  `protobuf:"bytes,5,rep,name=stages,proto3" json:"stages,omitempty"`
 	BatchUnit StudyPlanBatchUnit `protobuf:"varint,6,opt,name=batch_unit,json=batchUnit,proto3,enum=wordvault.StudyPlanBatchUnit" json:"batch_unit,omitempty"`

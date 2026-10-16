@@ -1,7 +1,8 @@
 BEGIN;
 
 -- A study plan is an ordered list of searches (stages) that a user works
--- through a batch at a time, adding the cards to one deck. Progress isn't
+-- through a batch at a time, adding the cards to one deck. A deck can have
+-- several plans adding to it. Progress isn't
 -- stored: it's whatever of the plan is already in the user's vault.
 CREATE TABLE wordvault_study_plans (
     id BIGSERIAL PRIMARY KEY,
@@ -18,8 +19,6 @@ CREATE TABLE wordvault_study_plans (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- At most one plan per deck, the default deck included.
-CREATE UNIQUE INDEX study_plans_user_lexicon_deck_idx
-    ON wordvault_study_plans (user_id, lexicon_name, COALESCE(deck_id, 0));
+CREATE INDEX study_plans_user_id_idx ON wordvault_study_plans (user_id);
 
 COMMIT;
