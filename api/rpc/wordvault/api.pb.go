@@ -3458,8 +3458,9 @@ type StudyPlanStage struct {
 
 	// Optional.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// As in AddCardsRequest.search_params. Probability lists and limits aren't
-	// allowed; a probability range is, as a cap on the stage.
+	// As in AddCardsRequest.search_params. A probability range caps the stage;
+	// a probability limit or list picks its alphagrams. Lists and limits must
+	// come last, and the server moves them there.
 	SearchParams []*wordsearcher.SearchRequest_SearchParam `protobuf:"bytes,2,rep,name=search_params,json=searchParams,proto3" json:"search_params,omitempty"`
 	SortField    StudyPlanSortField                        `protobuf:"varint,3,opt,name=sort_field,json=sortField,proto3,enum=wordvault.StudyPlanSortField" json:"sort_field,omitempty"`
 	Descending   bool                                      `protobuf:"varint,4,opt,name=descending,proto3" json:"descending,omitempty"`
