@@ -2,6 +2,7 @@ package wordvault
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 	"time"
 
@@ -97,33 +98,132 @@ func TestFsrsVersionPicksWeights(t *testing.T) {
 	}
 }
 
+type review struct {
+	at     time.Time
+	rating fsrs.Rating
+}
+
+// reviewHistory scores alphagram with each rating in turn, each an hour after
+// the card comes due, starting at start. It returns the reviews.
+func reviewHistory(t *testing.T, s *Server, fakenower *FakeNower, alphagram string,
+	start time.Time, ratings ...fsrs.Rating) []review {
+
+	fakenower.fakenow = start
+	var history []review
+	for _, rating := range ratings {
+		history = append(history, review{fakenower.fakenow, rating})
+		next := scoreCard(t, s, alphagram, pb.Score(rating))
+		fakenower.fakenow = next.Add(time.Hour)
+	}
+	return history
+}
+
+// testParams are a test user's FSRS parameters for an FSRS version, built
+// independently of the server's code, without fuzz.
+func testParams(t *testing.T, version int16, retention float64) fsrs.Parameters {
+	is := is.New(t)
+	p := fsrs.DefaultParam()
+	p.W = fsrs.DefaultWeights()
+	if version == FsrsVersion5 {
+		w, err := fsrs.ConvertV5Weights(fsrs5Weights)
+		is.NoErr(err)
+		p.W = w
+	}
+	p.RequestRetention = retention
+	p.MaximumInterval = 1825
+	p.EnableShortTerm = false
+	p.EnableFuzz = false
+	return p
+}
+
+// replay is the card the history would have produced under p.
+func replay(t *testing.T, p fsrs.Parameters, history []review) fsrs.Card {
+	is := is.New(t)
+	f := fsrs.NewFSRS(p)
+	card := fsrs.NewCard(history[0].at)
+	for _, r := range history {
+		info, err := f.Next(card, r.at, r.rating)
+		is.NoErr(err)
+		card = info.Card
+	}
+	return card
+}
+
+// goodInterval is the interval in days that p gives card if it's answered
+// Good at its due date, or at now if it's overdue.
+func goodInterval(t *testing.T, p fsrs.Parameters, card fsrs.Card, now time.Time) float64 {
+	is := is.New(t)
+	at := card.Due
+	if at.Before(now) {
+		at = now
+	}
+	info, err := fsrs.NewFSRS(p).Next(card, at, fsrs.Good)
+	is.NoErr(err)
+	return math.Round(info.Card.Due.Sub(at).Hours() / 24)
+}
+
+func cardRows(t *testing.T, s *Server, alphagrams []string) map[string]models.GetCardsRow {
+	is := is.New(t)
+	rows, err := s.Queries.GetCards(ctxForTests(), models.GetCardsParams{
+		UserID:      42,
+		LexiconName: "NWL23",
+		Alphagrams:  alphagrams,
+	})
+	is.NoErr(err)
+	is.Equal(len(rows), len(alphagrams))
+	byAlpha := map[string]models.GetCardsRow{}
+	for _, r := range rows {
+		byAlpha[r.Alphagram] = r
+	}
+	return byAlpha
+}
+
 func TestUpgradeFsrs(t *testing.T) {
 	is := is.New(t)
 	s, fakenower, cleanup := upgradeTestServer(t, true)
 	defer cleanup()
 	ctx := ctxForTests()
 
-	_, err := s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+	deck, err := s.AddDeck(ctx, connect.NewRequest(&pb.AddDeckRequest{Name: "Low retention", Lexicon: "NWL23"}))
+	is.NoErr(err)
+	deckID := deck.Msg.Deck.Id
+	_, err = s.EditDeck(ctx, connect.NewRequest(&pb.EditDeckRequest{
+		Id:   deckID,
+		Name: "Low retention",
+		FsrsParametersOverride: &pb.FsrsParameters{
+			Scheduler:        pb.FsrsScheduler_FSRS_SCHEDULER_LONG_TERM,
+			RequestRetention: 0.8,
+		},
+	}))
+	is.NoErr(err)
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
 		Lexicon:    "NWL23",
-		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO", "AEGLPSU"},
+		Alphagrams: []string{"ADEEGMMO", "AEILNOR", "ADEEHMMO", "AEGLPSU"},
+	}))
+	is.NoErr(err)
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"AEINRST"},
+		DeckId:     uint64(deckID),
 	}))
 	is.NoErr(err)
 
-	// ADEEGMMO has a review history under FSRS-5.
-	type review struct {
-		at     time.Time
-		rating fsrs.Rating
+	// Review histories under FSRS-5. From the simulations, a card that was
+	// always known gets longer intervals under FSRS-6 and one that was
+	// missed gets shorter ones.
+	start := fakenower.fakenow
+	histories := map[string][]review{
+		"ADEEGMMO": reviewHistory(t, s, fakenower, "ADEEGMMO", start,
+			fsrs.Good, fsrs.Good, fsrs.Good, fsrs.Good),
+		"AEILNOR": reviewHistory(t, s, fakenower, "AEILNOR", start,
+			fsrs.Good, fsrs.Good, fsrs.Again, fsrs.Good, fsrs.Good),
+		"AEINRST": reviewHistory(t, s, fakenower, "AEINRST", start,
+			fsrs.Good, fsrs.Again, fsrs.Good, fsrs.Hard),
 	}
-	var history []review
-	for _, rating := range []fsrs.Rating{fsrs.Good, fsrs.Good, fsrs.Again, fsrs.Good, fsrs.Easy} {
-		history = append(history, review{fakenower.fakenow, rating})
-		next := scoreCard(t, s, "ADEEGMMO", pb.Score(rating))
-		fakenower.fakenow = next.Add(time.Hour)
-	}
-	v5Card := getCard(t, s, "ADEEGMMO")
+	retention := map[string]float64{"ADEEGMMO": 0.9, "AEILNOR": 0.9, "AEINRST": 0.8}
 
 	// AEGLPSU was imported from Cardbox, then never reviewed.
-	importedAt := fakenower.fakenow.Add(-10 * 24 * time.Hour)
+	importedAt := start.Add(-10 * 24 * time.Hour)
 	imported := stores.Card{Card: fsrs.Card{
 		Due:        importedAt.Add(20 * 24 * time.Hour),
 		Stability:  30,
@@ -147,64 +247,104 @@ func TestUpgradeFsrs(t *testing.T) {
 	}))
 	// ADEEHMMO stays new.
 
+	// Upgrade two months after the first reviews: some cards are overdue and
+	// some aren't.
+	now := start.Add(60 * 24 * time.Hour)
+	fakenower.fakenow = now
+	alphagrams := []string{"ADEEGMMO", "AEILNOR", "AEINRST", "ADEEHMMO", "AEGLPSU"}
+	before := cardRows(t, s, alphagrams)
+
+	// Work out what the upgrade should do, independently of its code.
+	var dueNow, dueWeek, dueMonth, shorter, longer uint32
+	var goodBefore, goodAfter []float64
+	expected := map[string]fsrs.Card{}
+	for _, a := range alphagrams {
+		row := before[a]
+		due := row.NextScheduled.Time
+		is.True(due.Equal(row.FsrsCard.Due))
+		if !due.After(now) {
+			dueNow++
+		}
+		if !due.After(now.Add(7 * 24 * time.Hour)) {
+			dueWeek++
+		}
+		if !due.After(now.Add(30 * 24 * time.Hour)) {
+			dueMonth++
+		}
+		history, ok := histories[a]
+		if !ok {
+			expected[a] = row.FsrsCard.Card
+			continue
+		}
+		v6 := replay(t, testParams(t, FsrsVersion6, retention[a]), history)
+		card := row.FsrsCard.Card
+		card.Stability, card.Difficulty = v6.Stability, v6.Difficulty
+		expected[a] = card
+
+		b := goodInterval(t, testParams(t, FsrsVersion5, retention[a]), row.FsrsCard.Card, now)
+		af := goodInterval(t, testParams(t, FsrsVersion6, retention[a]), card, now)
+		goodBefore = append(goodBefore, b)
+		goodAfter = append(goodAfter, af)
+		if af < b {
+			shorter++
+		} else if af > b {
+			longer++
+		}
+	}
+	// The test covers both directions and overdue cards.
+	is.True(shorter >= 1)
+	is.True(longer >= 1)
+	is.True(dueNow >= 1)
+	is.True(dueMonth < 5)
+
+	checkSummary := func(sum *pb.FsrsUpgradeSummary) {
+		is.Equal(sum.CurrentVersion, int32(FsrsVersion5))
+		is.Equal(sum.TargetVersion, int32(FsrsVersion6))
+		is.Equal(sum.TotalCards, uint32(5))
+		is.Equal(sum.RescheduledCards, uint32(3))
+		is.Equal(sum.ImportedCards, uint32(1))
+		is.Equal(sum.UnchangedCards, uint32(1))
+		// Due dates don't change.
+		is.Equal(sum.DueNowBefore, dueNow)
+		is.Equal(sum.DueNowAfter, dueNow)
+		is.Equal(sum.DueWithinWeekBefore, dueWeek)
+		is.Equal(sum.DueWithinWeekAfter, dueWeek)
+		is.Equal(sum.DueWithinMonthBefore, dueMonth)
+		is.Equal(sum.DueWithinMonthAfter, dueMonth)
+		is.Equal(sum.MovedEarlier, uint32(0))
+		is.Equal(sum.MovedLater, uint32(0))
+		is.Equal(sum.MedianIntervalDaysBefore, sum.MedianIntervalDaysAfter)
+		// Intervals drift.
+		is.Equal(sum.GoodIntervalShorter, shorter)
+		is.Equal(sum.GoodIntervalLonger, longer)
+		is.Equal(sum.MedianGoodIntervalDaysBefore, median(goodBefore))
+		is.Equal(sum.MedianGoodIntervalDaysAfter, median(goodAfter))
+	}
+
 	is.Equal(fsrsVersion(t, s), int32(FsrsVersion5))
 	preview, err := s.PreviewFsrsUpgrade(ctx, connect.NewRequest(&pb.PreviewFsrsUpgradeRequest{}))
 	is.NoErr(err)
-	sum := preview.Msg.Summary
-	is.Equal(sum.CurrentVersion, int32(FsrsVersion5))
-	is.Equal(sum.TargetVersion, int32(FsrsVersion6))
-	is.Equal(sum.TotalCards, uint32(3))
-	is.Equal(sum.RescheduledCards, uint32(1))
-	is.Equal(sum.ImportedCards, uint32(1))
-	is.Equal(sum.UnchangedCards, uint32(1))
+	checkSummary(preview.Msg.Summary)
 	// The preview doesn't change anything.
 	is.Equal(fsrsVersion(t, s), int32(FsrsVersion5))
-	is.Equal(getCard(t, s, "ADEEGMMO"), v5Card)
+	is.Equal(cardRows(t, s, alphagrams), before)
 
 	upgraded, err := s.UpgradeFsrs(ctx, connect.NewRequest(&pb.UpgradeFsrsRequest{}))
 	is.NoErr(err)
-	is.Equal(upgraded.Msg.Summary.RescheduledCards, uint32(1))
-	is.Equal(upgraded.Msg.Summary.ImportedCards, uint32(1))
+	checkSummary(upgraded.Msg.Summary)
 	is.Equal(fsrsVersion(t, s), int32(FsrsVersion6))
 
-	// The reviewed card matches the same history scheduled with FSRS-6 all along.
-	p, _, err := s.fsrsParamsAndVersion(ctx, 42, nil)
-	is.NoErr(err)
-	f := fsrs.NewFSRS(p)
-	expected := fsrs.NewCard(history[0].at)
-	for _, r := range history {
-		info, err := f.Next(expected, r.at, r.rating)
-		is.NoErr(err)
-		expected = info.Card
+	// Each card's memory state is what FSRS-6 would have given it all along;
+	// everything else, including the due date and review log, is unchanged.
+	after := cardRows(t, s, alphagrams)
+	for _, a := range alphagrams {
+		is.Equal(after[a].FsrsCard.Card, expected[a])
+		is.True(after[a].NextScheduled.Time.Equal(before[a].NextScheduled.Time))
+		is.Equal(after[a].ReviewLog, before[a].ReviewLog)
+		is.Equal(after[a].DeckID, before[a].DeckID)
 	}
-	got := getCard(t, s, "ADEEGMMO")
-	is.Equal(got.Stability, expected.Stability)
-	is.Equal(got.Difficulty, expected.Difficulty)
-	is.Equal(got.Reps, expected.Reps)
-	is.Equal(got.Lapses, expected.Lapses)
-	is.True(got.Stability != v5Card.Stability)
-	// Due may differ by our extra time-of-day fuzz.
-	is.True(got.Due.Sub(expected.Due).Abs() <= 12*time.Hour)
-
-	// The imported card keeps its memory state and gets an FSRS-6 due date.
-	gotImported := getCard(t, s, "AEGLPSU")
-	is.Equal(gotImported.Stability, imported.Stability)
-	is.Equal(gotImported.Difficulty, imported.Difficulty)
-	expectedDue := importedAt.Add(time.Duration(intervalDays(p, 30)*24) * time.Hour)
-	is.True(gotImported.Due.Sub(expectedDue).Abs() <= 12*time.Hour)
-
-	// The new card is untouched.
-	is.Equal(getCard(t, s, "ADEEHMMO").State, fsrs.New)
-
-	// next_scheduled matches the cards' due dates.
-	rows, err := s.Queries.GetCards(ctx, models.GetCardsParams{
-		UserID:      42,
-		LexiconName: "NWL23",
-		Alphagrams:  []string{"ADEEGMMO", "AEGLPSU"},
-	})
-	is.NoErr(err)
-	for _, row := range rows {
-		is.True(row.NextScheduled.Time.Equal(row.FsrsCard.Due))
+	for a := range histories {
+		is.True(after[a].FsrsCard.Stability != before[a].FsrsCard.Stability)
 	}
 
 	// Upgrading twice isn't allowed.
@@ -213,9 +353,77 @@ func TestUpgradeFsrs(t *testing.T) {
 	_, err = s.PreviewFsrsUpgrade(ctx, connect.NewRequest(&pb.PreviewFsrsUpgradeRequest{}))
 	is.True(err != nil)
 
-	// New reviews use FSRS-6 weights.
+	// The next review of a rebuilt card continues from its FSRS-6 memory
+	// state.
+	for _, a := range []string{"ADEEGMMO", "AEINRST"} {
+		card := expected[a]
+		fakenower.fakenow = card.Due.Add(time.Hour)
+		info, err := fsrs.NewFSRS(testParams(t, FsrsVersion6, retention[a])).
+			Next(card, fakenower.fakenow, fsrs.Good)
+		is.NoErr(err)
+		scoreCard(t, s, a, pb.Score_SCORE_GOOD)
+		got := getCard(t, s, a)
+		is.Equal(got.Stability, info.Card.Stability)
+		is.Equal(got.Difficulty, info.Card.Difficulty)
+	}
+
+	// New cards use FSRS-6 weights.
 	scoreCard(t, s, "ADEEHMMO", pb.Score_SCORE_GOOD)
 	is.Equal(getCard(t, s, "ADEEHMMO").Stability, fsrs.DefaultWeights()[2])
+}
+
+// A card reviewed between reading it and writing its new memory state keeps
+// the state from that review.
+func TestSetCardMemoryStatesSkipsReviewedCards(t *testing.T) {
+	is := is.New(t)
+	s, fakenower, cleanup := upgradeTestServer(t, true)
+	defer cleanup()
+	ctx := ctxForTests()
+
+	_, err := s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "AEILNOR"},
+	}))
+	is.NoErr(err)
+	scoreCard(t, s, "ADEEGMMO", pb.Score_SCORE_GOOD)
+	scoreCard(t, s, "AEILNOR", pb.Score_SCORE_GOOD)
+
+	ids, err := s.Queries.GetCardIDs(ctx, 42)
+	is.NoErr(err)
+	rows, err := s.Queries.GetCardsByIDs(ctx, models.GetCardsByIDsParams{UserID: 42, Ids: ids})
+	is.NoErr(err)
+	is.Equal(len(rows), 2)
+	update := models.SetCardMemoryStatesParams{UserID: 42}
+	for _, r := range rows {
+		update.Ids = append(update.Ids, r.ID)
+		// Not round numbers, so that a lossy JSON round trip would show.
+		update.Stabilities = append(update.Stabilities, 12.345678901234567)
+		update.Difficulties = append(update.Difficulties, 3.3333333333333335)
+		update.LastReviews = append(update.LastReviews, r.LastReview)
+	}
+
+	// AEILNOR gets reviewed in the meantime.
+	fakenower.fakenow = fakenower.fakenow.Add(4 * 24 * time.Hour)
+	scoreCard(t, s, "AEILNOR", pb.Score_SCORE_GOOD)
+	reviewed := getCard(t, s, "AEILNOR")
+	untouched := getCard(t, s, "ADEEGMMO")
+
+	n, err := s.Queries.SetCardMemoryStates(ctx, update)
+	is.NoErr(err)
+	is.Equal(n, int64(1))
+
+	is.Equal(getCard(t, s, "AEILNOR"), reviewed)
+	got := getCard(t, s, "ADEEGMMO")
+	is.Equal(got.Stability, 12.345678901234567)
+	is.Equal(got.Difficulty, 3.3333333333333335)
+	got.Stability, got.Difficulty = untouched.Stability, untouched.Difficulty
+	is.Equal(got, untouched)
+
+	// Another user's cards can't be updated.
+	update.UserID = 43
+	n, err = s.Queries.SetCardMemoryStates(ctx, update)
+	is.NoErr(err)
+	is.Equal(n, int64(0))
 }
 
 func TestUpgradeFsrsNewUser(t *testing.T) {
