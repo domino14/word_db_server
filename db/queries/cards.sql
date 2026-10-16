@@ -121,7 +121,8 @@ WHERE user_id = $1
 ORDER BY id;
 
 -- name: GetCardsByIDs :many
-SELECT lexicon_name, alphagram, next_scheduled, fsrs_card, review_log, COALESCE(deck_id, 0) as deck_id
+SELECT id, lexicon_name, alphagram, next_scheduled, fsrs_card, review_log, COALESCE(deck_id, 0) as deck_id,
+    COALESCE(fsrs_card->>'LastReview', '')::TEXT AS last_review
 FROM wordvault_cards
 WHERE user_id = $1 AND id = ANY(@ids::BIGINT[]);
 
@@ -274,6 +275,27 @@ WHERE user_id = $1 AND lexicon_name = $2 AND jsonb_array_length(review_log) = 0
 DELETE FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND alphagram = ANY(@alphagrams::text[])
     AND COALESCE(deck_id, 0) = sqlc.arg(deck_id)::bigint;
+
+-- name: SetCardMemoryStates :execrows
+-- Sets the stability and difficulty of cards and leaves the rest of each card
+-- (due date, state, etc.) alone. last_reviews are the cards' LastReview as
+-- read before computing the new values; a card reviewed since then is
+-- skipped, so that its new review isn't overwritten.
+WITH updated_values AS (
+  SELECT
+    UNNEST(@ids::BIGINT[]) AS id,
+    UNNEST(@stabilities::FLOAT8[]) AS stability,
+    UNNEST(@difficulties::FLOAT8[]) AS difficulty,
+    UNNEST(@last_reviews::TEXT[]) AS last_review
+)
+UPDATE wordvault_cards w
+SET fsrs_card = jsonb_set(jsonb_set(w.fsrs_card,
+    '{Stability}', to_jsonb(u.stability)),
+    '{Difficulty}', to_jsonb(u.difficulty))
+FROM updated_values u
+WHERE w.id = u.id
+    AND w.user_id = @user_id
+    AND w.fsrs_card->>'LastReview' = u.last_review;
 
 -- name: BulkUpdateCards :exec
 WITH updated_values AS (
