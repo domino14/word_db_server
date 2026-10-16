@@ -196,7 +196,9 @@ func (s *Server) GetCardInformation(ctx context.Context, req *connect.Request[pb
 	cards := make([]*pb.Card, len(rows))
 	for i := range rows {
 		fcard := rows[i].FsrsCard
-		retrievability, err := f.Retrievability(fcard.Card, s.Nower.Now())
+		fixed := fcard.Card
+		fixLegacyCard(&fixed)
+		retrievability, err := f.Retrievability(fixed, s.Nower.Now())
 		if err != nil {
 			// Don't fail the whole request over one card with bad data.
 			log.Err(err).Str("alpha", rows[i].Alphagram).Msg("retrievability-error")
@@ -434,15 +436,28 @@ func (s *Server) fsrsParams(ctx context.Context, dbid int64, maybeQ *models.Quer
 	return params, err
 }
 
-// fixLegacyLearningCard handles cards that were put into (re)learning by
-// go-fsrs v3, which didn't track RemainingSteps. go-fsrs v4 never leaves a
-// learning card at 0 remaining steps (it graduates it instead), and treats 0 as
-// "graduate on any grade", so even Again would send the card out for days.
-// Treat these cards as being on their last step: Good graduates (as in v3),
-// Again restarts the steps and Hard repeats the step.
-func fixLegacyLearningCard(card *fsrs.Card) {
+// minStability is go-fsrs v4's lowest stability for a card that has been
+// reviewed; it rejects cards below it.
+const minStability = 0.001
+
+// fixLegacyCard fixes up cards last scheduled by go-fsrs v3 so that go-fsrs v4
+// accepts them and schedules them as v3 would have.
+//
+// v3 didn't track RemainingSteps. go-fsrs v4 never leaves a learning card at 0
+// remaining steps (it graduates it instead), and treats 0 as "graduate on any
+// grade", so even Again would send the card out for days. Treat these cards as
+// being on their last step: Good graduates (as in v3), Again restarts the
+// steps and Hard repeats the step.
+//
+// v3 also had no lower bound on stability, so cards missed many times in a
+// row could end up with a stability of 0 or close to it, which v4 refuses to
+// schedule. Raise it to v4's minimum.
+func fixLegacyCard(card *fsrs.Card) {
 	if (card.State == fsrs.Learning || card.State == fsrs.Relearning) && card.RemainingSteps == 0 {
 		card.RemainingSteps = 1
+	}
+	if card.State != fsrs.New && !(card.Stability >= minStability) {
+		card.Stability = minStability
 	}
 }
 
@@ -619,7 +634,7 @@ func scoreAndUpdateCard(ctx context.Context, qtx *models.Queries, params fsrs.Pa
 	userID int64, lexicon, alphagram string, card stores.Card, rating fsrs.Rating,
 	now time.Time) (stores.Card, fsrs.ReviewLog, error) {
 
-	fixLegacyLearningCard(&card.Card)
+	fixLegacyCard(&card.Card)
 	info, err := fsrs.NewFSRS(params).Next(card.Card, now, rating)
 	if err != nil {
 		return stores.Card{}, fsrs.ReviewLog{}, err
@@ -799,7 +814,7 @@ func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.Edit
 	}
 
 	// And re-schedule the card.
-	fixLegacyLearningCard(&card)
+	fixLegacyCard(&card)
 	info, err := f.Next(card, now, fsrs.Rating(req.Msg.NewScore))
 	if err != nil {
 		return nil, err

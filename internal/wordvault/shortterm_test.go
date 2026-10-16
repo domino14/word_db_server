@@ -260,3 +260,60 @@ func TestShortTermDailyProgress(t *testing.T) {
 	is.Equal(len(byDeck.Msg.Items), 1)
 	is.Equal(byDeck.Msg.Items[0].ProgressStats, want)
 }
+
+// go-fsrs v3 let stability shrink to 0 on cards missed many times in a row,
+// then stored a NaN interval as ScheduledDays 2^63. go-fsrs v4 rejects cards
+// with stability below its minimum, so these couldn't be scored at all.
+func TestLegacyZeroStabilityCard(t *testing.T) {
+	for _, shortTerm := range []bool{false, true} {
+		for _, rating := range []pb.Score{pb.Score_SCORE_AGAIN, pb.Score_SCORE_GOOD} {
+			testLegacyZeroStabilityCard(t, shortTerm, rating)
+		}
+	}
+}
+
+func testLegacyZeroStabilityCard(t *testing.T, shortTerm bool, rating pb.Score) {
+	is := is.New(t)
+	s, fakenower, cleanup := shortTermServer(t, FsrsVersion5)
+	defer cleanup()
+	ctx := ctxForTests()
+	_, err := s.DBPool.Exec(ctx, `UPDATE wordvault_params
+		SET params = jsonb_set(params, '{EnableShortTerm}', to_jsonb($1::bool)) WHERE user_id = 42`, shortTerm)
+	is.NoErr(err)
+
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2026-09-29T23:58:13Z")
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO"},
+	}))
+	is.NoErr(err)
+
+	// A card as v3 stored it in production.
+	var legacyCard stores.Card
+	is.NoErr(json.Unmarshal([]byte(`{"Due": "2026-09-30T00:17:15.83832413Z", "Reps": 74,
+		"State": 2, "Lapses": 8, "Stability": 0, "Difficulty": 9.904869569550643,
+		"LastReview": "2026-09-29T23:58:13.83832413Z", "ElapsedDays": 14,
+		"ScheduledDays": 9223372036854775808}`), &legacyCard))
+	is.NoErr(s.Queries.UpdateCard(ctx, models.UpdateCardParams{
+		FsrsCard:      legacyCard,
+		NextScheduled: toPGTimestamp(legacyCard.Due),
+		UserID:        42, // the user from ctxForTests
+		LexiconName:   "NWL23",
+		Alphagram:     "ADEEGMMO",
+		ReviewLogItem: []byte(`{"Rating":1,"ScheduledDays":9223372036854775808,"ElapsedDays":14,` +
+			`"Review":"2026-09-29T23:58:13.83832413Z","State":2}`),
+	}))
+
+	fakenower.fakenow, _ = time.Parse(time.RFC3339, "2026-10-16T12:00:00Z")
+	res, err := s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+		Score:     rating,
+		Lexicon:   "NWL23",
+		Alphagram: "ADEEGMMO",
+	}))
+	is.NoErr(err)
+	is.True(res.Msg.NextScheduled.AsTime().After(fakenower.fakenow))
+	card := getCard(t, s, "ADEEGMMO")
+	is.True(card.Stability >= minStability)
+	is.True(card.ScheduledDays < 36500)
+	is.True(!math.IsNaN(card.Difficulty))
+}
