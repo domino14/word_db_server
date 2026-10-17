@@ -345,6 +345,98 @@ func TestScoreCards(t *testing.T) {
 	is.Equal(res.Msg.NotScored, []string{"ADEEGMMO"})
 }
 
+func TestBatchScoreCards(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+	fakenower := &FakeNower{}
+	s.Nower = fakenower
+
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO", "AEFFGINR"},
+	}))
+	is.NoErr(err)
+
+	_, err = s.BatchScoreCards(ctx, connect.NewRequest(&pb.BatchScoreCardsRequest{
+		Lexicon: "NWL23",
+		Scores: []*pb.CardScore{
+			{Alphagram: "ADEEGMMO", Score: pb.Score_SCORE_GOOD},
+			{Alphagram: "ADEEHMMO", Score: pb.Score_SCORE_NONE},
+		},
+	}))
+	is.Equal(err.Error(), "invalid_argument: invalid score")
+
+	fakenower.fakenow, err = time.Parse(time.RFC3339, "2024-09-22T23:00:00Z")
+	is.NoErr(err)
+
+	// AEINRST is not in the vault. ADEEGMMO is asked for twice; only its
+	// first score counts.
+	res, err := s.BatchScoreCards(ctx, connect.NewRequest(&pb.BatchScoreCardsRequest{
+		Lexicon: "NWL23",
+		Scores: []*pb.CardScore{
+			{Alphagram: "ADEEGMMO", Score: pb.Score_SCORE_AGAIN},
+			{Alphagram: "AEINRST", Score: pb.Score_SCORE_GOOD},
+			{Alphagram: "ADEEHMMO", Score: pb.Score_SCORE_EASY},
+			{Alphagram: "ADEEGMMO", Score: pb.Score_SCORE_EASY},
+		},
+	}))
+	is.NoErr(err)
+	is.Equal(len(res.Msg.Scored), 2)
+	is.Equal(res.Msg.Scored[0].Alphagram, "ADEEGMMO")
+	is.Equal(res.Msg.Scored[1].Alphagram, "ADEEHMMO")
+	// Easy is scheduled further out than Again.
+	is.True(res.Msg.Scored[1].NextScheduled.AsTime().After(res.Msg.Scored[0].NextScheduled.AsTime()))
+	is.Equal(res.Msg.NotScored, []string{"AEINRST"})
+
+	info, err := s.GetCardInformation(ctx, connect.NewRequest(&pb.GetCardInfoRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO", "AEFFGINR"},
+	}))
+	is.NoErr(err)
+	is.Equal(len(info.Msg.Cards), 3)
+	for _, c := range info.Msg.Cards {
+		var revlog []stores.ReviewLog
+		is.NoErr(json.Unmarshal(c.ReviewLog, &revlog))
+		switch c.Alphagram.Alphagram {
+		case "AEFFGINR":
+			is.Equal(len(revlog), 0)
+		case "ADEEGMMO":
+			is.Equal(len(revlog), 1)
+			is.Equal(revlog[0].Rating, fsrs.Again)
+		case "ADEEHMMO":
+			is.Equal(len(revlog), 1)
+			is.Equal(revlog[0].Rating, fsrs.Easy)
+		}
+	}
+
+	// Cards that were just reviewed are skipped.
+	fakenower.fakenow = fakenower.fakenow.Add(time.Second * 5)
+	res, err = s.BatchScoreCards(ctx, connect.NewRequest(&pb.BatchScoreCardsRequest{
+		Lexicon: "NWL23",
+		Scores: []*pb.CardScore{
+			{Alphagram: "ADEEGMMO", Score: pb.Score_SCORE_GOOD},
+			{Alphagram: "AEFFGINR", Score: pb.Score_SCORE_HARD},
+		},
+	}))
+	is.NoErr(err)
+	is.Equal(len(res.Msg.Scored), 1)
+	is.Equal(res.Msg.Scored[0].Alphagram, "AEFFGINR")
+	is.Equal(res.Msg.NotScored, []string{"ADEEGMMO"})
+}
+
 func TestGetCards(t *testing.T) {
 	is := is.New(t)
 

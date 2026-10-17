@@ -79,6 +79,31 @@ message ScoreCardsResponse {
   repeated string not_scored = 2;
 }
 
+// BatchScoreCardsRequest scores several cards at once, each with its own
+// score, e.g. the ratings from a Wordwalls round of due cards.
+message BatchScoreCardsRequest {
+  string lexicon = 1;
+  repeated CardScore scores = 2;
+}
+
+message CardScore {
+  string alphagram = 1;
+  Score score = 2;
+}
+
+message ScoredCard {
+  // The alphagram as given in the request.
+  string alphagram = 1;
+  google.protobuf.Timestamp next_scheduled = 2;
+}
+
+message BatchScoreCardsResponse {
+  repeated ScoredCard scored = 1;
+  // Requested alphagrams that were not scored, either because there is no
+  // such card or because the card was just reviewed.
+  repeated string not_scored = 2;
+}
+
 message AddCardsRequest {
   string lexicon = 1;
   // Exactly one of alphagrams or search_params must be given. If
@@ -514,6 +539,7 @@ service WordVaultService {
       returns (NextScheduledCountByDeckResponse);
   rpc ScoreCard(ScoreCardRequest) returns (ScoreCardResponse);
   rpc ScoreCards(ScoreCardsRequest) returns (ScoreCardsResponse);
+  rpc BatchScoreCards(BatchScoreCardsRequest) returns (BatchScoreCardsResponse);
   rpc EditLastScore(EditLastScoreRequest) returns (ScoreCardResponse);
   rpc AddCards(AddCardsRequest) returns (AddCardsResponse);
   rpc MoveCards(MoveCardsRequest) returns (MoveCardsResponse);

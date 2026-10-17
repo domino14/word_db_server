@@ -667,73 +667,19 @@ func (s *Server) ScoreCards(ctx context.Context, req *connect.Request[pb.ScoreCa
 	if user == nil {
 		return nil, unauthenticated("user not authenticated")
 	}
-	now := s.Nower.Now()
 	if req.Msg.Score < 1 || req.Msg.Score > 4 {
 		return nil, invalidArgError("invalid score")
 	}
 	if req.Msg.Lexicon == "" || len(req.Msg.Alphagrams) == 0 {
 		return nil, invalidArgError("need a lexicon and at least one alphagram")
 	}
-	if len(req.Msg.Alphagrams) > s.Config.MaxCardsAdd {
-		return nil, invalidArgError(fmt.Sprintf("cannot score more than %d cards at a time", s.Config.MaxCardsAdd))
+	scores := make([]*pb.CardScore, len(req.Msg.Alphagrams))
+	for i, a := range req.Msg.Alphagrams {
+		scores[i] = &pb.CardScore{Alphagram: a, Score: req.Msg.Score}
 	}
-
-	maintenance, err := s.appMaintenance(ctx)
+	scored, notScored, err := s.scoreCardsInTx(ctx, int64(user.DBID), req.Msg.Lexicon, scores)
 	if err != nil {
 		return nil, err
-	}
-	if maintenance {
-		return nil, ErrMaintenance
-	}
-
-	tx, err := s.DBPool.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback(ctx)
-	qtx := s.Queries.WithTx(tx)
-
-	cfg := &wglconfig.Config{DataPath: s.Config.DataPath}
-	rows, err := qtx.GetCards(ctx, models.GetCardsParams{
-		UserID:      int64(user.DBID),
-		LexiconName: req.Msg.Lexicon,
-		Alphagrams:  lookupAlphagrams(cfg, req.Msg.Lexicon, req.Msg.Alphagrams),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Cards in different decks can have different scheduling parameters.
-	deckParams := map[int64]fsrs.Parameters{}
-	scored := map[string]bool{}
-	for i := range rows {
-		if justReviewed(rows[i].ReviewLog, now) {
-			continue
-		}
-		params, ok := deckParams[rows[i].DeckID]
-		if !ok {
-			params, err = s.fsrsParamsForDeck(ctx, int64(user.DBID), rows[i].DeckID, qtx)
-			if err != nil {
-				return nil, err
-			}
-			deckParams[rows[i].DeckID] = params
-		}
-		_, _, err = scoreAndUpdateCard(ctx, qtx, params, int64(user.DBID), req.Msg.Lexicon,
-			rows[i].Alphagram, rows[i].FsrsCard, fsrs.Rating(req.Msg.Score), now)
-		if err != nil {
-			return nil, err
-		}
-		scored[rows[i].Alphagram] = true
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return nil, err
-	}
-
-	notScored := []string{}
-	for _, a := range req.Msg.Alphagrams {
-		if !scored[a] && !scored[lexiconAlphagram(cfg, req.Msg.Lexicon, a)] {
-			notScored = append(notScored, a)
-		}
 	}
 	log.Ctx(ctx).Info().Str("lex", req.Msg.Lexicon).Int("score", int(req.Msg.Score)).
 		Int("num-scored", len(scored)).Int("num-not-scored", len(notScored)).Msg("cards-scored")
@@ -742,6 +688,135 @@ func (s *Server) ScoreCards(ctx context.Context, req *connect.Request[pb.ScoreCa
 		NumScored: uint32(len(scored)),
 		NotScored: notScored,
 	}), nil
+}
+
+// BatchScoreCards scores several cards in one transaction, each with its own
+// score. Cards that don't exist or were just reviewed are skipped and
+// reported back.
+func (s *Server) BatchScoreCards(ctx context.Context, req *connect.Request[pb.BatchScoreCardsRequest]) (
+	*connect.Response[pb.BatchScoreCardsResponse], error) {
+	user := auth.UserFromContext(ctx)
+	if user == nil {
+		return nil, unauthenticated("user not authenticated")
+	}
+	if req.Msg.Lexicon == "" || len(req.Msg.Scores) == 0 {
+		return nil, invalidArgError("need a lexicon and at least one score")
+	}
+	for _, sc := range req.Msg.Scores {
+		if sc.Score < 1 || sc.Score > 4 {
+			return nil, invalidArgError("invalid score")
+		}
+	}
+	scored, notScored, err := s.scoreCardsInTx(ctx, int64(user.DBID), req.Msg.Lexicon, req.Msg.Scores)
+	if err != nil {
+		return nil, err
+	}
+	log.Ctx(ctx).Info().Str("lex", req.Msg.Lexicon).
+		Int("num-scored", len(scored)).Int("num-not-scored", len(notScored)).Msg("cards-batch-scored")
+
+	return connect.NewResponse(&pb.BatchScoreCardsResponse{
+		Scored:    scored,
+		NotScored: notScored,
+	}), nil
+}
+
+// scoreCardsInTx scores the given cards in one transaction. It returns the
+// cards it scored and the requested alphagrams it skipped, because there is
+// no such card or the card was just reviewed. Alphagrams are reported back as
+// they were given.
+func (s *Server) scoreCardsInTx(ctx context.Context, userID int64, lexicon string,
+	scores []*pb.CardScore) ([]*pb.ScoredCard, []string, error) {
+
+	if len(scores) > s.Config.MaxCardsAdd {
+		return nil, nil, invalidArgError(fmt.Sprintf("cannot score more than %d cards at a time", s.Config.MaxCardsAdd))
+	}
+	now := s.Nower.Now()
+
+	cfg := &wglconfig.Config{DataPath: s.Config.DataPath}
+	// The stored alphagram may be in lexicon order rather than as given, so
+	// map both forms back to the request. A card requested more than once is
+	// scored once, with its first score, and its repeats are not reported.
+	reqIdx := map[string]int{}
+	repeat := make([]bool, len(scores))
+	alphagrams := make([]string, len(scores))
+	for i, sc := range scores {
+		alphagrams[i] = sc.Alphagram
+		sorted := lexiconAlphagram(cfg, lexicon, sc.Alphagram)
+		if _, ok := reqIdx[sorted]; ok {
+			repeat[i] = true
+			continue
+		}
+		reqIdx[sc.Alphagram] = i
+		reqIdx[sorted] = i
+	}
+
+	maintenance, err := s.appMaintenance(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	if maintenance {
+		return nil, nil, ErrMaintenance
+	}
+
+	tx, err := s.DBPool.Begin(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer tx.Rollback(ctx)
+	qtx := s.Queries.WithTx(tx)
+
+	rows, err := qtx.GetCards(ctx, models.GetCardsParams{
+		UserID:      userID,
+		LexiconName: lexicon,
+		Alphagrams:  lookupAlphagrams(cfg, lexicon, alphagrams),
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Cards in different decks can have different scheduling parameters.
+	deckParams := map[int64]fsrs.Parameters{}
+	due := make([]*time.Time, len(scores))
+	for i := range rows {
+		idx, ok := reqIdx[rows[i].Alphagram]
+		if !ok || due[idx] != nil || justReviewed(rows[i].ReviewLog, now) {
+			continue
+		}
+		params, ok := deckParams[rows[i].DeckID]
+		if !ok {
+			params, err = s.fsrsParamsForDeck(ctx, userID, rows[i].DeckID, qtx)
+			if err != nil {
+				return nil, nil, err
+			}
+			deckParams[rows[i].DeckID] = params
+		}
+		card, _, err := scoreAndUpdateCard(ctx, qtx, params, userID, lexicon,
+			rows[i].Alphagram, rows[i].FsrsCard, fsrs.Rating(scores[idx].Score), now)
+		if err != nil {
+			return nil, nil, err
+		}
+		due[idx] = &card.Due
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	scored := []*pb.ScoredCard{}
+	notScored := []string{}
+	for i, sc := range scores {
+		if repeat[i] {
+			continue
+		}
+		if due[i] == nil {
+			notScored = append(notScored, sc.Alphagram)
+			continue
+		}
+		scored = append(scored, &pb.ScoredCard{
+			Alphagram:     sc.Alphagram,
+			NextScheduled: timestamppb.New(*due[i]),
+		})
+	}
+	return scored, notScored, nil
 }
 
 func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.EditLastScoreRequest]) (
