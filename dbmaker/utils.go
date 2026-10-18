@@ -156,6 +156,7 @@ func LexiconMappings(dataPath string) LexiconMap {
 			DescriptiveName:    "NASPA Word List, 2023 Edition",
 			LetterDistribution: englishLD,
 			Difficulties:       createDifficultyMap(lexiconPath, "NWL23"),
+			Playabilities:      createPlayabilityMap(lexiconPath, "NWL23"),
 		},
 	}
 

@@ -18,7 +18,6 @@ import (
 	pb "github.com/domino14/word_db_server/api/rpc/wordvault"
 	"github.com/domino14/word_db_server/internal/auth"
 	"github.com/domino14/word_db_server/internal/querygen"
-	"github.com/domino14/word_db_server/internal/searchserver"
 	"github.com/domino14/word_db_server/internal/stores/models"
 )
 
@@ -195,10 +194,13 @@ type planItem struct {
 	stage     int
 }
 
-func sortValue(a searchserver.RankedAlphagram, field pb.StudyPlanSortField) int32 {
+// rankColumn is the alphagrams column a stage's sort field reads.
+func rankColumn(field pb.StudyPlanSortField) querygen.RankColumn {
 	switch field {
 	case pb.StudyPlanSortField_STUDY_PLAN_SORT_PROBABILITY:
-		return a.Probability
+		return querygen.RankByProbability
+	case pb.StudyPlanSortField_STUDY_PLAN_SORT_PLAYABILITY:
+		return querygen.RankByPlayability
 	}
 	// cleanStudyPlan only lets known fields through.
 	panic(fmt.Sprintf("unhandled sort field %v", field))
@@ -211,7 +213,7 @@ func (s *Server) planItems(ctx context.Context, plan *pb.StudyPlan) ([]planItem,
 	seen := map[string]bool{}
 	var items []planItem
 	for si, st := range plan.Stages {
-		found, err := s.WordSearchServer.RankedAlphagrams(ctx, plan.Lexicon, st.SearchParams)
+		found, err := s.WordSearchServer.RankedAlphagrams(ctx, plan.Lexicon, st.SearchParams, rankColumn(st.SortField))
 		if err != nil {
 			var cerr *connect.Error
 			if errors.As(err, &cerr) {
@@ -225,7 +227,7 @@ func (s *Server) planItems(ctx context.Context, plan *pb.StudyPlan) ([]planItem,
 				continue
 			}
 			seen[a.Alphagram] = true
-			items = append(items, planItem{a.Alphagram, a.Length, sortValue(a, st.SortField), si})
+			items = append(items, planItem{a.Alphagram, a.Length, a.Rank, si})
 		}
 		if len(items) > s.Config.MaxQueryResults {
 			return nil, invalidArgError(fmt.Sprintf(

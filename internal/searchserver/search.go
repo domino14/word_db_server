@@ -80,6 +80,7 @@ func createQueryGen(req *pb.SearchRequest, cfg *config.Config, maxChunkSize int)
 			pb.SearchRequest_NUMBER_OF_ANAGRAMS,
 			pb.SearchRequest_PROBABILITY_RANGE,
 			pb.SearchRequest_DIFFICULTY_RANGE,
+			pb.SearchRequest_PLAYABILITY_RANGE,
 			pb.SearchRequest_NUMBER_OF_VOWELS,
 			pb.SearchRequest_POINT_VALUE,
 			pb.SearchRequest_NOT_IN_LEXICON,

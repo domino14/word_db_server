@@ -9,6 +9,7 @@ import (
 
 	pb "github.com/domino14/word_db_server/api/rpc/wordsearcher"
 	"github.com/domino14/word_db_server/config"
+	"github.com/domino14/word_db_server/internal/querygen"
 )
 
 func TestRankedAlphagrams(t *testing.T) {
@@ -16,7 +17,7 @@ func TestRankedAlphagrams(t *testing.T) {
 	ranked, err := s.RankedAlphagrams(context.Background(), "NWL18", []*pb.SearchRequest_SearchParam{
 		SearchDescLength(7, 8),
 		SearchDescProbRange(201, 204),
-	})
+	}, querygen.RankByProbability)
 	assert.Nil(t, err)
 	// By probability, then length.
 	assert.Equal(t, []RankedAlphagram{
@@ -47,11 +48,11 @@ func TestRankedAlphagramsMatchesSearch(t *testing.T) {
 			want[a.Alphagram] = a.Probability
 		}
 
-		ranked, err := s.RankedAlphagrams(context.Background(), "NWL18", params)
+		ranked, err := s.RankedAlphagrams(context.Background(), "NWL18", params, querygen.RankByProbability)
 		assert.Nil(t, err)
 		got := map[string]int32{}
 		for _, a := range ranked {
-			got[a.Alphagram] = a.Probability
+			got[a.Alphagram] = a.Rank
 			assert.Equal(t, int32(len(a.Alphagram)), a.Length)
 		}
 		assert.NotEmpty(t, got)
@@ -62,13 +63,13 @@ func TestRankedAlphagramsMatchesSearch(t *testing.T) {
 func TestRankedAlphagramsErrors(t *testing.T) {
 	s := &Server{Config: DefaultConfig}
 	_, err := s.RankedAlphagrams(context.Background(), "NWL18", []*pb.SearchRequest_SearchParam{
-		SearchDescLexicon("NWL18"), SearchDescLength(7, 7)})
+		SearchDescLexicon("NWL18"), SearchDescLength(7, 7)}, querygen.RankByProbability)
 	assert.NotNil(t, err)
 
-	_, err = s.RankedAlphagrams(context.Background(), "NWL18", []*pb.SearchRequest_SearchParam{SearchDescDeleted()})
+	_, err = s.RankedAlphagrams(context.Background(), "NWL18", []*pb.SearchRequest_SearchParam{SearchDescDeleted()}, querygen.RankByProbability)
 	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 
-	_, err = s.RankedAlphagrams(context.Background(), "NOSUCHLEX", []*pb.SearchRequest_SearchParam{SearchDescLength(7, 7)})
+	_, err = s.RankedAlphagrams(context.Background(), "NOSUCHLEX", []*pb.SearchRequest_SearchParam{SearchDescLength(7, 7)}, querygen.RankByProbability)
 	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 
 	// An uploaded list has to come last, like the other lists; before, the
@@ -78,13 +79,13 @@ func TestRankedAlphagramsErrors(t *testing.T) {
 		Conditionparam: &pb.SearchRequest_SearchParam_Stringarray{Stringarray: &pb.SearchRequest_StringArray{
 			Values: []string{"RETAINS", "STRAINED"}}},
 	}
-	_, err = s.RankedAlphagrams(context.Background(), "NWL18", []*pb.SearchRequest_SearchParam{uploaded, SearchDescLength(7, 7)})
+	_, err = s.RankedAlphagrams(context.Background(), "NWL18", []*pb.SearchRequest_SearchParam{uploaded, SearchDescLength(7, 7)}, querygen.RankByProbability)
 	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
-	ranked, err := s.RankedAlphagrams(context.Background(), "NWL18", []*pb.SearchRequest_SearchParam{SearchDescLength(7, 7), uploaded})
+	ranked, err := s.RankedAlphagrams(context.Background(), "NWL18", []*pb.SearchRequest_SearchParam{SearchDescLength(7, 7), uploaded}, querygen.RankByProbability)
 	assert.Nil(t, err)
 	assert.Equal(t, []RankedAlphagram{{"AEINRST", 7, 10}}, ranked)
 
 	small := &Server{Config: &config.Config{DataPath: DefaultConfig.DataPath, MaxQueryResults: 100}}
-	_, err = small.RankedAlphagrams(context.Background(), "NWL18", []*pb.SearchRequest_SearchParam{SearchDescLength(7, 7)})
+	_, err = small.RankedAlphagrams(context.Background(), "NWL18", []*pb.SearchRequest_SearchParam{SearchDescLength(7, 7)}, querygen.RankByProbability)
 	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 }

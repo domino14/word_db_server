@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -772,4 +773,42 @@ func TestStudyPlanProbabilityList(t *testing.T) {
 		planStage("", searchserver.SearchDescAlphagramList([]string{"AEINRST", "ADEINRS"}),
 			searchserver.SearchDescProbLimit(1, 1)))}))
 	is.Equal(connect.CodeOf(err), connect.CodeInvalidArgument)
+}
+
+// A stage sorted by playability batches by playability windows. A lexicon
+// without playability data can't be used for one.
+func TestStudyPlanPlayability(t *testing.T) {
+	is := is.New(t)
+	s, _ := studyPlanTestServer(t)
+	ctx := memberCtx(42, "cesar")
+	stage := func(params ...*searchpb.SearchRequest_SearchParam) *pb.StudyPlanStage {
+		return &pb.StudyPlanStage{SearchParams: params, SortField: pb.StudyPlanSortField_STUDY_PLAN_SORT_PLAYABILITY}
+	}
+
+	_, err := s.AddStudyPlan(ctx, connect.NewRequest(&pb.AddStudyPlanRequest{Plan: windowPlan("NWL18", "x", 100, 0,
+		stage(searchserver.SearchDescLength(7, 7)))}))
+	is.Equal(connect.CodeOf(err), connect.CodeInvalidArgument)
+	is.True(strings.Contains(err.Error(), "NWL18 has no playability data"))
+
+	plan := windowPlan("NWL23", "", 100, 0,
+		stage(searchserver.SearchDescLength(7, 8), searchserver.SearchDescPlayabilityRange(1, 300)))
+	progress, err := s.GetStudyPlanProgress(ctx, connect.NewRequest(&pb.GetStudyPlanProgressRequest{
+		Which: &pb.GetStudyPlanProgressRequest_Plan{Plan: plan}}))
+	if err != nil && strings.Contains(err.Error(), "has no playability data") {
+		t.Skip("NWL23 database has no playability data")
+	}
+	is.NoErr(err)
+	is.Equal(progress.Msg.Total, uint32(600))
+	// The first window is playability 1-100 of both lengths, with the 7 and
+	// the 8 of each rank side by side.
+	b := progress.Msg.NextBatch
+	is.Equal([2]int32{b.WindowLo, b.WindowHi}, [2]int32{1, 100})
+	is.Equal(b.Items[0].SortValue, int32(1))
+	is.Equal(b.Items[1].SortValue, int32(1))
+	is.Equal([2]int32{b.Items[0].Length, b.Items[1].Length}, [2]int32{7, 8})
+	got := batchAlphagrams(b)
+	slices.Sort(got)
+	want := lexiconQuery(t, "NWL23", "length BETWEEN 7 AND 8 AND playability BETWEEN 1 AND 100")
+	slices.Sort(want)
+	is.Equal(got, want)
 }
