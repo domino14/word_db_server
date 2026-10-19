@@ -91,6 +91,7 @@ func LexiconMappings(dataPath string) LexiconMap {
 			DescriptiveName:    "Collins 2024",
 			LetterDistribution: englishLD,
 			Difficulties:       createDifficultyMap(lexiconPath, "CSW24"),
+			Playabilities:      createPlayabilityMap(lexiconPath, "CSW24"),
 		},
 	}
 
