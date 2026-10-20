@@ -91,6 +91,7 @@ func LexiconMappings(dataPath string) LexiconMap {
 			DescriptiveName:    "Collins 2024",
 			LetterDistribution: englishLD,
 			Difficulties:       createDifficultyMap(lexiconPath, "CSW24"),
+			Playabilities:      createPlayabilityMap(lexiconPath, "CSW24"),
 		},
 	}
 
@@ -156,6 +157,7 @@ func LexiconMappings(dataPath string) LexiconMap {
 			DescriptiveName:    "NASPA Word List, 2023 Edition",
 			LetterDistribution: englishLD,
 			Difficulties:       createDifficultyMap(lexiconPath, "NWL23"),
+			Playabilities:      createPlayabilityMap(lexiconPath, "NWL23"),
 		},
 	}
 

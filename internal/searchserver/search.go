@@ -32,6 +32,9 @@ func (s *Server) Search(ctx context.Context, req *connect.Request[pb.SearchReque
 		return nil, err
 	}
 	defer db.Close()
+	if err := checkPlayabilityRange(ctx, db, qgen.LexiconName(), req.Msg.Searchparams); err != nil {
+		return nil, err
+	}
 
 	queries, err := qgen.Generate()
 	if err != nil {
@@ -80,6 +83,7 @@ func createQueryGen(req *pb.SearchRequest, cfg *config.Config, maxChunkSize int)
 			pb.SearchRequest_NUMBER_OF_ANAGRAMS,
 			pb.SearchRequest_PROBABILITY_RANGE,
 			pb.SearchRequest_DIFFICULTY_RANGE,
+			pb.SearchRequest_PLAYABILITY_RANGE,
 			pb.SearchRequest_NUMBER_OF_VOWELS,
 			pb.SearchRequest_POINT_VALUE,
 			pb.SearchRequest_NOT_IN_LEXICON,

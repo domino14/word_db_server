@@ -89,7 +89,7 @@ type LexiconSymbolDefinition struct {
 	Symbol string // The corresponding lexicon symbol
 }
 
-const CurrentVersion = 6
+const CurrentVersion = 7
 
 func exitIfError(err error) {
 	if err != nil {
@@ -115,7 +115,7 @@ func createSqliteDb(outputDir string, lexiconName string, quitIfExists bool) (
 	CREATE TABLE alphagrams (probability int, alphagram varchar(20),
 	    length int, combinations int, num_anagrams int,
 		point_value int, num_vowels int, contains_word_uniq_to_lex_split int,
-		contains_update_to_lex int, difficulty int);
+		contains_update_to_lex int, difficulty int, playability int);
 
 	CREATE TABLE words (word varchar(20), alphagram varchar(20),
 	    lexicon_symbols varchar(5), definition varchar(512),
@@ -130,6 +130,7 @@ func createSqliteDb(outputDir string, lexiconName string, quitIfExists bool) (
 	CREATE INDEX alphagram_index on words(alphagram);
 	CREATE INDEX length_index on alphagrams(length);
 	CREATE INDEX difficulty_index on alphagrams(difficulty);
+	CREATE INDEX playability_index on alphagrams(playability, length);
 
 	CREATE INDEX num_anagrams_index on alphagrams(num_anagrams);
 	CREATE INDEX point_value_index on alphagrams(point_value);
@@ -165,14 +166,26 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo *LexiconInfo, lexMap 
 	log.Debug().Msg("Sorting by probability")
 	alphs := alphaMapValues(alphagrams)
 	sort.Sort(AlphByCombos(alphs))
+	if lexiconInfo.Playabilities != nil {
+		inDB := []string{}
+		for _, a := range alphs {
+			// Only lengths 2-15 go in the database (see below).
+			mls, err := tilemapping.ToMachineLetters(a.alphagram, lexiconInfo.LetterDistribution.TileMapping())
+			exitIfError(err)
+			if len(mls) >= 2 && len(mls) <= 15 {
+				inDB = append(inDB, a.alphagram)
+			}
+		}
+		exitIfError(checkPlayabilities(inDB, lexiconInfo.Playabilities))
+	}
 
 	var probs [16]uint32
 
 	alphInsertQuery := `
 	INSERT INTO alphagrams(probability, alphagram, length, combinations,
 		num_anagrams, point_value, num_vowels, contains_word_uniq_to_lex_split,
-		contains_update_to_lex, difficulty)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		contains_update_to_lex, difficulty, playability)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	wordInsertQuery := `
 	INSERT INTO words (word, alphagram, lexicon_symbols, definition,
 		front_hooks, back_hooks, inner_front_hook, inner_back_hook)
@@ -248,7 +261,8 @@ func CreateLexiconDatabase(lexiconName string, lexiconInfo *LexiconInfo, lexMap 
 			alph.numVowels(lexiconInfo.LetterDistribution),
 			containsWordUniqueToLexSplit(lexSymbolsList),
 			containsUpdateToLex(lexSymbolsList),
-			alphagramDifficulty(alph.alphagram, lexiconInfo.Difficulties, containsUpdateToLex(lexSymbolsList) == uint8(1)))
+			alphagramDifficulty(alph.alphagram, lexiconInfo.Difficulties, containsUpdateToLex(lexSymbolsList) == uint8(1)),
+			alphagramPlayability(alph.alphagram, lexiconInfo.Playabilities))
 		exitIfError(err)
 
 	}
@@ -491,6 +505,11 @@ func MigrateLexiconDatabase(lexiconName string, lexiconInfo *LexiconInfo) {
 	if version == 5 {
 		log.Info().Msg("Migrating to version 6...")
 		migrateToV6(db)
+		log.Info().Msg("Run again to migrate to version 7")
+	}
+	if version == 6 {
+		log.Info().Msg("Migrating to version 7...")
+		migrateToV7(db, lexiconInfo)
 	}
 
 }
@@ -654,10 +673,8 @@ func migrateToV4(db *sql.DB) {
 
 func migrateToV5(db *sql.DB, lexiconInfo *LexiconInfo) {
 	_, err := db.Exec(`
-	-- ALTER TABLE alphagrams ADD COLUMN playability int;
 	ALTER TABLE alphagrams ADD COLUMN difficulty int;
 
-	-- CREATE INDEX playability_index on alphagrams(playability);
 	CREATE INDEX difficulty_index on alphagrams(difficulty);
 	`)
 	exitIfError(err)
@@ -679,6 +696,22 @@ func migrateToV6(db *sql.DB) {
 	log.Info().Msg("Created new deletedwords table")
 
 	_, err = db.Exec("UPDATE db_version SET version = ?", 6)
+	exitIfError(err)
+}
+
+// Version 7 adds playability: each alphagram's playability rank within its
+// length. It's NULL for lexica without playability data.
+func migrateToV7(db *sql.DB, lexiconInfo *LexiconInfo) {
+	_, err := db.Exec(`
+	ALTER TABLE alphagrams ADD COLUMN playability int;
+	CREATE INDEX playability_index on alphagrams(playability, length);
+	`)
+	exitIfError(err)
+	log.Info().Msg("Created playability column and index")
+
+	loadPlayability(db, lexiconInfo)
+
+	_, err = db.Exec("UPDATE db_version SET version = ?", 7)
 	exitIfError(err)
 }
 

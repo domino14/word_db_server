@@ -37,6 +37,13 @@ func SearchDescDifficultyRange(min int, max int) *pb.SearchRequest_SearchParam {
 	}
 }
 
+func SearchDescPlayabilityRange(min int, max int) *pb.SearchRequest_SearchParam {
+	return &pb.SearchRequest_SearchParam{
+		Condition:      pb.SearchRequest_PLAYABILITY_RANGE,
+		Conditionparam: minMaxParam(min, max),
+	}
+}
+
 func SearchDescProbLimit(min int, max int) *pb.SearchRequest_SearchParam {
 	return &pb.SearchRequest_SearchParam{
 		Condition:      pb.SearchRequest_PROBABILITY_LIMIT,
@@ -159,6 +166,8 @@ func searchReqDescription(req *pb.SearchRequest) string {
 			ss.WriteString("<Prob Range: " + req.Searchparams[i].GetMinmax().String() + "> ")
 		case pb.SearchRequest_DIFFICULTY_RANGE:
 			ss.WriteString("<Difficulty Range: " + req.Searchparams[i].GetMinmax().String() + "> ")
+		case pb.SearchRequest_PLAYABILITY_RANGE:
+			ss.WriteString("<Playability Range: " + req.Searchparams[i].GetMinmax().String() + "> ")
 		case pb.SearchRequest_PROBABILITY_LIMIT:
 			ss.WriteString("<Prob Limit: " + req.Searchparams[i].GetMinmax().String() + "> ")
 		case pb.SearchRequest_POINT_VALUE:

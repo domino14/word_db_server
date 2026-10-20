@@ -119,27 +119,38 @@ ORDER BY a.probability, w.alphagram
 `
 
 // RankedAlphagramQuery selects just enough to place each alphagram in a
-// study plan, without its words.
+// study plan, without its words: its length and its rank in the third
+// argument's column. Results stay in probability order, so a probability
+// limit keeps its meaning whichever rank is selected.
 const RankedAlphagramQuery = `
-SELECT alphagram, length, probability FROM alphagrams
-WHERE %s
+SELECT alphagram, length, %[3]s FROM alphagrams
+WHERE %[1]s
 ORDER BY probability, length
-%s
+%[2]s
 `
 
 // WordFilteredRankedAlphagramQuery is RankedAlphagramQuery for searches with
 // word-level conditions.
 const WordFilteredRankedAlphagramQuery = `
-SELECT a.alphagram, a.length, a.probability FROM alphagrams a
+SELECT a.alphagram, a.length, a.%[3]s FROM alphagrams a
 WHERE a.alphagram IN (
 	SELECT DISTINCT w2.alphagram
 	FROM words w2
 	INNER JOIN alphagrams a2 ON w2.alphagram = a2.alphagram
-	WHERE %s
+	WHERE %[1]s
 )
 ORDER BY a.probability, a.length
-%s
+%[2]s
 `
+
+// RankColumn is the alphagrams column a ranked query selects. Both are an
+// alphagram's rank within its length.
+type RankColumn string
+
+const (
+	RankByProbability RankColumn = "probability"
+	RankByPlayability RankColumn = "playability"
+)
 
 type QueryType uint8
 
@@ -164,6 +175,7 @@ type Query struct {
 	rendered     string
 	expandedForm bool
 	qtype        QueryType
+	rankColumn   RankColumn
 }
 
 func (q *Query) String() string {
@@ -209,6 +221,7 @@ func NewQuery(bp []interface{}, qt QueryType) *Query {
 		template:     template,
 		expandedForm: expandedForm,
 		qtype:        qt,
+		rankColumn:   RankByProbability,
 	}
 }
 
@@ -251,6 +264,10 @@ func (q *Query) Render(whereClauses []string, limitOffsetClause string) {
 		// This can happen when only LEXICON condition is provided (which doesn't generate SQL)
 		where = "1=1"
 	}
+	if q.qtype == RankedAlphagrams || q.qtype == WordFilteredRankedAlphagrams {
+		q.rendered = fmt.Sprintf(q.template, where, limitOffsetClause, q.rankColumn)
+		return
+	}
 	q.rendered = fmt.Sprintf(q.template, where, limitOffsetClause)
 }
 
@@ -261,6 +278,7 @@ type QueryGen struct {
 	searchParams []*wordsearcher.SearchRequest_SearchParam
 	maxChunkSize int
 	config       *wglconfig.Config
+	rankColumn   RankColumn
 }
 
 // NewQueryGen generates a new query generator with the given parameters.
@@ -273,7 +291,12 @@ func NewQueryGen(lexiconName string, queryType QueryType,
 		DataPath: cfg.DataPath,
 	}
 
-	return &QueryGen{lexiconName, queryType, searchParams, maxChunkSize, qgenConfig}
+	return &QueryGen{lexiconName, queryType, searchParams, maxChunkSize, qgenConfig, RankByProbability}
+}
+
+// SetRankColumn sets the rank a RankedAlphagrams query selects.
+func (qg *QueryGen) SetRankColumn(c RankColumn) {
+	qg.rankColumn = c
 }
 
 func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchParam) (Clause, error) {
@@ -317,6 +340,13 @@ func (qg *QueryGen) generateWhereClause(sp *wordsearcher.SearchRequest_SearchPar
 			return nil, errors.New("minmax not provided for difficulty range request")
 		}
 		return NewWhereBetweenClause(alphagramsTable, "difficulty", minmax), nil
+
+	case wordsearcher.SearchRequest_PLAYABILITY_RANGE:
+		minmax := sp.GetMinmax()
+		if minmax == nil {
+			return nil, errors.New("minmax not provided for playability range request")
+		}
+		return NewWhereBetweenClause(alphagramsTable, "playability", minmax), nil
 
 	case wordsearcher.SearchRequest_NUMBER_OF_VOWELS:
 		minmax := sp.GetMinmax()
@@ -576,6 +606,7 @@ func (qg *QueryGen) maybeChunk(clauses []Clause) (bool, []string,
 				}
 				newRenderedWhereClauses := append(renderedWhereClauses, r)
 				query := NewQuery(append(bindParams, bp...), qg.queryType)
+				query.rankColumn = qg.rankColumn
 				query.Render(newRenderedWhereClauses, "")
 				queries = append(queries, query)
 				multipleQueriesGenerated = true
@@ -646,6 +677,7 @@ func (qg *QueryGen) Generate() ([]*Query, error) {
 		log.Debug().Interface("bindParams", bindParams).Interface("rwc", rwc).Interface("renderedLOClause", renderedLOClause).
 			Msg("bd")
 		query := NewQuery(bindParams, qg.queryType)
+		query.rankColumn = qg.rankColumn
 		query.Render(rwc, renderedLOClause)
 		queries = append(queries, query)
 
