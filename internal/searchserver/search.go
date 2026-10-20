@@ -32,6 +32,9 @@ func (s *Server) Search(ctx context.Context, req *connect.Request[pb.SearchReque
 		return nil, err
 	}
 	defer db.Close()
+	if err := checkPlayabilityRange(ctx, db, qgen.LexiconName(), req.Msg.Searchparams); err != nil {
+		return nil, err
+	}
 
 	queries, err := qgen.Generate()
 	if err != nil {

@@ -73,5 +73,16 @@ func TestRankedAlphagramsPlayability(t *testing.T) {
 			SearchDescLength(7, 7)}, querygen.RankByPlayability)
 		assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err), lex)
 		assert.Contains(t, err.Error(), "has no playability data", lex)
+
+		// A playability range is an error too, whatever the order.
+		_, err = s.RankedAlphagrams(ctx, lex, []*pb.SearchRequest_SearchParam{
+			SearchDescLength(7, 7), SearchDescPlayabilityRange(1, 10)}, querygen.RankByProbability)
+		assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err), lex)
+		assert.Contains(t, err.Error(), "has no playability data", lex)
+
+		_, err = s.Search(ctx, connect.NewRequest(WordSearch([]*pb.SearchRequest_SearchParam{
+			SearchDescLexicon(lex), SearchDescLength(7, 7), SearchDescPlayabilityRange(1, 10)}, false)))
+		assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err), lex)
+		assert.Contains(t, err.Error(), "has no playability data", lex)
 	}
 }

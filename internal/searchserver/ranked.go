@@ -57,6 +57,9 @@ func (s *Server) RankedAlphagrams(ctx context.Context, lexicon string,
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	defer db.Close()
+	if err := checkPlayabilityRange(ctx, db, lexicon, params); err != nil {
+		return nil, err
+	}
 
 	var out []RankedAlphagram
 	for _, q := range queries {
@@ -99,4 +102,27 @@ func (s *Server) RankedAlphagrams(ctx context.Context, lexicon string,
 func noRankError(lexicon string, rankBy querygen.RankColumn) error {
 	return connect.NewError(connect.CodeInvalidArgument,
 		fmt.Errorf("%s has no %s data", lexicon, rankBy))
+}
+
+// checkPlayabilityRange makes a playability range search on a lexicon
+// without playability data an error. Otherwise it would match nothing (the
+// column is NULL), or fail on the missing column in a database made before
+// version 7.
+func checkPlayabilityRange(ctx context.Context, db *sql.DB, lexicon string,
+	params []*pb.SearchRequest_SearchParam) error {
+
+	for _, p := range params {
+		if p.Condition != pb.SearchRequest_PLAYABILITY_RANGE {
+			continue
+		}
+		var one int
+		err := db.QueryRowContext(ctx,
+			`SELECT 1 FROM alphagrams WHERE playability IS NOT NULL LIMIT 1`).Scan(&one)
+		if errors.Is(err, sql.ErrNoRows) ||
+			(err != nil && strings.Contains(err.Error(), "no such column")) {
+			return noRankError(lexicon, querygen.RankByPlayability)
+		}
+		return err
+	}
+	return nil
 }
