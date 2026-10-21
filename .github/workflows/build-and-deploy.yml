@@ -50,10 +50,12 @@ jobs:
       - name: Prepare lexicon data
         run: |
           mkdir -p $WDB_DATA_PATH/lexica/db
-          mkdir -p $WDB_DATA_PATH/lexica/gaddag
+          # Word graphs aren't committed to the lexica repo; its script
+          # builds or fetches them (from the word lists, so before moving them).
+          word-game-lexica/build_kwgs.sh $WDB_DATA_PATH/lexica/gaddag \
+            America CSW15 CSW19 CSW21 CSW24 DISC2 ECWL FISE2 FRA20 FRA24 NSF22 NWL18 NWL20 NWL23 OSPS49 OSPS50 RD28
           mv word-game-lexica/*.txt $WDB_DATA_PATH/lexica
           mv word-game-lexica/letterdistributions $WDB_DATA_PATH/letterdistributions
-          mv word-game-lexica/gaddag/*.kwg $WDB_DATA_PATH/lexica/gaddag
 
       - name: Build searchserver
         run: |
