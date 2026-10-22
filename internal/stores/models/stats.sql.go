@@ -11,51 +11,80 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const getDailyLeaderboard = `-- name: GetDailyLeaderboard :many
-SELECT
-    u.username,
-    COUNT(*) AS cards_studied_today
-FROM
-    wordvault_cards wc
-JOIN
-    auth_user u ON wc.user_id = u.id
-WHERE
-    wc.fsrs_card->>'LastReview' >= to_char(
-        date_trunc('day',
-            now() AT TIME ZONE $1::text)
-                  AT TIME ZONE $1::text
-                  AT TIME ZONE 'UTC',
-        'YYYY-MM-DD"T"HH24:MI:SS'
-    )
-GROUP BY
-    u.username
-ORDER BY
-    cards_studied_today DESC
+const addDailyStudied = `-- name: AddDailyStudied :exec
+INSERT INTO wordvault_daily_studied (day, user_id, cards, wordwalls_cards)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (day, user_id) DO UPDATE
+SET
+    cards = wordvault_daily_studied.cards + EXCLUDED.cards,
+    wordwalls_cards = wordvault_daily_studied.wordwalls_cards + EXCLUDED.wordwalls_cards
 `
 
-type GetDailyLeaderboardRow struct {
-	Username          pgtype.Text
-	CardsStudiedToday int64
+type AddDailyStudiedParams struct {
+	Day            pgtype.Date
+	UserID         int64
+	Cards          int32
+	WordwallsCards int32
 }
 
-func (q *Queries) GetDailyLeaderboard(ctx context.Context, timezone string) ([]GetDailyLeaderboardRow, error) {
-	rows, err := q.db.Query(ctx, getDailyLeaderboard, timezone)
+// Adds to a user's studied counts for a leaderboard day.
+func (q *Queries) AddDailyStudied(ctx context.Context, arg AddDailyStudiedParams) error {
+	_, err := q.db.Exec(ctx, addDailyStudied,
+		arg.Day,
+		arg.UserID,
+		arg.Cards,
+		arg.WordwallsCards,
+	)
+	return err
+}
+
+const backfillDailyStudied = `-- name: BackfillDailyStudied :execrows
+INSERT INTO wordvault_daily_studied (day, user_id, cards)
+SELECT
+    day,
+    user_id,
+    COUNT(*)
+FROM (
+    SELECT DISTINCT
+        c.user_id,
+        c.lexicon_name,
+        c.alphagram,
+        ((e.entry->>'Review')::timestamptz AT TIME ZONE 'America/Los_Angeles')::date AS day
+    FROM
+        wordvault_cards c
+    CROSS JOIN LATERAL
+        jsonb_array_elements(c.review_log) AS e(entry)
+    WHERE
+        -- Review times are UTC RFC3339 ending in Z, like LastReview, so
+        -- they compare as text against the UTC start of first_day.
+        c.fsrs_card->>'LastReview' >= to_char(
+            $1::date::timestamp AT TIME ZONE 'America/Los_Angeles' AT TIME ZONE 'UTC',
+            'YYYY-MM-DD"T"HH24:MI:SS')
+        AND e.entry->>'Review' >= to_char(
+            $1::date::timestamp AT TIME ZONE 'America/Los_Angeles' AT TIME ZONE 'UTC',
+            'YYYY-MM-DD"T"HH24:MI:SS')
+        -- Skip Cardbox import entries (rating 0).
+        AND (e.entry->>'Rating')::int BETWEEN 1 AND 4
+) reviewed
+GROUP BY
+    day,
+    user_id
+ON CONFLICT (day, user_id) DO UPDATE
+SET
+    cards = GREATEST(wordvault_daily_studied.cards, EXCLUDED.cards)
+`
+
+// Recomputes the studied counts for every leaderboard day from first_day on,
+// from the review logs: each card counts once a day it has a review. Only
+// cards last reviewed since first_day can have one, so they're the only
+// cards whose logs need reading. Existing counts are kept if higher, since
+// scoring adds to them while this runs.
+func (q *Queries) BackfillDailyStudied(ctx context.Context, firstDay pgtype.Date) (int64, error) {
+	result, err := q.db.Exec(ctx, backfillDailyStudied, firstDay)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	defer rows.Close()
-	var items []GetDailyLeaderboardRow
-	for rows.Next() {
-		var i GetDailyLeaderboardRow
-		if err := rows.Scan(&i.Username, &i.CardsStudiedToday); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+	return result.RowsAffected(), nil
 }
 
 const getDailyProgress = `-- name: GetDailyProgress :one
@@ -251,6 +280,52 @@ func (q *Queries) GetDailyProgressByDeck(ctx context.Context, arg GetDailyProgre
 			&i.ReviewedRating4,
 			&i.Repeats,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getLeaderboard = `-- name: GetLeaderboard :many
+SELECT
+    u.username,
+    s.day,
+    s.cards
+FROM
+    wordvault_daily_studied s
+JOIN
+    auth_user u ON s.user_id = u.id
+WHERE
+    s.day BETWEEN $1 AND $2
+    AND s.cards > 0
+`
+
+type GetLeaderboardParams struct {
+	FirstDay pgtype.Date
+	LastDay  pgtype.Date
+}
+
+type GetLeaderboardRow struct {
+	Username pgtype.Text
+	Day      pgtype.Date
+	Cards    int32
+}
+
+// Cards studied per user per day, from first_day through last_day.
+func (q *Queries) GetLeaderboard(ctx context.Context, arg GetLeaderboardParams) ([]GetLeaderboardRow, error) {
+	rows, err := q.db.Query(ctx, getLeaderboard, arg.FirstDay, arg.LastDay)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetLeaderboardRow
+	for rows.Next() {
+		var i GetLeaderboardRow
+		if err := rows.Scan(&i.Username, &i.Day, &i.Cards); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

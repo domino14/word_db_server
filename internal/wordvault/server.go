@@ -602,6 +602,12 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 	if err != nil {
 		return nil, err
 	}
+	if !studiedSince(revlog, leaderboardDayStart(now)) {
+		err = addDailyStudied(ctx, qtx, int64(user.DBID), now, 1, 0)
+		if err != nil {
+			return nil, err
+		}
+	}
 	err = tx.Commit(ctx)
 	if err != nil {
 		return nil, err
@@ -693,7 +699,7 @@ func (s *Server) ScoreCards(ctx context.Context, req *connect.Request[pb.ScoreCa
 	for i, a := range req.Msg.Alphagrams {
 		scores[i] = &pb.CardScore{Alphagram: a, Score: req.Msg.Score}
 	}
-	scored, notScored, err := s.scoreCardsInTx(ctx, int64(user.DBID), req.Msg.Lexicon, scores)
+	scored, notScored, err := s.scoreCardsInTx(ctx, int64(user.DBID), req.Msg.Lexicon, scores, false)
 	if err != nil {
 		return nil, err
 	}
@@ -708,7 +714,8 @@ func (s *Server) ScoreCards(ctx context.Context, req *connect.Request[pb.ScoreCa
 
 // BatchScoreCards scores several cards in one transaction, each with its own
 // score. Cards that don't exist or were just reviewed are skipped and
-// reported back.
+// reported back. Only Wordwalls uses it, so its cards count as Wordwalls
+// cards in the leaderboard rollup.
 func (s *Server) BatchScoreCards(ctx context.Context, req *connect.Request[pb.BatchScoreCardsRequest]) (
 	*connect.Response[pb.BatchScoreCardsResponse], error) {
 	user := auth.UserFromContext(ctx)
@@ -723,7 +730,7 @@ func (s *Server) BatchScoreCards(ctx context.Context, req *connect.Request[pb.Ba
 			return nil, invalidArgError("invalid score")
 		}
 	}
-	scored, notScored, err := s.scoreCardsInTx(ctx, int64(user.DBID), req.Msg.Lexicon, req.Msg.Scores)
+	scored, notScored, err := s.scoreCardsInTx(ctx, int64(user.DBID), req.Msg.Lexicon, req.Msg.Scores, true)
 	if err != nil {
 		return nil, err
 	}
@@ -739,9 +746,10 @@ func (s *Server) BatchScoreCards(ctx context.Context, req *connect.Request[pb.Ba
 // scoreCardsInTx scores the given cards in one transaction. It returns the
 // cards it scored and the requested alphagrams it skipped, because there is
 // no such card or the card was just reviewed. Alphagrams are reported back as
-// they were given.
+// they were given. fromWordwalls counts the scored cards as Wordwalls cards
+// in the leaderboard rollup.
 func (s *Server) scoreCardsInTx(ctx context.Context, userID int64, lexicon string,
-	scores []*pb.CardScore) ([]*pb.ScoredCard, []string, error) {
+	scores []*pb.CardScore, fromWordwalls bool) ([]*pb.ScoredCard, []string, error) {
 
 	if len(scores) > s.Config.MaxCardsAdd {
 		return nil, nil, invalidArgError(fmt.Sprintf("cannot score more than %d cards at a time", s.Config.MaxCardsAdd))
@@ -793,6 +801,8 @@ func (s *Server) scoreCardsInTx(ctx context.Context, userID int64, lexicon strin
 	// Cards in different decks can have different scheduling parameters.
 	deckParams := map[int64]fsrs.Parameters{}
 	due := make([]*time.Time, len(scores))
+	dayStart := leaderboardDayStart(now)
+	numScored, numFirstToday := 0, 0
 	for i := range rows {
 		idx, ok := reqIdx[rows[i].Alphagram]
 		if !ok || due[idx] != nil || justReviewed(rows[i].ReviewLog, now) {
@@ -812,6 +822,18 @@ func (s *Server) scoreCardsInTx(ctx context.Context, userID int64, lexicon strin
 			return nil, nil, err
 		}
 		due[idx] = &card.Due
+		numScored++
+		if !studiedSince(rows[i].ReviewLog, dayStart) {
+			numFirstToday++
+		}
+	}
+	numWordwalls := 0
+	if fromWordwalls {
+		numWordwalls = numScored
+	}
+	err = addDailyStudied(ctx, qtx, userID, now, numFirstToday, numWordwalls)
+	if err != nil {
+		return nil, nil, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return nil, nil, err
@@ -1652,29 +1674,6 @@ func (s *Server) GetDailyProgressByDeck(ctx context.Context, req *connect.Reques
 	}
 
 	return connect.NewResponse(&pb.GetDailyProgressByDeckResponse{Items: items}), nil
-}
-
-func (s *Server) GetDailyLeaderboard(ctx context.Context, req *connect.Request[pb.GetDailyLeaderboardRequest]) (
-	*connect.Response[pb.GetDailyLeaderboardResponse], error) {
-
-	// interceptor still requires login, but we don't check it here  🤔
-
-	leaderboardRows, err := s.Queries.GetDailyLeaderboard(ctx, req.Msg.Timezone)
-	if err != nil {
-		return nil, err
-	}
-
-	resp := &pb.GetDailyLeaderboardResponse{
-		Items: make([]*pb.GetDailyLeaderboardResponse_LeaderboardItem, len(leaderboardRows)),
-	}
-
-	for i := range leaderboardRows {
-		resp.Items[i] = &pb.GetDailyLeaderboardResponse_LeaderboardItem{
-			User:         leaderboardRows[i].Username.String,
-			CardsStudied: int32(leaderboardRows[i].CardsStudiedToday),
-		}
-	}
-	return connect.NewResponse(resp), nil
 }
 
 func (s *Server) GetFsrsParameters(ctx context.Context, req *connect.Request[pb.GetFsrsParametersRequest]) (

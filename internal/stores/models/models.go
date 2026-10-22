@@ -26,6 +26,13 @@ type WordvaultCard struct {
 	DeckID        pgtype.Int8
 }
 
+type WordvaultDailyStudied struct {
+	Day            pgtype.Date
+	UserID         int64
+	Cards          int32
+	WordwallsCards int32
+}
+
 type WordvaultDeck struct {
 	ID                 int64
 	UserID             int64

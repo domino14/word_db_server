@@ -89,6 +89,9 @@ const (
 	// WordVaultServiceGetDailyLeaderboardProcedure is the fully-qualified name of the
 	// WordVaultService's GetDailyLeaderboard RPC.
 	WordVaultServiceGetDailyLeaderboardProcedure = "/wordvault.WordVaultService/GetDailyLeaderboard"
+	// WordVaultServiceGetWeeklyLeaderboardProcedure is the fully-qualified name of the
+	// WordVaultService's GetWeeklyLeaderboard RPC.
+	WordVaultServiceGetWeeklyLeaderboardProcedure = "/wordvault.WordVaultService/GetWeeklyLeaderboard"
 	// WordVaultServiceGetFsrsParametersProcedure is the fully-qualified name of the WordVaultService's
 	// GetFsrsParameters RPC.
 	WordVaultServiceGetFsrsParametersProcedure = "/wordvault.WordVaultService/GetFsrsParameters"
@@ -155,6 +158,7 @@ var (
 	wordVaultServiceGetDailyProgressMethodDescriptor         = wordVaultServiceServiceDescriptor.Methods().ByName("GetDailyProgress")
 	wordVaultServiceGetDailyProgressByDeckMethodDescriptor   = wordVaultServiceServiceDescriptor.Methods().ByName("GetDailyProgressByDeck")
 	wordVaultServiceGetDailyLeaderboardMethodDescriptor      = wordVaultServiceServiceDescriptor.Methods().ByName("GetDailyLeaderboard")
+	wordVaultServiceGetWeeklyLeaderboardMethodDescriptor     = wordVaultServiceServiceDescriptor.Methods().ByName("GetWeeklyLeaderboard")
 	wordVaultServiceGetFsrsParametersMethodDescriptor        = wordVaultServiceServiceDescriptor.Methods().ByName("GetFsrsParameters")
 	wordVaultServiceEditFsrsParametersMethodDescriptor       = wordVaultServiceServiceDescriptor.Methods().ByName("EditFsrsParameters")
 	wordVaultServicePreviewFsrsUpgradeMethodDescriptor       = wordVaultServiceServiceDescriptor.Methods().ByName("PreviewFsrsUpgrade")
@@ -192,6 +196,7 @@ type WordVaultServiceClient interface {
 	GetDailyProgress(context.Context, *connect.Request[wordvault.GetDailyProgressRequest]) (*connect.Response[wordvault.GetDailyProgressResponse], error)
 	GetDailyProgressByDeck(context.Context, *connect.Request[wordvault.GetDailyProgressByDeckRequest]) (*connect.Response[wordvault.GetDailyProgressByDeckResponse], error)
 	GetDailyLeaderboard(context.Context, *connect.Request[wordvault.GetDailyLeaderboardRequest]) (*connect.Response[wordvault.GetDailyLeaderboardResponse], error)
+	GetWeeklyLeaderboard(context.Context, *connect.Request[wordvault.GetWeeklyLeaderboardRequest]) (*connect.Response[wordvault.GetWeeklyLeaderboardResponse], error)
 	GetFsrsParameters(context.Context, *connect.Request[wordvault.GetFsrsParametersRequest]) (*connect.Response[wordvault.GetFsrsParametersResponse], error)
 	EditFsrsParameters(context.Context, *connect.Request[wordvault.EditFsrsParametersRequest]) (*connect.Response[wordvault.EditFsrsParametersResponse], error)
 	// Shows what UpgradeFsrs would do, without changing anything.
@@ -344,6 +349,13 @@ func NewWordVaultServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		getWeeklyLeaderboard: connect.NewClient[wordvault.GetWeeklyLeaderboardRequest, wordvault.GetWeeklyLeaderboardResponse](
+			httpClient,
+			baseURL+WordVaultServiceGetWeeklyLeaderboardProcedure,
+			connect.WithSchema(wordVaultServiceGetWeeklyLeaderboardMethodDescriptor),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 		getFsrsParameters: connect.NewClient[wordvault.GetFsrsParametersRequest, wordvault.GetFsrsParametersResponse](
 			httpClient,
 			baseURL+WordVaultServiceGetFsrsParametersProcedure,
@@ -456,6 +468,7 @@ type wordVaultServiceClient struct {
 	getDailyProgress         *connect.Client[wordvault.GetDailyProgressRequest, wordvault.GetDailyProgressResponse]
 	getDailyProgressByDeck   *connect.Client[wordvault.GetDailyProgressByDeckRequest, wordvault.GetDailyProgressByDeckResponse]
 	getDailyLeaderboard      *connect.Client[wordvault.GetDailyLeaderboardRequest, wordvault.GetDailyLeaderboardResponse]
+	getWeeklyLeaderboard     *connect.Client[wordvault.GetWeeklyLeaderboardRequest, wordvault.GetWeeklyLeaderboardResponse]
 	getFsrsParameters        *connect.Client[wordvault.GetFsrsParametersRequest, wordvault.GetFsrsParametersResponse]
 	editFsrsParameters       *connect.Client[wordvault.EditFsrsParametersRequest, wordvault.EditFsrsParametersResponse]
 	previewFsrsUpgrade       *connect.Client[wordvault.PreviewFsrsUpgradeRequest, wordvault.PreviewFsrsUpgradeResponse]
@@ -567,6 +580,11 @@ func (c *wordVaultServiceClient) GetDailyLeaderboard(ctx context.Context, req *c
 	return c.getDailyLeaderboard.CallUnary(ctx, req)
 }
 
+// GetWeeklyLeaderboard calls wordvault.WordVaultService.GetWeeklyLeaderboard.
+func (c *wordVaultServiceClient) GetWeeklyLeaderboard(ctx context.Context, req *connect.Request[wordvault.GetWeeklyLeaderboardRequest]) (*connect.Response[wordvault.GetWeeklyLeaderboardResponse], error) {
+	return c.getWeeklyLeaderboard.CallUnary(ctx, req)
+}
+
 // GetFsrsParameters calls wordvault.WordVaultService.GetFsrsParameters.
 func (c *wordVaultServiceClient) GetFsrsParameters(ctx context.Context, req *connect.Request[wordvault.GetFsrsParametersRequest]) (*connect.Response[wordvault.GetFsrsParametersResponse], error) {
 	return c.getFsrsParameters.CallUnary(ctx, req)
@@ -658,6 +676,7 @@ type WordVaultServiceHandler interface {
 	GetDailyProgress(context.Context, *connect.Request[wordvault.GetDailyProgressRequest]) (*connect.Response[wordvault.GetDailyProgressResponse], error)
 	GetDailyProgressByDeck(context.Context, *connect.Request[wordvault.GetDailyProgressByDeckRequest]) (*connect.Response[wordvault.GetDailyProgressByDeckResponse], error)
 	GetDailyLeaderboard(context.Context, *connect.Request[wordvault.GetDailyLeaderboardRequest]) (*connect.Response[wordvault.GetDailyLeaderboardResponse], error)
+	GetWeeklyLeaderboard(context.Context, *connect.Request[wordvault.GetWeeklyLeaderboardRequest]) (*connect.Response[wordvault.GetWeeklyLeaderboardResponse], error)
 	GetFsrsParameters(context.Context, *connect.Request[wordvault.GetFsrsParametersRequest]) (*connect.Response[wordvault.GetFsrsParametersResponse], error)
 	EditFsrsParameters(context.Context, *connect.Request[wordvault.EditFsrsParametersRequest]) (*connect.Response[wordvault.EditFsrsParametersResponse], error)
 	// Shows what UpgradeFsrs would do, without changing anything.
@@ -806,6 +825,13 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	wordVaultServiceGetWeeklyLeaderboardHandler := connect.NewUnaryHandler(
+		WordVaultServiceGetWeeklyLeaderboardProcedure,
+		svc.GetWeeklyLeaderboard,
+		connect.WithSchema(wordVaultServiceGetWeeklyLeaderboardMethodDescriptor),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	wordVaultServiceGetFsrsParametersHandler := connect.NewUnaryHandler(
 		WordVaultServiceGetFsrsParametersProcedure,
 		svc.GetFsrsParameters,
@@ -934,6 +960,8 @@ func NewWordVaultServiceHandler(svc WordVaultServiceHandler, opts ...connect.Han
 			wordVaultServiceGetDailyProgressByDeckHandler.ServeHTTP(w, r)
 		case WordVaultServiceGetDailyLeaderboardProcedure:
 			wordVaultServiceGetDailyLeaderboardHandler.ServeHTTP(w, r)
+		case WordVaultServiceGetWeeklyLeaderboardProcedure:
+			wordVaultServiceGetWeeklyLeaderboardHandler.ServeHTTP(w, r)
 		case WordVaultServiceGetFsrsParametersProcedure:
 			wordVaultServiceGetFsrsParametersHandler.ServeHTTP(w, r)
 		case WordVaultServiceEditFsrsParametersProcedure:
@@ -1045,6 +1073,10 @@ func (UnimplementedWordVaultServiceHandler) GetDailyProgressByDeck(context.Conte
 
 func (UnimplementedWordVaultServiceHandler) GetDailyLeaderboard(context.Context, *connect.Request[wordvault.GetDailyLeaderboardRequest]) (*connect.Response[wordvault.GetDailyLeaderboardResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.GetDailyLeaderboard is not implemented"))
+}
+
+func (UnimplementedWordVaultServiceHandler) GetWeeklyLeaderboard(context.Context, *connect.Request[wordvault.GetWeeklyLeaderboardRequest]) (*connect.Response[wordvault.GetWeeklyLeaderboardResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("wordvault.WordVaultService.GetWeeklyLeaderboard is not implemented"))
 }
 
 func (UnimplementedWordVaultServiceHandler) GetFsrsParameters(context.Context, *connect.Request[wordvault.GetFsrsParametersRequest]) (*connect.Response[wordvault.GetFsrsParametersResponse], error) {
