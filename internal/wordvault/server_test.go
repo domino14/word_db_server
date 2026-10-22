@@ -576,6 +576,63 @@ func TestGetCards(t *testing.T) {
 
 }
 
+func TestScoreCardTimesMissed(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+	fakenower := &FakeNower{}
+	s.Nower = fakenower
+
+	fakenower.fakenow, err = time.Parse(time.RFC3339, "2024-09-01T12:00:00Z")
+	is.NoErr(err)
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"AEFFGINR"},
+	}))
+	is.NoErr(err)
+
+	score := func(sc pb.Score) *pb.ScoreCardResponse {
+		res, err := s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+			Score: sc, Lexicon: "NWL23", Alphagram: "AEFFGINR",
+		}))
+		is.NoErr(err)
+		fakenower.fakenow = res.Msg.NextScheduled.AsTime().Add(time.Hour)
+		return res.Msg
+	}
+
+	// Missing a new card is not a lapse, but it is a miss.
+	res := score(pb.Score_SCORE_AGAIN)
+	is.Equal(res.TimesMissed, uint32(1))
+	card := fsrs.Card{}
+	is.NoErr(json.Unmarshal(res.CardJsonRepr, &card))
+	is.Equal(card.Lapses, uint64(0))
+
+	res = score(pb.Score_SCORE_GOOD)
+	is.Equal(res.TimesMissed, uint32(1))
+	res = score(pb.Score_SCORE_AGAIN)
+	is.Equal(res.TimesMissed, uint32(2))
+
+	// Changing the last score from AGAIN to GOOD takes that miss back.
+	fakenower.fakenow = fakenower.fakenow.Add(5 * time.Second)
+	edited, err := s.EditLastScore(ctx, connect.NewRequest(&pb.EditLastScoreRequest{
+		NewScore: pb.Score_SCORE_GOOD, Lexicon: "NWL23", Alphagram: "AEFFGINR",
+	}))
+	is.NoErr(err)
+	is.Equal(edited.Msg.TimesMissed, uint32(1))
+}
+
 func TestEditCardScore(t *testing.T) {
 	is := is.New(t)
 

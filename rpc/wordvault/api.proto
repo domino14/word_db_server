@@ -62,6 +62,9 @@ message ScoreCardRequest {
 message ScoreCardResponse {
   google.protobuf.Timestamp next_scheduled = 1;
   bytes card_json_repr = 2;
+  // How many times the card has been rated AGAIN, including this score. The
+  // FSRS card's Lapses only counts misses of cards in the Review state.
+  uint32 times_missed = 3;
 }
 
 // ScoreCardsRequest gives the same score to several cards at once, e.g. to

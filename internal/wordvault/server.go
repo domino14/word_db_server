@@ -620,12 +620,28 @@ func (s *Server) ScoreCard(ctx context.Context, req *connect.Request[pb.ScoreCar
 	return connect.NewResponse(&pb.ScoreCardResponse{
 		NextScheduled: timestamppb.New(card.Due),
 		CardJsonRepr:  cardJson,
+		TimesMissed:   timesMissed(revlog, fsrs.Rating(req.Msg.Score)),
 	}), nil
 
 }
 
 func justReviewed(revlog []stores.ReviewLog, now time.Time) bool {
 	return len(revlog) > 0 && now.Sub(revlog[len(revlog)-1].Review) < JustReviewedInterval
+}
+
+// timesMissed counts the AGAIN ratings in a review log, plus one if the
+// rating about to be logged is AGAIN. Imports are not ratings.
+func timesMissed(revlog []stores.ReviewLog, rating fsrs.Rating) uint32 {
+	n := uint32(0)
+	for _, rl := range revlog {
+		if rl.ImportLog == nil && rl.Rating == fsrs.Again {
+			n++
+		}
+	}
+	if rating == fsrs.Again {
+		n++
+	}
+	return n
 }
 
 // scoreAndUpdateCard applies a rating to a card and saves the new card state
@@ -921,9 +937,12 @@ func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.Edit
 	if err != nil {
 		return nil, err
 	}
+	// The last log entry was replaced, so don't count it.
 	return connect.NewResponse(&pb.ScoreCardResponse{
 		NextScheduled: timestamppb.New(card.Due),
 		CardJsonRepr:  cardJson,
+		TimesMissed: timesMissed(cardrow.ReviewLog[:len(cardrow.ReviewLog)-1],
+			fsrs.Rating(req.Msg.NewScore)),
 	}), nil
 
 }
