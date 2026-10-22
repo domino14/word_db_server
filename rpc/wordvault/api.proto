@@ -239,7 +239,10 @@ message GetDailyProgressByDeckResponse {
   repeated DailyProgressByDeckItem items = 1;
 }
 
-message GetDailyLeaderboardRequest { string timezone = 1; }
+// Leaderboard days are America/Los_Angeles days, whatever the timezone.
+message GetDailyLeaderboardRequest {
+  string timezone = 1 [deprecated = true];
+}
 
 message GetDailyLeaderboardResponse {
   message LeaderboardItem {
@@ -247,6 +250,23 @@ message GetDailyLeaderboardResponse {
     int32 cards_studied = 2;
   }
   repeated LeaderboardItem items = 1;
+}
+
+message GetWeeklyLeaderboardRequest {}
+
+message GetWeeklyLeaderboardResponse {
+  message LeaderboardItem {
+    string user = 1;
+    // Cards studied on each of the days, in the same order.
+    repeated int32 cards_studied_by_day = 2;
+    // Cards studied over the week.
+    int32 cards_studied = 3;
+  }
+  // The last seven leaderboard (America/Los_Angeles) days as YYYY-MM-DD,
+  // oldest first. The last one is today.
+  repeated string days = 1;
+  // Most cards studied over the week first.
+  repeated LeaderboardItem items = 2;
 }
 
 enum FsrsScheduler {
@@ -562,6 +582,10 @@ service WordVaultService {
   };
   rpc GetDailyLeaderboard(GetDailyLeaderboardRequest)
       returns (GetDailyLeaderboardResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  };
+  rpc GetWeeklyLeaderboard(GetWeeklyLeaderboardRequest)
+      returns (GetWeeklyLeaderboardResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   };
   rpc GetFsrsParameters(GetFsrsParametersRequest)
