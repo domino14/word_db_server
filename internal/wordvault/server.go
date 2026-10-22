@@ -937,7 +937,8 @@ func (s *Server) EditLastScore(ctx context.Context, req *connect.Request[pb.Edit
 	if err != nil {
 		return nil, err
 	}
-	// The last log entry was replaced, so don't count it.
+	// cardrow.ReviewLog still ends with the score being replaced; count the
+	// new score instead.
 	return connect.NewResponse(&pb.ScoreCardResponse{
 		NextScheduled: timestamppb.New(card.Due),
 		CardJsonRepr:  cardJson,
