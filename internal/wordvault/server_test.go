@@ -171,6 +171,59 @@ func TestAddCardsAndQuiz(t *testing.T) {
 	}
 }
 
+func TestNextScheduledReviewsBeforeNew(t *testing.T) {
+	is := is.New(t)
+
+	err := RecreateTestDB()
+	if err != nil {
+		panic(err)
+	}
+	ctx := ctxForTests()
+
+	dbPool, err := pgxpool.New(ctx, testDBURI(true))
+	is.NoErr(err)
+	defer dbPool.Close()
+
+	q := models.New(dbPool)
+
+	s := NewServer(DefaultConfig, dbPool, q, &searchserver.Server{Config: DefaultConfig})
+	fakenower := &FakeNower{}
+	s.Nower = fakenower
+
+	// The new cards are added first, so they have been due the longest.
+	fakenower.fakenow, err = time.Parse(time.RFC3339, "2024-09-01T12:00:00Z")
+	is.NoErr(err)
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"ADEEGMMO", "ADEEHMMO"},
+	}))
+	is.NoErr(err)
+
+	fakenower.fakenow = fakenower.fakenow.Add(time.Hour)
+	_, err = s.AddCards(ctx, connect.NewRequest(&pb.AddCardsRequest{
+		Lexicon:    "NWL23",
+		Alphagrams: []string{"AEFFGINR"},
+	}))
+	is.NoErr(err)
+	res, err := s.ScoreCard(ctx, connect.NewRequest(&pb.ScoreCardRequest{
+		Score:     pb.Score_SCORE_GOOD,
+		Lexicon:   "NWL23",
+		Alphagram: "AEFFGINR",
+	}))
+	is.NoErr(err)
+
+	fakenower.fakenow = res.Msg.NextScheduled.AsTime().Add(time.Hour)
+	cards, err := s.GetNextScheduled(ctx, connect.NewRequest(&pb.GetNextScheduledRequest{
+		Lexicon: "NWL23", Limit: 2,
+	}))
+	is.NoErr(err)
+	is.Equal(len(cards.Msg.Cards), 2)
+	is.Equal(cards.Msg.Cards[0].Alphagram.Alphagram, "AEFFGINR")
+	card := fsrs.Card{}
+	is.NoErr(json.Unmarshal(cards.Msg.Cards[1].CardJsonRepr, &card))
+	is.Equal(card.State, fsrs.New)
+}
+
 type FakeNower struct{ fakenow time.Time }
 
 func (f FakeNower) Now() time.Time {

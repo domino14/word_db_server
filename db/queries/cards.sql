@@ -48,7 +48,11 @@ SELECT alphagram, next_scheduled, fsrs_card, COALESCE(deck_id, 0) as deck_id
 FROM wordvault_cards
 WHERE user_id = $1 AND lexicon_name = $2 AND next_scheduled <= $3
     AND COALESCE(deck_id, 0) = sqlc.arg(deck_id)::bigint
-ORDER BY next_scheduled ASC
+ORDER BY
+    -- Due reviews come before new cards, whose next_scheduled is when they
+    -- were added, so a backlog of new cards doesn't crowd out reviews.
+    CAST(fsrs_card->'State' AS INTEGER) = 0,
+    next_scheduled ASC
 LIMIT $4;
 
 -- name: GetSingleNextScheduled :one
